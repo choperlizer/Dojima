@@ -1,4 +1,4 @@
 Tulpenmanie
 ===========
 
-Commodity markets client
+A PyQt4 Commodity markets client
