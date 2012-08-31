@@ -2,7 +2,7 @@ import logging
 
 from PyQt4 import QtCore, QtGui
 
-#from tulpenmanie.model.base import FlatSettingsModel
+#from model.base import FlatSettingsModel
 
 
 logger = logging.getLogger(__name__)

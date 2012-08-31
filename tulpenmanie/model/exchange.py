@@ -1,10 +1,10 @@
 from PyQt4 import QtCore, QtGui
 
-from tulpenmanie.model.base import FlatSettingsModel
+from model.base import FlatSettingsModel
 
 # maybe this should go somewhere else
-#from tulpenmanie import services
-#from tulpenmanie.providers import *
+#from import services
+#from providers import *
 
 
 class ExchangesModel(FlatSettingsModel):

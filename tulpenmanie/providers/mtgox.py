@@ -8,10 +8,10 @@ from decimal import Decimal
 
 from PyQt4 import QtCore, QtGui, QtNetwork
 
-from tulpenmanie.model.account import AccountsModel
-from tulpenmanie.model.order import OrdersModel
-from tulpenmanie.services import BaseExchangeMarket, register_exchange, register_exchange_account, register_account_model
-
+from model.account import AccountsModel
+from model.order import OrdersModel
+#from services import BaseExchangeMarket, register_exchange, register_exchange_account, register_account_model
+import services
 
 logger = logging.getLogger(__name__)
 EXCHANGE_NAME = "MtGox"
@@ -253,10 +253,9 @@ class MtgoxAccount(_Mtgox):
             data =_generic_handler(reply)
             logger.debug(data)
 
-class MtgoxExchangeMarket(_Mtgox, BaseExchangeMarket):
+class MtgoxExchangeMarket(_Mtgox):
 
     register_url = None
-    #icon_url = "https://mtgox.com/favicon.ico"
     markets = ( 'BTCUSD', 'BTCAUD', 'BTCCAD', 'BTCCHF', 'BTCCNY',
                 'BTCDKK', 'BTCEUR', 'BTCGBP', 'BTCHKD', 'BTCJPY',
                 'BTCNZD', 'BTCPLN', 'BTCRUB', 'BTCSEK', 'BTCSGD',
@@ -339,6 +338,6 @@ class MtgoxAccountModel(AccountsModel):
                          QtGui.QStandardItem()) )
         return item.row()
 
-register_exchange(MtgoxExchangeMarket)
-register_exchange_account(MtgoxAccount)
-register_account_model(MtgoxAccountModel)
+services.register_exchange(MtgoxExchangeMarket)
+services.register_exchange_account(MtgoxAccount)
+services.register_account_model(MtgoxAccountModel)

@@ -5,15 +5,15 @@ import os
 import sys
 
 
-from tulpenmanie.model.commodity import CommoditiesModel
-from tulpenmanie.model.market import MarketsModel
-from tulpenmanie.model.exchange import ExchangesModel
-from tulpenmanie.network import NetworkAccessManager
+from model.commodity import CommoditiesModel
+from model.market import MarketsModel
+from model.exchange import ExchangesModel
+from network import NetworkAccessManager
 
-from tulpenmanie import services
-from tulpenmanie.providers import *
+import services
+from providers import *
 
-from tulpenmanie.ui.mainwindow import MainWindow
+from ui.mainwindow import MainWindow
 
 class Manager(QtGui.QApplication):
 
@@ -58,7 +58,7 @@ class Manager(QtGui.QApplication):
         return res
 
 
-def main():
+if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG)
     manager = Manager(sys.argv)
     sys.exit(manager.run())

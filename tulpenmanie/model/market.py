@@ -1,6 +1,6 @@
 from PyQt4 import QtCore, QtGui
 
-from tulpenmanie.model.base import FlatSettingsModel
+from model.base import FlatSettingsModel
 
 
 class MarketsModel(FlatSettingsModel):

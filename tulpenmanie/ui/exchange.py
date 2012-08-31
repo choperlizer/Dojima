@@ -1,7 +1,7 @@
 from PyQt4 import QtCore, QtGui
 
-from tulpenmanie.model.exchange import *
-from tulpenmanie.ui.widget import BigCommodityWidget, CommodityWidget, UuidComboBox
+from model.exchange import *
+from ui.widget import BigCommodityWidget, CommodityWidget, UuidComboBox
 
 class EditExchangesTab(QtGui.QWidget):
 
@@ -18,6 +18,7 @@ class EditExchangesTab(QtGui.QWidget):
         enable_check = QtGui.QCheckBox()
 
         new_button = QtGui.QPushButton("new")
+        save_button = QtGui.QPushButton("save")
         delete_button = QtGui.QPushButton("delete")
 
         edit_layout = QtGui.QFormLayout()
@@ -35,8 +36,10 @@ class EditExchangesTab(QtGui.QWidget):
 
         # Model
         self.model = self.manager.exchanges_model
-        # maybe could be better
+
         self.provider_model = QtGui.QStandardItemModel()
+
+        # maybe could be better
         for Exchange in self.manager.exchange_classes.values():
             provider_item = QtGui.QStandardItem(Exchange.name)
             self.provider_model.appendRow(provider_item)
@@ -49,33 +52,36 @@ class EditExchangesTab(QtGui.QWidget):
         market_combo.setModel(self.manager.markets_model)
         market_combo.setModelColumn(self.manager.markets_model.NAME)
 
-
-        for Exchange in self.manager.exchange_classes.values():
-            provider_combo.addItem(Exchange.name)
+        provider_combo.setModel(self.provider_model)
+        self.remote_combo.setModel(self.provider_model)
 
         self.mapper = QtGui.QDataWidgetMapper(self)
         self.mapper.setModel(self.model)
         self.mapper.setSubmitPolicy(QtGui.QDataWidgetMapper.AutoSubmit)
-        self.mapper.addMapping(market_combo, model.MARKET, 'currentUuid')
-        self.mapper.addMapping(provider_combo, model.PROVIDER)#, 'currentText')
-        self.mapper.addMapping(self.remote_combo, model.REMOTE)#, 'currentText')
-        self.mapper.addMapping(enable_check, model.ENABLE)
+        self.mapper.addMapping(market_combo, self.model.MARKET, 'currentUuid')
+        self.mapper.addMapping(provider_combo, self.model.PROVIDER)#, 'currentText')
+        self.mapper.addMapping(self.remote_combo, self.model.REMOTE)#, 'currentText')
+        self.mapper.addMapping(enable_check, self.model.ENABLE)
 
         # Connections
-        self.list_view.activated.connect(self.mapper.setCurrentModelIndex)
+        #self.list_view.activated.connect(self.mapper.setCurrentModelIndex)
+        self.list_view.clicked.connect(self._exchange_changed)
         provider_combo.currentIndexChanged.connect(self._provider_changed)
         new_button.clicked.connect(self._new)
         delete_button.clicked.connect(self._delete)
 
         # Load data
-        self.list_view.setCurrentIndex(self.model.index(0, model.NAME))
+        self.list_view.setCurrentIndex(model.index(0, model.NAME))
         self.mapper.toFirst()
-        self.remote_combo.setRootModelIndex(self.provider_model.index(0,0))
+        #self.remote_combo.setRootModelIndex(self.self.provider_model.index(0,0))
+
+
+    def _exchange_changed(self, index):
+        self.mapper.setCurrentIndex(index.row())
 
     def _provider_changed(self, row):
-        pass
-
-
+        index = self.provider_model.index(row, 0)
+        self.remote_combo.setRootModelIndex(index)
 
     def _new(self):
         row = self.model.new_exchange()

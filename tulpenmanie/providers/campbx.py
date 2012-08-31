@@ -4,9 +4,9 @@ from decimal import Decimal
 
 from PyQt4 import QtCore, QtGui, QtNetwork
 
-from tulpenmanie.model.account import AccountsModel
-from tulpenmanie.model.order import OrdersModel
-from tulpenmanie.services import BaseExchangeMarket, register_exchange, register_exchange_account, register_account_model
+from model.account import AccountsModel
+from model.order import OrdersModel
+from services import BaseExchangeMarket, register_exchange, register_exchange_account, register_account_model
 
 
 logger = logging.getLogger(__name__)
@@ -232,8 +232,6 @@ class CampbxExchangeMarket(BaseExchangeMarket, _Campbx):
 
         self._request_queue = self.manager.network_manager.host_queue(
             HOSTNAME, 500)
-
-        self.icon = QtGui.QIcon("~/tulpenmanie/tulpenmaine/providers/campbx.ico")
 
         self.manager.network_manager.register_reply_handler(
             self._refresh_url, self._xticker_handler)

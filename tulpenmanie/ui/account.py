@@ -1,6 +1,6 @@
 from PyQt4 import QtCore, QtGui
 
-from tulpenmanie.ui.widget import CommoditySpinBox, CommodityWidget
+from ui.widget import CommoditySpinBox, CommodityWidget
 
 class EditExchangeAccountsTab(QtGui.QWidget):
 
@@ -69,8 +69,8 @@ class EditExchangeAccountsTab(QtGui.QWidget):
         self.edit_area.setCurrentIndex(row)
         self.mapper.toFirst()
 
-    def _account_changed(self, row):
-        self.mapper.setCurrentIndex(row)
+    def _account_changed(self, index):
+        self.mapper.setCurrentIndex(index.row())
 
     def _new(self):
         row = self.model.new_account()
@@ -145,12 +145,10 @@ class ExchangeAccountWidget(QtGui.QWidget):
 
         balance_label = QtGui.QLabel(
             QtCore.QCoreApplication.translate('exchange account widget',
-                                              'balance:') )
-        balance_label.setAlignment(QtCore.Qt.AlignRight)
-        slash_label = QtGui.QLabel("/")
+                                              ':balance:') )
         base_balance_label = CommodityWidget(base_row)
         counter_balance_label = CommodityWidget(counter_row)
-        for label in base_balance_label, slash_label, counter_balance_label:
+        for label in balance_label, base_balance_label, counter_balance_label:
             label.setAlignment(QtCore.Qt.AlignHCenter)
 
         pending_requests_label = QtGui.QLabel("pending requests: ")
@@ -161,26 +159,26 @@ class ExchangeAccountWidget(QtGui.QWidget):
         # Layout
         layout = QtGui.QVBoxLayout()
 
-        order_layout = QtGui.QGridLayout()
-        order_layout.addWidget(self.ask_amount_spin, 0,0)
-        order_layout.addWidget(self.ask_price_spin, 0,1)
-        order_layout.addWidget(ask_button, 0,2)
+        upper_layout = QtGui.QGridLayout()
 
-        order_layout.addWidget(self.bid_amount_spin, 1,0)
-        order_layout.addWidget(self.bid_price_spin, 1,1)
-        order_layout.addWidget(bid_button, 1,2)
-        layout.addLayout(order_layout)
 
-        layout.addWidget(self.ask_orders_view)
-        layout.addWidget(self.bid_orders_view)
+        upper_layout.addWidget(base_balance_label, 0,1, 1,2)
+        upper_layout.addWidget(balance_label, 0,2, 1,2)
+        upper_layout.addWidget(counter_balance_label, 0,3, 1,2)
 
-        balance_layout = QtGui.QHBoxLayout()
-        balance_layout.addWidget(balance_label)
-        balance_layout.addWidget(base_balance_label)
-        balance_layout.addWidget(slash_label)
-        balance_layout.addWidget(counter_balance_label)
-        balance_layout.addWidget(refresh_button)
-        layout.addLayout(balance_layout)
+        upper_layout.addWidget(refresh_button, 0,5)
+
+        upper_layout.addWidget(self.ask_amount_spin, 1,0)
+        upper_layout.addWidget(self.ask_price_spin, 1,1)
+        upper_layout.addWidget(ask_button, 1,2)
+
+        upper_layout.addWidget(self.bid_amount_spin, 1,3)
+        upper_layout.addWidget(self.bid_price_spin, 1,4)
+        upper_layout.addWidget(bid_button, 1,5)
+
+        upper_layout.addWidget(self.ask_orders_view, 2,0, 1,3)
+        upper_layout.addWidget(self.bid_orders_view, 2,3, 1,3)
+        layout.addLayout(upper_layout)
 
         network_layout = QtGui.QHBoxLayout()
         network_layout.addStretch()
