@@ -1,58 +1,63 @@
 from PyQt4 import QtCore, QtGui
 
 from ui.widget import CommoditySpinBox, CommodityWidget
+import providers
+
 
 class EditExchangeAccountsTab(QtGui.QWidget):
 
     def __init__(self, parent=None):
         super(EditExchangeAccountsTab, self).__init__(parent)
 
-        # Widgets
+        model = self.manager.exchanges_model
+
         exchange_combo = QtGui.QComboBox()
-        self.list_view = QtGui.QListView()
-        self.edit_area = QtGui.QStackedLayout()
-        new_button = QtGui.QPushButton("new")
-        delete_button = QtGui.QPushButton("delete")
+        exchange_combo.setModel(model)
 
-        # Models
-        ## BAD this
-        for exchange in self.manager.exchange_classes.values():
-            exchange_combo.addItem(exchange.name)
+        self.accounts_view = QtGui.QListView()
+        self.accounts_view.setModel(model)
 
-        self.models = self.manager.accounts_models.values()
+        self.stacked_layout = QtGui.QStackedLayout()
         self.mappers = []
-        for model in self.models:
+        for exchange_row in range(model.rowCount()):
+            exchange_item = model.item(exchange_row)
+            accounts_item = exchange_item.child(0, exchange_item.ACCOUNTS)
             widget = QtGui.QWidget()
-            layout = QtGui.QFormLayout()
             mapper = QtGui.QDataWidgetMapper()
             mapper.setModel(model)
+            mapper.setRootIndex(accounts_item.index())
             mapper.setSubmitPolicy(QtGui.QDataWidgetMapper.AutoSubmit)
-            for name, column in model.MAPPINGS[2:]:
+            self.mappers.append(mapper)
+
+            layout = QtGui.QFormLayout()
+            for name, column in exchange_item.account_mappings[1:]:
                 edit = QtGui.QLineEdit()
-                if column in model.hide:
+                if column in exchange_item.account_hide:
                     edit.setEchoMode(QtGui.QLineEdit.Password)
-                # TODO should set field validators
                 layout.addRow(name, edit)
                 mapper.addMapping(edit, column)
             enable_check = QtGui.QCheckBox()
             # TODO translate
             layout.addRow('enable', enable_check)
-            mapper.addMapping(enable_check, model.ENABLE)
+            mapper.addMapping(enable_check, exchange_item.ACCOUNT_ENABLE)
             widget.setLayout(layout)
-            self.edit_area.addWidget(widget)
-            self.mappers.append(mapper)
+            self.stacked_layout.addWidget(widget)
+
+        new_button = QtGui.QPushButton("new")
+        delete_button = QtGui.QPushButton("delete")
 
         grid_layout = QtGui.QGridLayout()
+        grid_layout.setColumnStretch(1, 1)
         grid_layout.addWidget(exchange_combo, 0,0)
-        grid_layout.addWidget(self.list_view, 1,0, 2,1)
-        grid_layout.addLayout(self.edit_area, 0,1, 2,2,)
+        grid_layout.addWidget(self.accounts_view, 1,0, 2,1)
+        grid_layout.addLayout(self.stacked_layout, 0,1, 2,2,)
         grid_layout.addWidget(new_button, 2,1)
         grid_layout.addWidget(delete_button, 2,2)
         self.setLayout(grid_layout)
 
         # Connections
         exchange_combo.currentIndexChanged.connect(self._exchange_changed)
-        self.list_view.activated.connect(self._account_changed)
+        self.accounts_view.clicked.connect(self._account_changed)
 
         new_button.clicked.connect(self._new)
         delete_button.clicked.connect(self._delete)
@@ -61,64 +66,62 @@ class EditExchangeAccountsTab(QtGui.QWidget):
         self._exchange_changed(0)
 
     def _exchange_changed(self, row):
-        self.model = self.models[row]
-        self.mapper = self.mappers[row]
+        self.exchange_item = self.manager.exchanges_model.item(row)
+        accounts_item = self.exchange_item.child(0, self.exchange_item.ACCOUNTS)
 
-        self.list_view.setModel(self.model)
-        self.list_view.setModelColumn(self.model.NAME)
-        self.edit_area.setCurrentIndex(row)
+        self.accounts_view.setRootIndex(accounts_item.index())
+        self.stacked_layout.setCurrentIndex(row)
+        self.mapper = self.mappers[row]
         self.mapper.toFirst()
 
     def _account_changed(self, index):
         self.mapper.setCurrentIndex(index.row())
 
     def _new(self):
-        row = self.model.new_account()
-        index = self.model.index(row, self.model.NAME)
-        self.list_view.setCurrentIndex(index)
-        self.mapper.setCurrentIndex(row)
-        self.list_view.setFocus()
-        self.list_view.edit(index)
+        index = self.exchange_item.new_account()
+        print index.row()
+        self.accounts_view.setCurrentIndex(index)
+        self.mapper.setCurrentModelIndex(index)
+        self.accounts_view.setFocus()
+        self.accounts_view.edit(index)
 
     def _delete(self):
-        row = self.list_view.currentIndex().row()
+        row = self.accounts_view.currentIndex().row()
         self.model.delete_row(row)
         row -= 1
-        self.list_view.setCurrentIndex(row)
+        self.accounts_view.setCurrentIndex(row)
         self.mapper.setCurrentIndex(row)
-
-    def save(self):
-        self.model.save()
 
 
 class ExchangeAccountWidget(QtGui.QWidget):
 
-    def __init__(self, exchange_name, exchange_row, account_row,
-                 base_row, counter_row, parent=None):
+    #TODO balance signals should connect to multiple account widgets,
+    # where accounts and commodities are the same
+
+
+    def __init__(self, exchange_item, account_row, remote_market, parent=None):
         super(ExchangeAccountWidget, self).__init__(parent)
 
-        #BAD too many arguments
+        # Data
+        exchange_name = exchange_item.text()
 
-        # Model
-        model = self.manager.accounts_models[exchange_name]
         credentials = []
-        for column in range(model.COLUMNS):
-            credentials.append(model.item(account_row, column).text())
-        model = self.manager.exchanges_model
-        remote = model.item(exchange_row, model.REMOTE).text()
+        for column in range(exchange_item.ACCOUNT_COLUMNS):
+            credentials.append(exchange_item.accounts_item.child(account_row,
+                                                                column).text())
 
-        AccountClass = self.manager.exchange_account_classes[exchange_name]
-        self.account = AccountClass(credentials, remote)
+        AccountClass = providers.accounts[str(exchange_name)]
+        self.account = AccountClass(credentials, remote_market)
 
         # Create UI
-        self.ask_amount_spin = CommoditySpinBox(base_row)
-        self.ask_price_spin = CommoditySpinBox(counter_row)
+        self.ask_amount_spin = CommoditySpinBox(parent.base_row)
+        self.ask_price_spin = CommoditySpinBox(parent.counter_row)
         ask_button = QtGui.QPushButton(
             QtCore.QCoreApplication.translate('exchange account widget', 'ask'))
         ask_button.setEnabled(False)
 
-        self.bid_amount_spin = CommoditySpinBox(base_row)
-        self.bid_price_spin = CommoditySpinBox(counter_row)
+        self.bid_amount_spin = CommoditySpinBox(parent.base_row)
+        self.bid_price_spin = CommoditySpinBox(parent.counter_row)
         bid_button = QtGui.QPushButton(
             QtCore.QCoreApplication.translate('exchange account widget', 'bid'))
         bid_button.setEnabled(False)
@@ -146,8 +149,8 @@ class ExchangeAccountWidget(QtGui.QWidget):
         balance_label = QtGui.QLabel(
             QtCore.QCoreApplication.translate('exchange account widget',
                                               ':balance:') )
-        base_balance_label = CommodityWidget(base_row)
-        counter_balance_label = CommodityWidget(counter_row)
+        base_balance_label = CommodityWidget(parent.base_row)
+        counter_balance_label = CommodityWidget(parent.counter_row)
         for label in balance_label, base_balance_label, counter_balance_label:
             label.setAlignment(QtCore.Qt.AlignHCenter)
 
@@ -214,6 +217,8 @@ class ExchangeAccountWidget(QtGui.QWidget):
         # Request account info
         self.account.refresh()
         self.account.check_order_status()
+
+        parent.add_account_widget(self)
 
     def _bid(self):
         amount = self.bid_amount_spin.value()

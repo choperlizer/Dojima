@@ -84,6 +84,8 @@ class CommodityWidget(QtGui.QLabel, CommodityWidgetBase):
 
 class UuidComboBox(QtGui.QComboBox):
 
+    #TODO set the default model column to 1
+    
     def _get_current_uuid(self):
         return self.model().item(self.currentIndex(), 0).text()
 

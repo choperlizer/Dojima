@@ -5,22 +5,19 @@ import logging
 import time
 import json
 from decimal import Decimal
-
 from PyQt4 import QtCore, QtGui, QtNetwork
 
-from model.account import AccountsModel
+import providers
 from model.order import OrdersModel
-#from services import BaseExchangeMarket, register_exchange, register_exchange_account, register_account_model
-import services
+
 
 logger = logging.getLogger(__name__)
+
+
 EXCHANGE_NAME = "MtGox"
 HOSTNAME = "mtgox.com"
 _BASE_URL = "https://" + HOSTNAME + "/api/1/"
 
-
-def _get_nonce():
-    return int(time.time() * 1000000)
 
 def _object_hook(dct):
     if 'value' in dct:
@@ -50,7 +47,7 @@ class MtgoxError(Exception):
 
 
 class _Mtgox(QtCore.QObject):
-    name = EXCHANGE_NAME
+    provider_name = EXCHANGE_NAME
 
     def _public_request(self, url, query_data=None):
         request = QtNetwork.QNetworkRequest(url)
@@ -62,6 +59,61 @@ class _Mtgox(QtCore.QObject):
                 data.addQueryItem(key, str(value))
             query_data = data.encodedQuery()
         self._request_queue.enqueue(request, query_data)
+
+class MtgoxExchange(_Mtgox):
+
+    register_url = None
+
+    ask = QtCore.pyqtSignal(Decimal)
+    bid = QtCore.pyqtSignal(Decimal)
+    last = QtCore.pyqtSignal(Decimal)
+    volume = QtCore.pyqtSignal(Decimal)
+    high = QtCore.pyqtSignal(Decimal)
+    high = QtCore.pyqtSignal(Decimal)
+    low = QtCore.pyqtSignal(Decimal)
+    average = QtCore.pyqtSignal(Decimal)
+    VWAP = QtCore.pyqtSignal(Decimal)
+
+    def __init__(self, remote_market, parent=None):
+        super(MtgoxExchange, self).__init__(parent)
+        #TODO automatic _url to _handler connection with getattr
+        self._ticker_url = QtCore.QUrl(_BASE_URL +
+                                        remote_market + "/ticker")
+        # These must be the same length
+        remote_stats = ('sell', 'buy', 'last_local', 'vol',
+                        'high', 'low', 'avg', 'vwap')
+        self.stats = ('ask', 'bid', 'last', 'volume',
+                       'high', 'low', 'average', 'VWAP')
+        self.is_counter = (True, True, True, False,
+                           True, True, True, True)
+
+        self._signals = dict()
+        self.signals = dict()
+        for i in range(len(remote_stats)):
+            signal = getattr(self, self.stats[i])
+            self._signals[remote_stats[i]] = signal
+            self.signals[self.stats[i]] = signal
+
+        # TODO make this wait time a user option
+        self._request_queue = self.manager.network_manager.host_queue(
+            HOSTNAME, 5000, False)
+        #for url, handler in self._refresh_url, self._ticker_handler:
+        self.manager.network_manager.register_reply_handler(
+            self._ticker_url, self._ticker_handler)
+
+        refresh_timer = QtCore.QTimer(self)
+        refresh_timer.timeout.connect(self.refresh)
+        refresh_timer.start(15000)
+
+    def refresh(self):
+        self._public_request(self._ticker_url)
+
+    def _ticker_handler(self, reply):
+        data = _generic_handler(reply)
+        for key, value in data.items():
+            if self._signals.has_key(key):
+                signal = self._signals[key]
+                signal.emit(value)
 
 
 class MtgoxAccount(_Mtgox):
@@ -128,13 +180,13 @@ class MtgoxAccount(_Mtgox):
         for symbol in self.base, self.counter:
             self._public_request(self._currency_url, {'currency': symbol})
         self.pending_replies = 2
-        
+
     def _request(self, url, query_data=None, priority=0):
         request = QtNetwork.QNetworkRequest(url)
         request.setHeader(QtNetwork.QNetworkRequest.ContentTypeHeader,
                           "application/x-www-form-urlencoded")
         data = QtCore.QUrl()
-        data.addQueryItem('nonce', str(_get_nonce()))
+        data.addQueryItem('nonce', str(time.time() * 1000000))
         if query_data is not None:
             for key, value in query_data.items():
                 data.addQueryItem(key, str(value))
@@ -165,8 +217,10 @@ class MtgoxAccount(_Mtgox):
     def _info_handler(self, reply):
         self._receive_reply()
         data =_generic_handler(reply)
-        self.base_balance_signal.emit(data['Wallets'][self.base]['Balance'])
-        self.counter_balance_signal.emit(data['Wallets'][self.counter]['Balance'])
+        self.base_balance_signal.emit(data['Wallets']
+                                      [self.base]['Balance'])
+        self.counter_balance_signal.emit(data['Wallets']
+                                         [self.counter]['Balance'])
 
     def _currency_handler(self, reply):
         self._receive_reply()
@@ -228,7 +282,6 @@ class MtgoxAccount(_Mtgox):
             logger.info("placing a market order")
         self._request(self._place_order_url, data)
 
-
     def cancel_ask_order(self, order_id):
         self._cancel_order(order_id, 1)
 
@@ -253,91 +306,26 @@ class MtgoxAccount(_Mtgox):
             data =_generic_handler(reply)
             logger.debug(data)
 
-class MtgoxExchangeMarket(_Mtgox):
-
-    register_url = None
-    markets = ( 'BTCUSD', 'BTCAUD', 'BTCCAD', 'BTCCHF', 'BTCCNY',
-                'BTCDKK', 'BTCEUR', 'BTCGBP', 'BTCHKD', 'BTCJPY',
-                'BTCNZD', 'BTCPLN', 'BTCRUB', 'BTCSEK', 'BTCSGD',
-                'BTCTHB' )
-
-    ask = QtCore.pyqtSignal(Decimal)
-    bid = QtCore.pyqtSignal(Decimal)
-    last = QtCore.pyqtSignal(Decimal)
-    volume = QtCore.pyqtSignal(Decimal)
-    high = QtCore.pyqtSignal(Decimal)
-    high = QtCore.pyqtSignal(Decimal)
-    low = QtCore.pyqtSignal(Decimal)
-    average = QtCore.pyqtSignal(Decimal)
-    VWAP = QtCore.pyqtSignal(Decimal)
-
-    def __init__(self, remote_market, parent=None):
-        super(MtgoxExchangeMarket, self).__init__(parent)
-        #TODO automatic _url to _handler connection with getattr
-        self._ticker_url = QtCore.QUrl(_BASE_URL +
-                                        remote_market + "/ticker")
-        # These must be the same length
-        remote_stats = ('sell', 'buy', 'last_local', 'vol',
-                        'high', 'low', 'avg', 'vwap')
-        self.stats = ('ask', 'bid', 'last', 'volume',
-                       'high', 'low', 'average', 'VWAP')
-        self.is_counter = (True, True, True, False,
-                           True, True, True, True)
-
-        self._signals = dict()
-        self.signals = dict()
-        for i in range(len(remote_stats)):
-            signal = getattr(self, self.stats[i])
-            self._signals[remote_stats[i]] = signal
-            self.signals[self.stats[i]] = signal
-
-        # TODO make this wait time a user option
-        self._request_queue = self.manager.network_manager.host_queue(
-            HOSTNAME, 5000, False)
-        #for url, handler in self._refresh_url, self._ticker_handler:
-        self.manager.network_manager.register_reply_handler(
-            self._ticker_url, self._ticker_handler)
-
-        refresh_timer = QtCore.QTimer(self)
-        refresh_timer.timeout.connect(self.refresh)
-        refresh_timer.start(15000)
-
-    def refresh(self):
-        self._public_request(self._ticker_url)
-
-    def _ticker_handler(self, reply):
-        data = _generic_handler(reply)
-        # placing an order just returns a order UUID, so that breaks here
-        for key, value in data.items():
-            if self._signals.has_key(key):
-                signal = self._signals[key]
-                signal.emit(value)
 
 
-class MtgoxAccountModel(AccountsModel):
+class MtgoxProviderItem(providers.ProviderItem):
 
-    COLUMNS = 4
-    NAME, ENABLE, KEY, SECRET = range(COLUMNS)
-    MAPPINGS = (('name', NAME),
-                ('enable', ENABLE),
-                ('api key', KEY),
-                ('secret', SECRET))
+    provider_name = EXCHANGE_NAME
+    COLUMNS = 2
+    MARKETS, ACCOUNTS = range(COLUMNS)
+    markets = ( 'BTCUSD', 'BTCEUR', 'BTCAUD', 'BTCCAD', 'BTCCHF', 'BTCCNY',
+                'BTCDKK', 'BTCGBP', 'BTCHKD', 'BTCJPY', 'BTCNZD', 'BTCPLN',
+                'BTCRUB', 'BTCSEK', 'BTCSGD', 'BTCTHB' )
 
-    required = (KEY, SECRET)
-    hide = []
+    ACCOUNT_COLUMNS = 4
+    ACCOUNT_NAME, ACCOUNT_ENABLE, ACCOUNT_KEY, ACCOUNT_SECRET = range(ACCOUNT_COLUMNS)
+    account_mappings = (('enable', ACCOUNT_ENABLE),
+                        ('api_key', ACCOUNT_KEY),
+                        ('secret', ACCOUNT_SECRET))
+    account_required = (ACCOUNT_KEY, ACCOUNT_SECRET)
+    account_hide = []
+    
 
-    def __init__(self, parent=None):
-        super(MtgoxAccountModel, self).__init__(EXCHANGE_NAME, parent)
-
-    def new_account(self):
-        item = QtGui.QStandardItem()
-        self.appendRow( (item,
-                         QtGui.QStandardItem(),
-                         QtGui.QStandardItem(),
-                         QtGui.QStandardItem(),
-                         QtGui.QStandardItem()) )
-        return item.row()
-
-services.register_exchange(MtgoxExchangeMarket)
-services.register_exchange_account(MtgoxAccount)
-services.register_account_model(MtgoxAccountModel)
+providers.register_exchange(MtgoxExchange)
+providers.register_account(MtgoxAccount)
+providers.register_exchange_model_item(MtgoxProviderItem)

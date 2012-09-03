@@ -8,10 +8,8 @@ logger = logging.getLogger(__name__)
 
 class FlatSettingsModel(QtGui.QStandardItemModel):
 
-    #def __init__(self, name, mappings, parent=None):
-    def __init__(self, name, parent=None):
+    def __init__(self, parent=None):
         super(FlatSettingsModel, self).__init__(parent)
-        self.name = name
         self.settings = QtCore.QSettings()
         self.settings.beginGroup(self.name)
         self.setColumnCount(self.COLUMNS)

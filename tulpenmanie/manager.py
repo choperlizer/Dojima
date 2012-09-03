@@ -1,17 +1,15 @@
-from PyQt4 import QtCore, QtGui
 import getopt
 import logging
 import os
 import sys
-
+from PyQt4 import QtCore, QtGui
 
 from model.commodity import CommoditiesModel
 from model.market import MarketsModel
-from model.exchange import ExchangesModel
 from network import NetworkAccessManager
 
-import services
-from providers import *
+import providers
+from provider_modules import *
 
 from ui.mainwindow import MainWindow
 
@@ -27,28 +25,21 @@ class Manager(QtGui.QApplication):
 
         self.setOrganizationName("Emery Hemingway")
         self.setApplicationName("Tulpenmanie")
-        self.setApplicationVersion('alpha')
+        self.setApplicationVersion('0.1.0')
 
+        # Make settings models
         self.commodities_model = CommoditiesModel()
         self.markets_model = MarketsModel()
-        self.exchanges_model = ExchangesModel()
+        self.exchanges_model = providers.ExchangesModel()
 
-        self.exchange_classes = dict()
-        for Exchange in services.exchanges:
-            self.exchange_classes[Exchange.name] = Exchange
-
-        self.accounts_models = dict()
-        for Model in services.account_models:
-            model = Model()
-            self.accounts_models[model.name] = model
-
-        self.exchange_account_classes = dict()
-        for Account in services.exchange_accounts:
-            self.exchange_account_classes[Account.name] = Account
+        for Item in providers.exchange_model_items:
+            item = Item()
+            self.exchanges_model.appendRow(item)
 
         # Network stuff
         self.network_manager = NetworkAccessManager()
 
+        # Start the gui
         self.window = MainWindow()
 
     def run(self):

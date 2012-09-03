@@ -1,7 +1,8 @@
 from PyQt4 import QtCore, QtGui
 
-from model.exchange import *
 from ui.widget import BigCommodityWidget, CommodityWidget, UuidComboBox
+import providers
+
 
 class EditExchangesTab(QtGui.QWidget):
 
@@ -10,111 +11,76 @@ class EditExchangesTab(QtGui.QWidget):
 
         model = self.manager.exchanges_model
 
-        # Widgets
-        self.list_view = QtGui.QListView()
-        market_combo = UuidComboBox()
-        provider_combo = QtGui.QComboBox()
-        self.remote_combo = QtGui.QComboBox()
-        enable_check = QtGui.QCheckBox()
+        list_view = QtGui.QListView()
+        list_view.setModel(model)
 
-        new_button = QtGui.QPushButton("new")
-        save_button = QtGui.QPushButton("save")
-        delete_button = QtGui.QPushButton("delete")
+        self.stacked_widget = QtGui.QStackedWidget()
+        self.mappers = []
+        for row in range(model.rowCount()):
+            exchange_item = model.item(row)
+            markets_item = exchange_item.child(0, exchange_item.MARKETS)
 
-        edit_layout = QtGui.QFormLayout()
-        edit_layout.addRow("&local market:", market_combo)
-        edit_layout.addRow("&provider:", provider_combo)
-        edit_layout.addRow("&remote market:", self.remote_combo)
-        edit_layout.addRow("enabled", enable_check)
+            market_layout = QtGui.QGridLayout()
+            for row in range(markets_item.rowCount()):
 
-        grid_layout = QtGui.QGridLayout()
-        grid_layout.addWidget(self.list_view, 0,0, 2,1)
-        grid_layout.addLayout(edit_layout, 0,1, 1,2)
-        grid_layout.addWidget(new_button, 1,1)
-        grid_layout.addWidget(delete_button, 1,2)
-        self.setLayout(grid_layout)
+                mapper = QtGui.QDataWidgetMapper()
+                mapper.setModel(model)
+                mapper.setRootIndex(markets_item.index())
+                mapper.setSubmitPolicy(QtGui.QDataWidgetMapper.AutoSubmit)
+                self.mappers.append(mapper)
 
-        # Model
-        self.model = self.manager.exchanges_model
+                remote_market = markets_item.child(row, 0).text()
+                check_state = bool(markets_item.child(row, 1).text())
+                remote_label = QtGui.QLabel(remote_market)
+                check_box = QtGui.QCheckBox()
+                market_combo = UuidComboBox()
+                market_combo.setModel(self.manager.markets_model)
+                market_combo.setModelColumn(1)
+                market_combo.setEnabled(check_state)
+                check_box.toggled.connect(market_combo.setEnabled)
 
-        self.provider_model = QtGui.QStandardItemModel()
+                mapper.addMapping(check_box, 1)
+                mapper.addMapping(market_combo, 2, 'currentUuid')
+                mapper.toFirst()
+                mapper.setCurrentIndex(row)
+                market_layout.addWidget(remote_label, row,0)
+                market_layout.addWidget(check_box, row,1)
+                market_layout.addWidget(market_combo, row,2)
 
-        # maybe could be better
-        for Exchange in self.manager.exchange_classes.values():
-            provider_item = QtGui.QStandardItem(Exchange.name)
-            self.provider_model.appendRow(provider_item)
-            for remote in Exchange.markets:
-                remote_item = QtGui.QStandardItem(remote)
-                provider_item.appendRow(remote_item)
+            widget = QtGui.QWidget()
+            widget.setLayout(market_layout)
+            scroll = QtGui.QScrollArea()
+            scroll.setWidget(widget)
+            self.stacked_widget.addWidget(scroll)
 
-        self.list_view.setModel(self.model)
-        self.list_view.setModelColumn(self.model.NAME)
-        market_combo.setModel(self.manager.markets_model)
-        market_combo.setModelColumn(self.manager.markets_model.NAME)
-
-        provider_combo.setModel(self.provider_model)
-        self.remote_combo.setModel(self.provider_model)
-
-        self.mapper = QtGui.QDataWidgetMapper(self)
-        self.mapper.setModel(self.model)
-        self.mapper.setSubmitPolicy(QtGui.QDataWidgetMapper.AutoSubmit)
-        self.mapper.addMapping(market_combo, self.model.MARKET, 'currentUuid')
-        self.mapper.addMapping(provider_combo, self.model.PROVIDER)#, 'currentText')
-        self.mapper.addMapping(self.remote_combo, self.model.REMOTE)#, 'currentText')
-        self.mapper.addMapping(enable_check, self.model.ENABLE)
+        layout = QtGui.QHBoxLayout()
+        layout.addWidget(list_view)
+        layout.addWidget(self.stacked_widget)
+        self.setLayout(layout)
 
         # Connections
-        #self.list_view.activated.connect(self.mapper.setCurrentModelIndex)
-        self.list_view.clicked.connect(self._exchange_changed)
-        provider_combo.currentIndexChanged.connect(self._provider_changed)
-        new_button.clicked.connect(self._new)
-        delete_button.clicked.connect(self._delete)
+        list_view.clicked.connect(self._exchange_changed)
 
-        # Load data
-        self.list_view.setCurrentIndex(model.index(0, model.NAME))
-        self.mapper.toFirst()
-        #self.remote_combo.setRootModelIndex(self.self.provider_model.index(0,0))
-
-
-    def _exchange_changed(self, index):
-        self.mapper.setCurrentIndex(index.row())
-
-    def _provider_changed(self, row):
-        index = self.provider_model.index(row, 0)
-        self.remote_combo.setRootModelIndex(index)
-
-    def _new(self):
-        row = self.model.new_exchange()
-        index = self.model.index(row, self.model.NAME)
-        self.list_view.setCurrentIndex(index)
-        self.mapper.setCurrentIndex(row)
-        self.list_view.setFocus()
-        self.list_view.edit(index)
-
-    def _delete(self):
-        row = self.list_view.currentIndex().row()
-        self.model.delete_row(row)
-        row -= 1
-        self.list_view.setCurrentIndex(self.model.index(row, self.model.NAME))
-        self.mapper.setCurrentIndex(row)
-
-    def save(self):
-        self.model.save()
+    def _exchange_changed(self, exchange_index):
+        #row = self.manager.exchanges_model.item(exchange_index).row()
+        row = exchange_index.row()
+        self.stacked_widget.setCurrentIndex(row)
 
 
 class ExchangeWidget(QtGui.QGroupBox):
 
-    def __init__(self, exchange_row, base_row, counter_row, parent=None):
-        model = self.manager.exchanges_model
-        title = model.item(exchange_row, model.NAME).text()
-        super(ExchangeWidget, self).__init__(title, parent)
+    def __init__(self, exchange_item, market_row, remote_market, parent):
+        super(ExchangeWidget, self).__init__(parent)
 
         # Data
-        model = self.manager.exchanges_model
-        provider = str(model.item(exchange_row, model.PROVIDER).text())
-        remote = model.item(exchange_row, model.REMOTE).text()
-        ExchangeClass = self.manager.exchange_classes[provider]
-        self.exchange = ExchangeClass(remote)
+        exchange_name = exchange_item.text()
+        self.setTitle(exchange_name + ' - ' + remote_market)
+
+        ExchangeClass = providers.exchanges[str(exchange_name)]
+        self.exchange = ExchangeClass(remote_market)
+
+        self.base_row = parent.base_row
+        self.counter_row = parent.counter_row
 
         #Widgets
         side_layout = QtGui.QVBoxLayout()
@@ -127,9 +93,9 @@ class ExchangeWidget(QtGui.QGroupBox):
             label.setFont(label_font)
 
             if self.exchange.is_counter[i]:
-                widget = CommodityWidget(counter_row)
+                widget = CommodityWidget(self.counter_row)
             else:
-                widget = CommodityWidget(base_row)
+                widget = CommodityWidget(self.base_row)
             layout = QtGui.QHBoxLayout()
             layout.addWidget(label)
             layout.addWidget(widget)
@@ -147,7 +113,8 @@ class ExchangeWidget(QtGui.QGroupBox):
         layout.addLayout(side_layout)
         layout.addLayout(self.account_layout)
         self.setLayout(layout)
-        self.exchange.refresh()
+
+        parent.add_exchange_widget(self)
 
     def add_account_widget(self, widget):
         self.account_layout.addWidget(widget)

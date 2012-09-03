@@ -1,12 +1,10 @@
 import json
 import logging
 from decimal import Decimal
-
 from PyQt4 import QtCore, QtGui, QtNetwork
 
-from model.account import AccountsModel
+import providers
 from model.order import OrdersModel
-from services import BaseExchangeMarket, register_exchange, register_exchange_account, register_account_model
 
 
 logger = logging.getLogger(__name__)
@@ -50,7 +48,60 @@ class CampbxError(Exception):
 
 
 class _Campbx(QtCore.QObject):
-    name = EXCHANGE_NAME
+    provider_name = EXCHANGE_NAME
+
+
+class CampbxExchangeMarket(_Campbx):
+
+    register_url = "https://CampBX.com/register.php?r=P3hAnksjDmY"
+    register_url_info = """register at this link and receive a lifetime 10% """ \
+                        """discount on exchange commissions"""
+
+    _refresh_url = QtCore.QUrl(_BASE_URL + "xticker.php")
+
+    ask = QtCore.pyqtSignal(Decimal)
+    bid = QtCore.pyqtSignal(Decimal)
+    last = QtCore.pyqtSignal(Decimal)
+
+    def __init__(self, remote_market, parent=None):
+        super(CampbxExchangeMarket, self).__init__(parent)
+        # These must be the same length
+        remote_stats = ('Best Ask', 'Best Bid', 'Last Trade')
+        self.stats = ('ask', 'bid', 'last')
+        self.is_counter = (True, True, True)
+        self._signals = dict()
+        self.signals = dict()
+        for i in range(len(remote_stats)):
+            signal = getattr(self, self.stats[i])
+            self._signals[remote_stats[i]] = signal
+            self.signals[self.stats[i]] = signal
+
+        self._request_queue = self.manager.network_manager.host_queue(
+            HOSTNAME, 500)
+
+        self.manager.network_manager.register_reply_handler(
+            self._refresh_url, self._xticker_handler)
+
+        refresh_timer = QtCore.QTimer(self)
+        refresh_timer.timeout.connect(self.refresh)
+        refresh_timer.start(16000)
+
+    def refresh(self):
+        #TODO log request
+        request = QtNetwork.QNetworkRequest(self._refresh_url)
+        request.setHeader(QtNetwork.QNetworkRequest.ContentTypeHeader,
+                          "application/x-www-form-urlencoded")
+        self._request_queue.enqueue(request, self._refresh_url.encodedQuery())
+
+    def _xticker_handler(self, reply):
+        if logger.isEnabledFor(logging.INFO):
+            logger.debug("received reply to %s", reply.url().toString())
+        # TODO error handling
+        data = json.loads(str(reply.readAll()))
+        for key, value in data.items():
+            signal =  self._signals[key]
+            signal.emit(Decimal(value))
+
 
 class CampbxAccount(_Campbx):
     _refresh_url = QtCore.QUrl(_BASE_URL + "myfunds.php")
@@ -77,7 +128,7 @@ class CampbxAccount(_Campbx):
         self._request_queue = self.manager.network_manager.host_queue(
             HOSTNAME, 500)
         self.pending_requests_signal = self._request_queue.pending_requests_signal
-        
+
         for url, handler in (
                 (self._refresh_url, self._funds_handler),
                 (self._orders_url, self._orders_handler),
@@ -108,7 +159,7 @@ class CampbxAccount(_Campbx):
 
     def _receive_reply(self):
         # TODO may cause race condition
-        self.pending_replies -=1
+        self.pending_replies -= 1
         self.pending_replies_signal.emit(self.pending_replies)
 
     def _funds_handler(self, reply):
@@ -197,85 +248,23 @@ class CampbxAccount(_Campbx):
         logger.debug("Trimmed order %s from a model", order_id)
 
 
-class CampbxExchangeMarket(BaseExchangeMarket, _Campbx):
+class CampbxProviderItem(providers.ProviderItem):
 
-    register_url = "https://CampBX.com/register.php?r=P3hAnksjDmY"
-    register_url_info = """register at this link and receive a lifetime 10% """ \
-                        """discount on exchange commissions"""
-    icon_url = "https://campbx.com/images/favicon.ico"
-    services_provided = ["market"]
+    provider_name = EXCHANGE_NAME
+    COLUMNS = 2
+    MARKETS, ACCOUNTS = range(COLUMNS)
     markets = ['BTC/USD']
-    credential_items = ({ 'field' : "username", 'hide' : False,
-                          'required': True },
-                        { 'field' : "password", 'hide' : True,
-                          'required': True },
-                        { 'field' : 'instant transfer code', 'hide' : False,
-                          'required': False })
-    _refresh_url = QtCore.QUrl(_BASE_URL + "xticker.php")
 
-    ask = QtCore.pyqtSignal(Decimal)
-    bid = QtCore.pyqtSignal(Decimal)
-    last = QtCore.pyqtSignal(Decimal)
-
-    def __init__(self, remote_market, parent=None):
-        super(CampbxExchangeMarket, self).__init__(parent)
-        # These must be the same length
-        remote_stats = ('Best Ask', 'Best Bid', 'Last Trade')
-        self.stats = ('ask', 'bid', 'last')
-        self.is_counter = (True, True, True)
-        self._signals = dict()
-        self.signals = dict()
-        for i in range(len(remote_stats)):
-            signal = getattr(self, self.stats[i])
-            self._signals[remote_stats[i]] = signal
-            self.signals[self.stats[i]] = signal
-
-        self._request_queue = self.manager.network_manager.host_queue(
-            HOSTNAME, 500)
-
-        self.manager.network_manager.register_reply_handler(
-            self._refresh_url, self._xticker_handler)
-
-        refresh_timer = QtCore.QTimer(self)
-        refresh_timer.timeout.connect(self.refresh)
-        refresh_timer.start(16000)
+    ACCOUNT_COLUMNS = 5
+    ACCOUNT_NAME, ACCOUNT_ENABLE, ACCOUNT_USERNAME, ACCOUNT_PASSWORD, ACCOUNT_TRANSFER_CODE = range(ACCOUNT_COLUMNS)
+    account_mappings = (('enable', ACCOUNT_ENABLE),
+                        ('username', ACCOUNT_USERNAME),
+                        ('password', ACCOUNT_PASSWORD),
+                        ('transfer code', ACCOUNT_TRANSFER_CODE))
+    account_required = (ACCOUNT_USERNAME, ACCOUNT_PASSWORD)
+    account_hide = [ACCOUNT_PASSWORD]
 
 
-    def _xticker_handler(self, reply):
-        if logger.isEnabledFor(logging.INFO):
-            logger.debug("received reply to %s", reply.url().toString())
-        # TODO error handling
-        data = json.loads(str(reply.readAll()))
-        for key, value in data.items():
-            signal =  self._signals[key]
-            signal.emit(Decimal(value))
-
-
-class CampbxAccountModel(AccountsModel):
-
-    COLUMNS = 5
-    NAME, ENABLE, USERNAME, PASSWORD, TRANSFER_CODE = range(COLUMNS)
-    MAPPINGS = (('name', NAME),
-                ('enable', ENABLE),
-                ('username', USERNAME),
-                ('password', PASSWORD),
-                ('transfer code', TRANSFER_CODE))
-    required = (USERNAME, PASSWORD)
-    hide = [PASSWORD]
-
-    def __init__(self, parent=None):
-        super(CampbxAccountModel, self).__init__(EXCHANGE_NAME, parent)
-
-    def new_account(self):
-        item = QtGui.QStandardItem()
-        self.appendRow( (item,
-                         QtGui.QStandardItem(),
-                         QtGui.QStandardItem(),
-                         QtGui.QStandardItem(),
-                         QtGui.QStandardItem(),
-                         QtGui.QStandardItem()) )
-        return item.row()
-
-register_exchange(CampbxExchangeMarket)
-register_exchange_account(CampbxAccount)
-register_account_model(CampbxAccountModel)
+providers.register_exchange(CampbxExchangeMarket)
+providers.register_account(CampbxAccount)
+providers.register_exchange_model_item(CampbxProviderItem)

@@ -31,57 +31,52 @@ class MainWindow(QtGui.QMainWindow):
 
         # parse markets
         markets_model = self.manager.markets_model
+        self.market_docks = dict()
         for market_row in range(markets_model.rowCount()):
             enable = markets_model.item(market_row, markets_model.ENABLE).text()
-            if enable == 'true':
-                market_uuid = markets_model.item(market_row,
-                                                 markets_model.UUID).text()
-                ## Create market
-                base_uuid = markets_model.item(market_row,
-                                               markets_model.BASE).text()
-                base_item = self.manager.commodities_model.findItems(base_uuid)[0]
-                base_row = base_item.row()
-                counter_uuid = markets_model.item(market_row,
-                                                  markets_model.COUNTER).text()
-                counter_item = self.manager.commodities_model.findItems(counter_uuid)[0]
-                counter_row = counter_item.row()
-
-                ### make dock
+            if enable == "true":
+                ## make dock
                 dock = MarketDockWidget(market_row, self)
                 dock.setAllowedAreas(QtCore.Qt.LeftDockWidgetArea)
                 self.addDockWidget(QtCore.Qt.LeftDockWidgetArea, dock)
                 toggle_action = dock.toggleViewAction()
                 self.markets_menu.addAction(toggle_action)
 
-                # parse exchanges
-                exchange_model = self.manager.exchanges_model
-                for exchange_row in range(exchange_model.rowCount()):
-                    this_market_uuid = exchange_model.item(
-                        exchange_row, exchange_model.MARKET).text()
-                    enable = exchange_model.item(
-                        exchange_row, exchange_model.ENABLE).text()
-                    if enable == 'true'and this_market_uuid == market_uuid:
-                        ## make exchange widget
-                        exchange_widget = ExchangeWidget(exchange_row,
-                                                         base_row, counter_row)
-                        dock.add_exchange_widget(exchange_widget)
-                        ### BAD ###
-                        exchange_name = exchange_widget.exchange.name
-                        ###     ###
-                        # parse exchange accounts
-                        account_model = self.manager.accounts_models[exchange_name]
-                        for account_row in range(account_model.rowCount()):
-                            enable = account_model.item(account_row,
-                                                account_model.ENABLE).text()
-                            if enable == 'true':
-                                account_widget = ExchangeAccountWidget(
-                                    exchange_name, exchange_row, account_row,
-                                    base_row, counter_row)
-                                exchange_widget.add_account_widget(
-                                    account_widget)
-            else:
-                # make one of those enable actions
-                pass
+                market_uuid = markets_model.item(market_row, markets_model.UUID).text()
+                self.market_docks[market_uuid] = dock
+
+        # parse exchanges
+        for exchange_row in range(self.manager.exchanges_model.rowCount()):
+            exchange_item = self.manager.exchanges_model.item(exchange_row)
+            markets_item = exchange_item.child(0, exchange_item.MARKETS)
+            accounts_item = exchange_item.child(0, exchange_item.ACCOUNTS)
+
+            for market_row in range(markets_item.rowCount()):
+                enable = markets_item.child(market_row,
+                                            exchange_item.MARKET_ENABLE).text()
+                local_market = markets_item.child(market_row,
+                                                  exchange_item.MARKET_LOCAL).text()
+
+                if (enable == "true") and (local_market in self.market_docks):
+                    dock = self.market_docks[local_market]
+                    remote_market = markets_item.child(market_row,
+                                                       exchange_item.MARKET_REMOTE).text()
+                    ## make exchange widget
+                    exchange_widget = ExchangeWidget(exchange_item,
+                                                     market_row,
+                                                     remote_market,
+                                                     dock)
+                    # parse exchange accounts
+                    for account_row in range(accounts_item.rowCount()):
+                        enable = accounts_item.child(account_row,
+                                                     exchange_item.ACCOUNT_ENABLE).text()
+                        if enable == 'true':
+                            ## make account widget
+                            account_widget = ExchangeAccountWidget(exchange_item,
+                                                                   account_row,
+                                                                   remote_market,
+                                                                   exchange_widget)
+
 
     def _edit_markets(self):
         dialog = EditMarketsDialog(self)
@@ -92,5 +87,5 @@ class MainWindow(QtGui.QMainWindow):
         dialog.exec_()
 
     def closeEvent(self, event):
-        self.manager.markets_model.save()
+        #self.manager.markets_model.save()
         event.accept()

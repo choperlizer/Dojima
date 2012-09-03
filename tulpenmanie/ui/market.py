@@ -81,22 +81,24 @@ class EditMarketsTab(QtGui.QWidget):
 
 class MarketDockWidget(QtGui.QDockWidget):
 
-    def __init__(self, market_row, parent=None):
+    def __init__(self, markets_model_row, parent=None):
         model = self.manager.markets_model
-        self.row = market_row
-        name = self.manager.markets_model.item(self.row, model.NAME).text()
+        row = markets_model_row
+        name = model.item(row, model.NAME).text()
+        
+        base_uuid = model.item(row, model.BASE).text()
+        base_item = self.manager.commodities_model.findItems(base_uuid)[0]
+        self.base_row = base_item.row()
+        counter_uuid = model.item(row, model.COUNTER).text()
+        counter_item = self.manager.commodities_model.findItems(counter_uuid)[0]
+        self.counter_row = counter_item.row()
+
         super(MarketDockWidget, self).__init__(name, parent)
+
         widget = QtGui.QWidget(self)
-        self._layout = QtGui.QHBoxLayout()
         self.setWidget(widget)
-        widget.setLayout(self._layout)
-        enabled = self.manager.markets_model.item(self.row, model.ENABLE).text()
-        # TODO the dock is enabled regardless
-        #self.visibilityChanged.connect(self._enable_changed)
+        self.layout = QtGui.QHBoxLayout()
+        widget.setLayout(self.layout)
 
     def add_exchange_widget(self, exchange_widget):
-        self._layout.addWidget(exchange_widget)
-
-    #def _enable_changed(self, state):
-        #self.manager.markets_model.item(self.row, ENABLE).setData(state)
-        #self.manager.markets_model.save()
+        self.layout.addWidget(exchange_widget)

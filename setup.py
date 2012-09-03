@@ -12,5 +12,5 @@ setup(name='tulpenmanie',
       requires=['PyQt4.QtCore',
                 'PyQt4.GtGui',
                 'PyQt4.QtNetwork'],
-      provides=['tuplenmanie']
+      provides=['tulpenmanie']
       )

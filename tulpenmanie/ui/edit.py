@@ -7,7 +7,6 @@ from ui.exchange import EditExchangesTab
 from ui.account import EditExchangeAccountsTab
 
 
-
 class EditMarketsDialog(QtGui.QDialog):
 
     def __init__(self, parent=None):
@@ -59,6 +58,5 @@ class EditProvidersDialog(QtGui.QDialog):
         self.setWindowTitle("edit providers, account")
 
     def save(self):
-        for index in range(self.tab_widget.count()):
-            self.tab_widget.widget(index).save()
+        self.manager.exchanges_model.save()
         self.accept()
