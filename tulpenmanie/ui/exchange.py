@@ -1,7 +1,7 @@
 from PyQt4 import QtCore, QtGui
 
-from ui.widget import BigCommodityWidget, CommodityWidget, UuidComboBox
-import providers
+from tulpenmanie.ui.widget import BigCommodityWidget, CommodityWidget, UuidComboBox
+import tulpenmanie.providers
 
 
 class EditExchangesTab(QtGui.QWidget):
@@ -76,7 +76,7 @@ class ExchangeWidget(QtGui.QGroupBox):
         exchange_name = exchange_item.text()
         self.setTitle(exchange_name + ' - ' + remote_market)
 
-        ExchangeClass = providers.exchanges[str(exchange_name)]
+        ExchangeClass = tulpenmanie.providers.exchanges[str(exchange_name)]
         self.exchange = ExchangeClass(remote_market)
 
         self.base_row = parent.base_row

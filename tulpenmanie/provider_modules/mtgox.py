@@ -7,8 +7,8 @@ import json
 from decimal import Decimal
 from PyQt4 import QtCore, QtGui, QtNetwork
 
-import providers
-from model.order import OrdersModel
+import tulpenmanie.providers
+from tulpenmanie.model.order import OrdersModel
 
 
 logger = logging.getLogger(__name__)
@@ -308,7 +308,7 @@ class MtgoxAccount(_Mtgox):
 
 
 
-class MtgoxProviderItem(providers.ProviderItem):
+class MtgoxProviderItem(tulpenmanie.providers.ProviderItem):
 
     provider_name = EXCHANGE_NAME
     COLUMNS = 2
@@ -326,6 +326,6 @@ class MtgoxProviderItem(providers.ProviderItem):
     account_hide = []
     
 
-providers.register_exchange(MtgoxExchange)
-providers.register_account(MtgoxAccount)
-providers.register_exchange_model_item(MtgoxProviderItem)
+tulpenmanie.providers.register_exchange(MtgoxExchange)
+tulpenmanie.providers.register_account(MtgoxAccount)
+tulpenmanie.providers.register_exchange_model_item(MtgoxProviderItem)

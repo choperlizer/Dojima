@@ -1,11 +1,9 @@
 from PyQt4 import QtCore, QtGui
 
-from model import market as Market
-
-from ui.edit import EditMarketsDialog, EditProvidersDialog
-from ui.market import MarketDockWidget
-from ui.exchange import ExchangeWidget
-from ui.account import ExchangeAccountWidget
+from tulpenmanie.ui.edit import EditMarketsDialog, EditProvidersDialog
+from tulpenmanie.ui.market import MarketDockWidget
+from tulpenmanie.ui.exchange import ExchangeWidget
+from tulpenmanie.ui.account import ExchangeAccountWidget
 
 
 class MainWindow(QtGui.QMainWindow):

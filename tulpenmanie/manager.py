@@ -1,17 +1,14 @@
-import getopt
 import logging
-import os
-import sys
 from PyQt4 import QtCore, QtGui
 
-from model.commodity import CommoditiesModel
-from model.market import MarketsModel
-from network import NetworkAccessManager
+from tulpenmanie.model.commodity import CommoditiesModel
+from tulpenmanie.model.market import MarketsModel
+from tulpenmanie.network import NetworkAccessManager
 
-import providers
-from provider_modules import *
+import tulpenmanie.providers
+from tulpenmanie.provider_modules import *
 
-from ui.mainwindow import MainWindow
+from tulpenmanie.ui.mainwindow import MainWindow
 
 class Manager(QtGui.QApplication):
 
@@ -30,9 +27,9 @@ class Manager(QtGui.QApplication):
         # Make settings models
         self.commodities_model = CommoditiesModel()
         self.markets_model = MarketsModel()
-        self.exchanges_model = providers.ExchangesModel()
+        self.exchanges_model = tulpenmanie.providers.ExchangesModel()
 
-        for Item in providers.exchange_model_items:
+        for Item in tulpenmanie.providers.exchange_model_items:
             item = Item()
             self.exchanges_model.appendRow(item)
 
@@ -47,9 +44,3 @@ class Manager(QtGui.QApplication):
         res = self.exec_()
         self.exit()
         return res
-
-
-if __name__ == '__main__':
-    logging.basicConfig(level=logging.DEBUG)
-    manager = Manager(sys.argv)
-    sys.exit(manager.run())

@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
 from PyQt4 import QtCore, QtGui
 
-from ui.commodity import EditCommoditiesTab
-from ui.market import EditMarketsTab
-from ui.exchange import EditExchangesTab
-from ui.account import EditExchangeAccountsTab
+from tulpenmanie.ui.commodity import EditCommoditiesTab
+from tulpenmanie.ui.market import EditMarketsTab
+from tulpenmanie.ui.exchange import EditExchangesTab
+from tulpenmanie.ui.account import EditExchangeAccountsTab
 
 
 class EditMarketsDialog(QtGui.QDialog):

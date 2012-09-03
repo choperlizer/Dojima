@@ -1,7 +1,7 @@
 from PyQt4 import QtCore, QtGui
 
-from ui.widget import CommoditySpinBox, CommodityWidget
-import providers
+from tulpenmanie.ui.widget import CommoditySpinBox, CommodityWidget
+import tulpenmanie.providers
 
 
 class EditExchangeAccountsTab(QtGui.QWidget):
@@ -110,7 +110,7 @@ class ExchangeAccountWidget(QtGui.QWidget):
             credentials.append(exchange_item.accounts_item.child(account_row,
                                                                 column).text())
 
-        AccountClass = providers.accounts[str(exchange_name)]
+        AccountClass = tulpenmanie.providers.accounts[str(exchange_name)]
         self.account = AccountClass(credentials, remote_market)
 
         # Create UI

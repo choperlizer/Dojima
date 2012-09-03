@@ -3,8 +3,8 @@ import logging
 from decimal import Decimal
 from PyQt4 import QtCore, QtGui, QtNetwork
 
-import providers
-from model.order import OrdersModel
+import tulpenmanie.providers
+from tulpenmanie.model.order import OrdersModel
 
 
 logger = logging.getLogger(__name__)
@@ -248,7 +248,7 @@ class CampbxAccount(_Campbx):
         logger.debug("Trimmed order %s from a model", order_id)
 
 
-class CampbxProviderItem(providers.ProviderItem):
+class CampbxProviderItem(tulpenmanie.providers.ProviderItem):
 
     provider_name = EXCHANGE_NAME
     COLUMNS = 2
@@ -265,6 +265,6 @@ class CampbxProviderItem(providers.ProviderItem):
     account_hide = [ACCOUNT_PASSWORD]
 
 
-providers.register_exchange(CampbxExchangeMarket)
-providers.register_account(CampbxAccount)
-providers.register_exchange_model_item(CampbxProviderItem)
+tulpenmanie.providers.register_exchange(CampbxExchangeMarket)
+tulpenmanie.providers.register_account(CampbxAccount)
+tulpenmanie.providers.register_exchange_model_item(CampbxProviderItem)

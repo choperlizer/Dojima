@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from PyQt4 import QtCore, QtGui
 
-from model.base import FlatSettingsModel
+from tulpenmanie.model.base import FlatSettingsModel
 
 
 class CommoditiesModel(FlatSettingsModel):

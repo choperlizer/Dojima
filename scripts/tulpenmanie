@@ -1,0 +1,10 @@
+#!python
+
+import logging
+import sys
+import tulpenmanie.manager
+
+#logging.basicConfig(level=logging.DEBUG)
+manager = tulpenmanie.manager.Manager(sys.argv)
+sys.exit(manager.run())
+

@@ -1,7 +1,7 @@
 from PyQt4 import QtCore, QtGui
 
-from model.market import *
-from ui.widget import UuidComboBox
+from tulpenmanie.model.market import *
+from tulpenmanie.ui.widget import UuidComboBox
 
 class EditMarketsTab(QtGui.QWidget):
 
