@@ -1,6 +1,7 @@
+import decimal
+import heapq
 import json
 import logging
-from decimal import Decimal
 from PyQt4 import QtCore, QtGui, QtNetwork
 
 import tulpenmanie.providers
@@ -14,10 +15,14 @@ HOSTNAME = "campbx.com"
 _BASE_URL = "https://" + HOSTNAME + "/api/"
 
 
+def _reply_has_errors(reply):
+    if reply.error():
+        logger.error(reply.errorString())
+
 def _object_pairs_hook(pairs):
     dct = dict()
     for key, value in pairs:
-        dct[key] = Decimal(value)
+        dct[key] = decimal.Decimal(value)
     return dct
 
 def _process_reply(reply):
@@ -47,8 +52,58 @@ class CampbxError(Exception):
         return error_msg
 
 
+class CampbxRequest(object):
+
+    def __init__(self, url, handler, parent, data=None):
+        self.url = url
+        self.handler = handler
+        self.parent = parent
+        self.reply = None
+
+        self.request = QtNetwork.QNetworkRequest(self.url)
+        self.request.setHeader(QtNetwork.QNetworkRequest.ContentTypeHeader,
+                               "application/x-www-form-urlencoded")
+        query = parent.base_query
+        if data:
+            for key, value in data.items():
+                query.addQueryItem(key, str(value))
+        self.data = query.encodedQuery()
+
+    def post(self):
+        if logger.isEnabledFor(logging.DEBUG):
+            logger.debug("requesting %s", self.url.toString())
+        self.reply = self.parent.network_manager.post(self.request,
+                                                      self.data)
+        self.reply.finished.connect(self._process_reply)
+        self.reply.error.connect(self._process_reply)
+
+    def _process_reply(self):
+        if self.reply.error():
+            logger.error(self.reply.errorString())
+        else:
+            if logger.isEnabledFor(logging.INFO):
+                logger.debug("received reply to %s", self.reply.url().toString())
+            data = json.loads(str(self.reply.readAll()))#,
+                #object_pairs_hook=_object_pairs_hook)
+            if 'Error' in data:
+                msg = str(reply.url().toString()) + " : " + data['Error']
+                raise CampbxError(msg)
+            elif 'Info' in data:
+                msg = str(reply.url().toString()) + " : " + data['Error']
+                logger.warning(msg)
+            else:
+                self.handler(data)
+
+        self.reply.deleteLater()
+
+
 class _Campbx(QtCore.QObject):
     provider_name = EXCHANGE_NAME
+
+    def pop_request(self):
+        request = heapq.heappop(self._requests)
+        request.post()
+        self._replies.append(request)
 
 
 class CampbxExchangeMarket(_Campbx):
@@ -57,13 +112,15 @@ class CampbxExchangeMarket(_Campbx):
     register_url_info = """register at this link and receive a lifetime 10% """ \
                         """discount on exchange commissions"""
 
-    _refresh_url = QtCore.QUrl(_BASE_URL + "xticker.php")
+    _xticker_url = QtCore.QUrl(_BASE_URL + "xticker.php")
 
-    ask = QtCore.pyqtSignal(Decimal)
-    bid = QtCore.pyqtSignal(Decimal)
-    last = QtCore.pyqtSignal(Decimal)
+    ask = QtCore.pyqtSignal(decimal.Decimal)
+    bid = QtCore.pyqtSignal(decimal.Decimal)
+    last = QtCore.pyqtSignal(decimal.Decimal)
 
-    def __init__(self, remote_market, parent=None):
+    def __init__(self, remote_market, network_manager=None, parent=None):
+        if network_manager is None:
+            network_manager = self.manager.network_manager
         super(CampbxExchangeMarket, self).__init__(parent)
         # These must be the same length
         remote_stats = ('Best Ask', 'Best Bid', 'Last Trade')
@@ -76,41 +133,32 @@ class CampbxExchangeMarket(_Campbx):
             self._signals[remote_stats[i]] = signal
             self.signals[self.stats[i]] = signal
 
-        self._request_queue = self.manager.network_manager.host_queue(
+        self.base_query = QtCore.QUrl()
+        self.network_manager = network_manager
+        self._request_queue = self.network_manager.get_host_request_queue(
             HOSTNAME, 500)
-
-        self.manager.network_manager.register_reply_handler(
-            self._refresh_url, self._xticker_handler)
-
-        refresh_timer = QtCore.QTimer(self)
-        refresh_timer.timeout.connect(self.refresh)
-        refresh_timer.start(16000)
+        self._requests = list()
+        self._replies = list()
 
     def refresh(self):
-        #TODO log request
-        request = QtNetwork.QNetworkRequest(self._refresh_url)
-        request.setHeader(QtNetwork.QNetworkRequest.ContentTypeHeader,
-                          "application/x-www-form-urlencoded")
-        self._request_queue.enqueue(request, self._refresh_url.encodedQuery())
+        request = CampbxRequest(self._xticker_url, self._xticker_handler, self)
+        self._requests.append(request)
+        self._request_queue.enqueue(self)
 
-    def _xticker_handler(self, reply):
-        if logger.isEnabledFor(logging.INFO):
-            logger.debug("received reply to %s", reply.url().toString())
-        # TODO error handling
-        data = json.loads(str(reply.readAll()))
+    def _xticker_handler(self, data):
         for key, value in data.items():
             signal =  self._signals[key]
-            signal.emit(Decimal(value))
+            signal.emit(decimal.Decimal(value))
 
 
 class CampbxAccount(_Campbx):
-    _refresh_url = QtCore.QUrl(_BASE_URL + "myfunds.php")
-    _orders_url = QtCore.QUrl(_BASE_URL + "myorders.php")
+    _myfunds_url = QtCore.QUrl(_BASE_URL + "myfunds.php")
+    _myorders_url = QtCore.QUrl(_BASE_URL + "myorders.php")
     _tradeenter_url = QtCore.QUrl(_BASE_URL + "tradeenter.php")
     _tradecancel_url = QtCore.QUrl(_BASE_URL + "tradecancel.php")
 
-    counter_balance_signal = QtCore.pyqtSignal(Decimal)
-    base_balance_signal = QtCore.pyqtSignal(Decimal)
+    counter_balance_signal = QtCore.pyqtSignal(decimal.Decimal)
+    base_balance_signal = QtCore.pyqtSignal(decimal.Decimal)
     orders_refreshed_signal = QtCore.pyqtSignal()
 
     ask_enable_signal = QtCore.pyqtSignal(bool)
@@ -119,70 +167,43 @@ class CampbxAccount(_Campbx):
     # pending requests comes from the request queue
     pending_replies_signal = QtCore.pyqtSignal(int)
 
-    def __init__(self, credentials, remote, parent=None):
+    def __init__(self, credentials, remote,
+                 network_manager=None, parent=None):
+        if network_manager is None:
+            network_manager = self.manager.network_manager
         super(CampbxAccount, self).__init__(parent)
-        self._base_query = QtCore.QUrl()
-        self._base_query.addQueryItem('user', credentials[2])
-        self._base_query.addQueryItem('pass', credentials[3])
-
-        self._request_queue = self.manager.network_manager.host_queue(
+        self.base_query = QtCore.QUrl()
+        self.base_query.addQueryItem('user', credentials[2])
+        self.base_query.addQueryItem('pass', credentials[3])
+        self.network_manager = network_manager
+        self._request_queue = self.network_manager.get_host_request_queue(
             HOSTNAME, 500)
-        self.pending_requests_signal = self._request_queue.pending_requests_signal
-
-        for url, handler in (
-                (self._refresh_url, self._funds_handler),
-                (self._orders_url, self._orders_handler),
-                (self._tradeenter_url, self._tradeenter_handler),
-                (self._tradecancel_url, self._tradecancel_handler) ):
-            self.manager.network_manager.register_reply_handler(url, handler)
+        self._requests = list()
+        self._replies = list()
 
         self.ask_orders_model = OrdersModel()
         self.bid_orders_model = OrdersModel()
-        self.pending_replies = 0
-
-    def _request(self, url, query_data=None, priority=1):
-        if logger.isEnabledFor(logging.DEBUG):
-            logger.debug("requesting %s", url.toString())
-        request = QtNetwork.QNetworkRequest(url)
-        request.setHeader(QtNetwork.QNetworkRequest.ContentTypeHeader,
-                          "application/x-www-form-urlencoded")
-        if query_data is None:
-            query_data = self._base_query.encodedQuery()
-        else:
-            query = self._base_query
-            for key, value in query_data.items():
-                query.addQueryItem(key, str(value))
-            query_data = query.encodedQuery()
-        self._request_queue.enqueue(request, query_data, priority)
-        self.pending_replies += 1
-        self.pending_replies_signal.emit(self.pending_replies)
-
-    def _receive_reply(self):
-        # TODO may cause race condition
-        self.pending_replies -= 1
-        self.pending_replies_signal.emit(self.pending_replies)
-
-    def _funds_handler(self, reply):
-        self._receive_reply()
-        data = _process_reply(reply)
-        self.base_balance_signal.emit(Decimal(data['Total BTC']))
-        self.counter_balance_signal.emit(Decimal(data['Total USD']))
 
     def check_order_status(self):
         self.ask_enable_signal.emit(True)
         self.bid_enable_signal.emit(True)
 
     def refresh(self):
-        # TODO make superclass do some logging
-        self._request(self._refresh_url)
-        self._request(self._orders_url)
+        request = CampbxRequest(self._myfunds_url, self._myfunds_handler, self)
+        self._requests.append(request)
+        self._request_queue.enqueue(self)
+        self.refresh_orders()
+
+    def _myfunds_handler(self, data):
+        self.base_balance_signal.emit(decimal.Decimal(data['Total BTC']))
+        self.counter_balance_signal.emit(decimal.Decimal(data['Total USD']))
 
     def refresh_orders(self):
-        self._request(self._orders_url)
+        request = CampbxRequest(self._myorders_url, self._myorders_handler, self)
+        self._requests.append(request)
+        self._request_queue.enqueue(self)
 
-    def _orders_handler(self, reply):
-        self._receive_reply()
-        data = _process_reply(reply)
+    def _myorders_handler(self, data):
         for model, array, in ((self.ask_orders_model, 'Sell'),
                               (self.bid_orders_model, 'Buy') ):
             model.clear_orders()
@@ -210,14 +231,15 @@ class CampbxAccount(_Campbx):
             data['Price'] = price
         else:
             data['Price'] = 'Market'
-        self._request(self._tradeenter_url, data, 0)
+        request = CampbxRequest(self._tradeenter_url, self._tradeenter_handler,
+                                self, data)
+        self._requests.append(request)
+        self._request_queue.enqueue(self)
 
-    def _tradeenter_handler(self, reply):
-        self._receive_reply()
-        data = _process_reply(reply)
+    def _tradeenter_handler(self, data):
         if data['Success'] != '0':
-            # Make a low priority request to refresh orders
-            self._request(self._orders_url, None, 2)
+            # TODO could be a low priority request
+            self.refresh_orders()
 
     def cancel_ask_order(self, order_id):
         self._cancel_order(order_id, 'Sell')
@@ -228,11 +250,13 @@ class CampbxAccount(_Campbx):
     def _cancel_order(self, order_id, order_type):
         data = { 'Type' : order_type,
                  'OrderID' : order_id }
-        self._request(self._tradecancel_url, data, 0)
+        request = CampbxRequest(self._tradecancel_url,
+                                self._tradecancel_handler,
+                                self, data)
+        self._requests.append(request)
+        self._request_queue.enqueue(self)
 
-    def _tradecancel_handler(self, reply):
-        self._receive_reply()
-        data = _process_reply(reply)
+    def _tradecancel_handler(self, data):
         words = data['Success'].split()
         order_id = words[2]
         items = self.ask_orders_model.findItems(order_id,
@@ -251,8 +275,10 @@ class CampbxAccount(_Campbx):
 class CampbxProviderItem(tulpenmanie.providers.ProviderItem):
 
     provider_name = EXCHANGE_NAME
-    COLUMNS = 2
-    MARKETS, ACCOUNTS = range(COLUMNS)
+
+    COLUMNS = 3
+    MARKETS, ACCOUNTS, REFRESH_RATE = range(COLUMNS)
+    mappings = [('refresh rate', REFRESH_RATE)]
     markets = ['BTC/USD']
 
     ACCOUNT_COLUMNS = 5
@@ -261,8 +287,10 @@ class CampbxProviderItem(tulpenmanie.providers.ProviderItem):
                         ('username', ACCOUNT_USERNAME),
                         ('password', ACCOUNT_PASSWORD),
                         ('transfer code', ACCOUNT_TRANSFER_CODE))
-    account_required = (ACCOUNT_USERNAME, ACCOUNT_PASSWORD)
-    account_hide = [ACCOUNT_PASSWORD]
+    numeric_settings = (REFRESH_RATE,)
+    boolean_settings = ()
+    required_account_settings = (ACCOUNT_USERNAME, ACCOUNT_PASSWORD)
+    hidden_account_settings = (ACCOUNT_PASSWORD,)
 
 
 tulpenmanie.providers.register_exchange(CampbxExchangeMarket)

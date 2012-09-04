@@ -4,7 +4,7 @@ class OrdersModel(QtGui.QStandardItemModel):
 
     # TODO set prefixes and suffixes
     # TODO data should be read-only
-    
+
     COLUMNS = 3
     ORDER_ID, PRICE, AMOUNT = range(COLUMNS)
 
@@ -15,6 +15,11 @@ class OrdersModel(QtGui.QStandardItemModel):
         self.appendRow( (QtGui.QStandardItem(str(order_id)),
                          QtGui.QStandardItem(str(price)),
                          QtGui.QStandardItem(str(amount)) ) )
+
+    def remove_order(self, order_id):
+        orders = self.findItems(order_id)
+        for order in orders:
+            self.removeRow(order.row())
 
     def clear_orders(self):
         self.removeRows(0, self.rowCount())

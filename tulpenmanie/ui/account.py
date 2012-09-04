@@ -32,7 +32,7 @@ class EditExchangeAccountsTab(QtGui.QWidget):
             layout = QtGui.QFormLayout()
             for name, column in exchange_item.account_mappings[1:]:
                 edit = QtGui.QLineEdit()
-                if column in exchange_item.account_hide:
+                if column in exchange_item.hidden_account_settings:
                     edit.setEchoMode(QtGui.QLineEdit.Password)
                 layout.addRow(name, edit)
                 mapper.addMapping(edit, column)
@@ -87,9 +87,12 @@ class EditExchangeAccountsTab(QtGui.QWidget):
 
     def _delete(self):
         row = self.accounts_view.currentIndex().row()
-        self.model.delete_row(row)
+        self.exchange_item.accounts_item.removeRow(row)
         row -= 1
-        self.accounts_view.setCurrentIndex(row)
+        if row < 0:
+            row = 0
+        next_account = self.exchange_item.accounts_item.child(row)
+        self.accounts_view.setCurrentIndex(next_account.index())
         self.mapper.setCurrentIndex(row)
 
 
@@ -115,6 +118,7 @@ class ExchangeAccountWidget(QtGui.QWidget):
 
         # Create UI
         self.ask_amount_spin = CommoditySpinBox(parent.base_row)
+
         self.ask_price_spin = CommoditySpinBox(parent.counter_row)
         ask_button = QtGui.QPushButton(
             QtCore.QCoreApplication.translate('exchange account widget', 'ask'))
@@ -125,6 +129,10 @@ class ExchangeAccountWidget(QtGui.QWidget):
         bid_button = QtGui.QPushButton(
             QtCore.QCoreApplication.translate('exchange account widget', 'bid'))
         bid_button.setEnabled(False)
+
+        for spin in (self.ask_amount_spin, self.ask_price_spin,
+                     self.bid_amount_spin, self.bid_price_spin):
+            spin.setMaximum(999999)
 
         # TODO these views should prefix/suffix price and amounts
         self.ask_orders_view = QtGui.QTableView()
@@ -154,10 +162,10 @@ class ExchangeAccountWidget(QtGui.QWidget):
         for label in balance_label, base_balance_label, counter_balance_label:
             label.setAlignment(QtCore.Qt.AlignHCenter)
 
-        pending_requests_label = QtGui.QLabel("pending requests: ")
-        pending_requests_view = QtGui.QLabel()
-        pending_replies_label = QtGui.QLabel("pending replies: ")
-        pending_replies_view = QtGui.QLabel()
+        #pending_requests_label = QtGui.QLabel("pending requests: ")
+        #pending_requests_view = QtGui.QLabel()
+        #pending_replies_label = QtGui.QLabel("pending replies: ")
+        #pending_replies_view = QtGui.QLabel()
 
         # Layout
         layout = QtGui.QVBoxLayout()
@@ -185,10 +193,10 @@ class ExchangeAccountWidget(QtGui.QWidget):
 
         network_layout = QtGui.QHBoxLayout()
         network_layout.addStretch()
-        network_layout.addWidget(pending_requests_label)
-        network_layout.addWidget(pending_requests_view)
-        network_layout.addWidget(pending_replies_label)
-        network_layout.addWidget(pending_replies_view)
+        #network_layout.addWidget(pending_requests_label)
+        #network_layout.addWidget(pending_requests_view)
+        #network_layout.addWidget(pending_replies_label)
+        #network_layout.addWidget(pending_replies_view)
         layout.addLayout(network_layout)
 
         self.setLayout(layout)
@@ -210,8 +218,8 @@ class ExchangeAccountWidget(QtGui.QWidget):
         ask_button.clicked.connect(self._ask)
         bid_button.clicked.connect(self._bid)
         refresh_button.clicked.connect(self.account.refresh)
-        self.account.pending_requests_signal.connect(pending_requests_view.setNum)
-        self.account.pending_replies_signal.connect(pending_replies_view.setNum)
+        #self.account.pending_requests_signal.connect(pending_requests_view.setNum)
+        #self.account.pending_replies_signal.connect(pending_replies_view.setNum)
 
 
         # Request account info

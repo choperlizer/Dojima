@@ -18,8 +18,27 @@ class EditExchangesTab(QtGui.QWidget):
         self.mappers = []
         for row in range(model.rowCount()):
             exchange_item = model.item(row)
-            markets_item = exchange_item.child(0, exchange_item.MARKETS)
+            exchange_layout = QtGui.QGridLayout()
+            grid_row = 0
+            mapper = QtGui.QDataWidgetMapper()
+            mapper.setModel(model)
+            mapper.setRootIndex(exchange_item.index())
+            mapper.setSubmitPolicy(QtGui.QDataWidgetMapper.AutoSubmit)
+            self.mappers.append(mapper)
+            for setting, column in exchange_item.mappings:
+                label = QtGui.QLabel(setting)
+                if setting in exchange_item.numeric_settings:
+                    edit = QtGui.QDoubleSpinBox()
+                elif setting in exchange_item.boolean_settings:
+                    edit = QtGui.QCheckBox()
+                else:
+                    edit = QtGui.QLineEdit()
+                exchange_layout.addWidget(label, grid_row,0)
+                exchange_layout.addWidget(edit, grid_row,1)
+                grid_row += 1
+                mapper.addMapping(edit, column)
 
+            markets_item = exchange_item.child(0, exchange_item.MARKETS)
             market_layout = QtGui.QGridLayout()
             for row in range(markets_item.rowCount()):
 
@@ -47,11 +66,16 @@ class EditExchangesTab(QtGui.QWidget):
                 market_layout.addWidget(check_box, row,1)
                 market_layout.addWidget(market_combo, row,2)
 
-            widget = QtGui.QWidget()
-            widget.setLayout(market_layout)
+            markets_widget = QtGui.QWidget()
+            markets_widget.setLayout(market_layout)
             scroll = QtGui.QScrollArea()
-            scroll.setWidget(widget)
-            self.stacked_widget.addWidget(scroll)
+            scroll.setWidget(markets_widget)
+
+            exchange_layout.addWidget(scroll, grid_row,0, 1,2)
+            exchange_widget = QtGui.QWidget()
+            exchange_widget.setLayout(exchange_layout)
+
+            self.stacked_widget.addWidget(exchange_widget)
 
         layout = QtGui.QHBoxLayout()
         layout.addWidget(list_view)
@@ -81,6 +105,11 @@ class ExchangeWidget(QtGui.QGroupBox):
 
         self.base_row = parent.base_row
         self.counter_row = parent.counter_row
+
+        refresh_rate = exchange_item.child(0, exchange_item.REFRESH_RATE).text()
+        if not refresh_rate:
+            refresh_rate = 10
+        refresh_rate = int(refresh_rate) * 1000
 
         #Widgets
         side_layout = QtGui.QVBoxLayout()
@@ -113,6 +142,10 @@ class ExchangeWidget(QtGui.QGroupBox):
         layout.addLayout(side_layout)
         layout.addLayout(self.account_layout)
         self.setLayout(layout)
+
+        self.refresh_timer = QtCore.QTimer(self)
+        self.refresh_timer.timeout.connect(self.exchange.refresh)
+        self.refresh_timer.start(refresh_rate)
 
         parent.add_exchange_widget(self)
 

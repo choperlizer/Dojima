@@ -49,7 +49,7 @@ class ProviderItem(QtGui.QStandardItem):
             for setting, column in self.mappings:
                 item = QtGui.QStandardItem(
                     self.settings.value(setting).toString())
-                self.appendItem(0, column, item)
+                self.setChild(0, column, item)
 
         if self.markets:
             logger.debug("loading %s markets", self.provider_name)
@@ -82,13 +82,15 @@ class ProviderItem(QtGui.QStandardItem):
     def save(self):
         logger.debug("saving %s settings", self.provider_name)
         if self.mappings:
+            #!!!TODO wont save refresh rate
             for setting, column in self.mappings:
-                value = self.item(0, column).text()
+                value = self.child(0, column).text()
                 self.settings.setValue(setting, value)
 
         if self.markets:
             logger.debug("saving %s markets", self.provider_name)
             self.settings.beginGroup('markets')
+            self.settings.remove("")
             for row in range(self.markets_item.rowCount()):
                 remote_market = self.markets_item.child(row, 0).text()
                 self.settings.beginGroup(remote_market)
@@ -99,6 +101,7 @@ class ProviderItem(QtGui.QStandardItem):
             self.settings.endGroup()
 
         self.settings.beginGroup('accounts')
+        self.settings.remove("")
         for row in range(self.accounts_item.rowCount()):
             name = self.accounts_item.child(row, 0).text()
             self.settings.beginGroup(name)

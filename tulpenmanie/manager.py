@@ -3,8 +3,8 @@ from PyQt4 import QtCore, QtGui
 
 from tulpenmanie.model.commodity import CommoditiesModel
 from tulpenmanie.model.market import MarketsModel
-from tulpenmanie.network import NetworkAccessManager
 
+import tulpenmanie.network
 import tulpenmanie.providers
 from tulpenmanie.provider_modules import *
 
@@ -34,7 +34,7 @@ class Manager(QtGui.QApplication):
             self.exchanges_model.appendRow(item)
 
         # Network stuff
-        self.network_manager = NetworkAccessManager()
+        self.network_manager = tulpenmanie.network.NetworkAccessManager()
 
         # Start the gui
         self.window = MainWindow()

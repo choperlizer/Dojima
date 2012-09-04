@@ -1,10 +1,13 @@
 import base64
+import decimal
+import heapq
 import hashlib
 import hmac
+import json
 import logging
 import time
-import json
-from decimal import Decimal
+
+
 from PyQt4 import QtCore, QtGui, QtNetwork
 
 import tulpenmanie.providers
@@ -21,19 +24,9 @@ _BASE_URL = "https://" + HOSTNAME + "/api/1/"
 
 def _object_hook(dct):
     if 'value' in dct:
-        return Decimal(dct['value'])
+        return decimal.Decimal(dct['value'])
     else:
         return dct
-
-def _generic_handler(reply):
-    if logger.isEnabledFor(logging.DEBUG):
-        logger.debug("received reply to %s", reply.url().toString())
-    raw = str(reply.readAll())
-    data = json.loads(raw, object_hook=_object_hook)
-    if data['result'] != u'success':
-        msg = str(reply.url().toString()) + " : " + data['error']
-        raise MtgoxError(msg)
-    return data['return']
 
 
 class MtgoxError(Exception):
@@ -45,38 +38,117 @@ class MtgoxError(Exception):
         logger.error(error_msg)
         return error_msg
 
+class MtgoxRequest(QtCore.QObject):
+
+    def __init__(self, url, handler, parent, data=None):
+        self.url = url
+        self.handler = handler
+        self.parent = parent
+        self.data = data
+        self.reply = None
+        self._prepare_request()
+
+    def _prepare_request(self):
+        self.request = QtNetwork.QNetworkRequest(self.url)
+        self.request.setHeader(QtNetwork.QNetworkRequest.ContentTypeHeader,
+                               "application/x-www-form-urlencoded")
+        query = QtCore.QUrl()
+        if self.data:
+            for key, value in self.data['query'].items():
+                query.addQueryItem(key, str(value))
+        self.query = query.encodedQuery()
+
+    def post(self):
+        if logger.isEnabledFor(logging.DEBUG):
+            logger.debug("POSTing to %s", self.url.toString())
+        self.reply = self.parent.network_manager.post(self.request,
+                                                      self.query)
+        self.reply.finished.connect(self._process_reply)
+
+    def _process_reply(self):
+        if self.reply.error():
+            logger.error(self.reply.errorString())
+        else:
+            if logger.isEnabledFor(logging.DEBUG):
+                logger.debug("received reply to %s", self.url.toString())
+            raw = str(self.reply.readAll())
+            data = json.loads(raw, object_hook=_object_hook)
+            if data['result'] != u'success':
+                msg = str(reply.url().toString()) + " : " + data['error']
+                raise MtgoxError(msg)
+            else:
+                if self.data:
+                    self.data.update(data)
+                else:
+                    self.data = data
+                self.handler(self.data)
+        self.reply.deleteLater()
+
+
+class MtgoxPrivateRequest(MtgoxRequest):
+
+    def _prepare_request(self):
+        self.request = QtNetwork.QNetworkRequest(self.url)
+        self.request.setHeader(QtNetwork.QNetworkRequest.ContentTypeHeader,
+                          "application/x-www-form-urlencoded")
+        query = QtCore.QUrl()
+        query.addQueryItem('nonce', str(time.time() * 1000000))
+        if self.data:
+            for key, value in self.data['query'].items():
+                query.addQueryItem(key, str(value))
+        self.query = query.encodedQuery()
+
+        h = hmac.new(self.parent._secret, self.query, hashlib.sha512)
+        signature =  base64.b64encode(h.digest())
+
+        self.request.setRawHeader('Rest-Key', self.parent._key)
+        self.request.setRawHeader('Rest-Sign', signature)
+
+class MtgoxPrivateRequestAPI0(MtgoxPrivateRequest):
+
+    def _process_reply(self):
+        if self.reply.error():
+            logger.error(self.reply.errorString())
+        else:
+            if logger.isEnabledFor(logging.DEBUG):
+                logger.debug("received reply to %s", self.url.toString())
+            raw = str(self.reply.readAll())
+            data = json.loads(raw, object_hook=_object_hook)
+            if self.data:
+                self.data.update(data)
+            else:
+                self.data = data
+            self.handler(self.data)
+        self.reply.deleteLater()
+
 
 class _Mtgox(QtCore.QObject):
     provider_name = EXCHANGE_NAME
 
-    def _public_request(self, url, query_data=None):
-        request = QtNetwork.QNetworkRequest(url)
-        request.setHeader(QtNetwork.QNetworkRequest.ContentTypeHeader,
-                          "application/x-www-form-urlencoded")
-        if query_data is not None:
-            data = QtCore.QUrl()
-            for key, value in query_data.items():
-                data.addQueryItem(key, str(value))
-            query_data = data.encodedQuery()
-        self._request_queue.enqueue(request, query_data)
+    def pop_request(self):
+        request = heapq.heappop(self._requests)
+        request.post()
+        self._replies.append(request)
+
 
 class MtgoxExchange(_Mtgox):
 
     register_url = None
 
-    ask = QtCore.pyqtSignal(Decimal)
-    bid = QtCore.pyqtSignal(Decimal)
-    last = QtCore.pyqtSignal(Decimal)
-    volume = QtCore.pyqtSignal(Decimal)
-    high = QtCore.pyqtSignal(Decimal)
-    high = QtCore.pyqtSignal(Decimal)
-    low = QtCore.pyqtSignal(Decimal)
-    average = QtCore.pyqtSignal(Decimal)
-    VWAP = QtCore.pyqtSignal(Decimal)
+    ask = QtCore.pyqtSignal(decimal.Decimal)
+    bid = QtCore.pyqtSignal(decimal.Decimal)
+    last = QtCore.pyqtSignal(decimal.Decimal)
+    volume = QtCore.pyqtSignal(decimal.Decimal)
+    high = QtCore.pyqtSignal(decimal.Decimal)
+    high = QtCore.pyqtSignal(decimal.Decimal)
+    low = QtCore.pyqtSignal(decimal.Decimal)
+    average = QtCore.pyqtSignal(decimal.Decimal)
+    VWAP = QtCore.pyqtSignal(decimal.Decimal)
 
-    def __init__(self, remote_market, parent=None):
+    def __init__(self, remote_market, network_manager=None, parent=None):
+        if not network_manager:
+            network_manager = self.manager.network_manager
         super(MtgoxExchange, self).__init__(parent)
-        #TODO automatic _url to _handler connection with getattr
         self._ticker_url = QtCore.QUrl(_BASE_URL +
                                         remote_market + "/ticker")
         # These must be the same length
@@ -95,21 +167,19 @@ class MtgoxExchange(_Mtgox):
             self.signals[self.stats[i]] = signal
 
         # TODO make this wait time a user option
-        self._request_queue = self.manager.network_manager.host_queue(
-            HOSTNAME, 5000, False)
-        #for url, handler in self._refresh_url, self._ticker_handler:
-        self.manager.network_manager.register_reply_handler(
-            self._ticker_url, self._ticker_handler)
-
-        refresh_timer = QtCore.QTimer(self)
-        refresh_timer.timeout.connect(self.refresh)
-        refresh_timer.start(15000)
+        self.network_manager = network_manager
+        self._request_queue = self.network_manager.get_host_request_queue(
+            HOSTNAME, 5000)
+        self._requests = list()
+        self._replies = list()
 
     def refresh(self):
-        self._public_request(self._ticker_url)
+        request = MtgoxRequest(self._ticker_url, self._ticker_handler, self)
+        self._requests.append(request)
+        self._request_queue.enqueue(self)
 
-    def _ticker_handler(self, reply):
-        data = _generic_handler(reply)
+    def _ticker_handler(self, data):
+        data = data['return']
         for key, value in data.items():
             if self._signals.has_key(key):
                 signal = self._signals[key]
@@ -123,11 +193,11 @@ class MtgoxAccount(_Mtgox):
     _orders_url = QtCore.QUrl(_BASE_URL + "generic/private/orders")
     _cancelorder_url = QtCore.QUrl("https://mtgox.com/api/0/cancelOrder.php")
 
-    last_login_signal = QtCore.pyqtSignal(Decimal)
-    monthly_volume_signal = QtCore.pyqtSignal(Decimal)
-    fee_signal = QtCore.pyqtSignal(Decimal)
-    counter_balance_signal = QtCore.pyqtSignal(Decimal)
-    base_balance_signal = QtCore.pyqtSignal(Decimal)
+    last_login_signal = QtCore.pyqtSignal(decimal.Decimal)
+    monthly_volume_signal = QtCore.pyqtSignal(decimal.Decimal)
+    fee_signal = QtCore.pyqtSignal(decimal.Decimal)
+    counter_balance_signal = QtCore.pyqtSignal(decimal.Decimal)
+    base_balance_signal = QtCore.pyqtSignal(decimal.Decimal)
 
     orders_refresh_signal = QtCore.pyqtSignal()
 
@@ -137,7 +207,10 @@ class MtgoxAccount(_Mtgox):
     # pending requests comes from the request queue
     pending_replies_signal = QtCore.pyqtSignal(int)
 
-    def __init__(self, credentials, remote, parent=None):
+    def __init__(self, credentials, remote,
+                 network_manager=None, parent=None):
+        if network_manager is None:
+            network_manager = self.manager.network_manager
         super(MtgoxAccount, self).__init__(parent)
         ##BAD, hardcoding
         self._key = str(credentials[2])
@@ -146,7 +219,7 @@ class MtgoxAccount(_Mtgox):
         self.remote_pair = str(remote)
         self.base = self.remote_pair[:3]
         self.counter = self.remote_pair[3:]
-        self._place_order_url = QtCore.QUrl(
+        self._order_add_url = QtCore.QUrl(
             _BASE_URL + self.remote_pair + "/private/order/add")
 
         # These must be the same length
@@ -159,17 +232,11 @@ class MtgoxAccount(_Mtgox):
             self._signals[remote_stats[i]] = signal
             self.signals[local_stats[i]] = signal
 
-        self._request_queue = self.manager.network_manager.host_queue(
-            HOSTNAME, 5000, False)
-        self.pending_requests_signal = self._request_queue.pending_requests_signal
-
-        for url, handler in (
-                (self._info_url, self._info_handler),
-                (self._currency_url, self._currency_handler),
-                (self._orders_url, self._orders_handler),
-                (self._place_order_url, self._debug_handler),
-                (self._cancelorder_url, self._cancelorder_handler) ):
-            self.manager.network_manager.register_reply_handler(url, handler)
+        self.network_manager = network_manager
+        self._request_queue = self.network_manager.get_host_request_queue(
+            HOSTNAME, 5000)
+        self._requests = list()
+        self._replies = list()
 
         self.ask_orders_model = OrdersModel()
         self.bid_orders_model = OrdersModel()
@@ -178,53 +245,34 @@ class MtgoxAccount(_Mtgox):
         self.base_multiplier = None
         self.counter_multiplier = None
         for symbol in self.base, self.counter:
-            self._public_request(self._currency_url, {'currency': symbol})
-        self.pending_replies = 2
-
-    def _request(self, url, query_data=None, priority=0):
-        request = QtNetwork.QNetworkRequest(url)
-        request.setHeader(QtNetwork.QNetworkRequest.ContentTypeHeader,
-                          "application/x-www-form-urlencoded")
-        data = QtCore.QUrl()
-        data.addQueryItem('nonce', str(time.time() * 1000000))
-        if query_data is not None:
-            for key, value in query_data.items():
-                data.addQueryItem(key, str(value))
-        data = data.encodedQuery()
-
-        h = hmac.new(self._secret, data, hashlib.sha512)
-        signature =  base64.b64encode(h.digest())
-
-        request.setRawHeader('Rest-Key', self._key)
-        request.setRawHeader('Rest-Sign', signature)
-        if logger.isEnabledFor(logging.DEBUG):
-            logger.debug("queuing %s request", url.toString())
-        #Priority is overidden otherwise nonces will get mixed up
-        self._request_queue.enqueue(request, data)
-        self.pending_replies += 1
-        self.pending_replies_signal.emit(self.pending_replies)
-
-    def _receive_reply(self):
-        # TODO may cause race condition
-        self.pending_replies -=1
-        self.pending_replies_signal.emit(self.pending_replies)
+            request = MtgoxRequest(self._currency_url,
+                                   self._currency_handler, self,
+                                   {'query': {'currency': symbol} })
+            self._requests.append(request)
+            self._request_queue.enqueue(self)
 
     def refresh(self):
         """Refresh orders, then balances."""
-        self._request(self._orders_url)
-        self._request(self._info_url)
+        request = MtgoxPrivateRequest(self._orders_url,
+                                      self._orders_handler,
+                                      self)
+        self._requests.append(request)
+        self._request_queue.enqueue(self)
+        request = MtgoxPrivateRequest(self._info_url,
+                                      self._info_handler,
+                                      self)
+        self._requests.append(request)
+        self._request_queue.enqueue(self)
 
-    def _info_handler(self, reply):
-        self._receive_reply()
-        data =_generic_handler(reply)
+    def _info_handler(self, data):
+        data = data['return']
         self.base_balance_signal.emit(data['Wallets']
                                       [self.base]['Balance'])
         self.counter_balance_signal.emit(data['Wallets']
                                          [self.counter]['Balance'])
 
-    def _currency_handler(self, reply):
-        self._receive_reply()
-        data = _generic_handler(reply)
+    def _currency_handler(self, data):
+        data = data['return']
         places = int(data['decimals'])
         if data['currency'] == self.base:
             self.base_multiplier = pow(10, places)
@@ -242,18 +290,20 @@ class MtgoxAccount(_Mtgox):
             self.bid_enable_signal.emit(True)
 
     def refresh_orders(self):
-        self._request(self._orders_url)
+        request = MtgoxPrivateRequest(self._orders_url, self._orders_handler,
+                                      self)
+        self._requests.append(request)
+        self._request_queue.enqueue(self)
 
-    def _orders_handler(self, reply):
-        self._receive_reply()
-        data = _generic_handler(reply)
+    def _orders_handler(self, data):
+        data = data['return']
         if data:
             for model in self.ask_orders_model, self.bid_orders_model:
                 model.clear_orders()
         for order in data:
             order_id = order['oid']
-            price = str(order['price'])
-            amount = str(order['amount'])
+            price = order['price']
+            amount = order['amount']
             order_type = order['type']
 
             if order_type == u'ask':
@@ -280,8 +330,26 @@ class MtgoxAccount(_Mtgox):
             data['price_int'] = price * self.counter_multiplier
         else:
             logger.info("placing a market order")
-        self._request(self._place_order_url, data)
 
+        data = {'amount':amount, 'price':price,
+                'query': data }
+        request = MtgoxPrivateRequest(self._order_add_url,
+                                      self._order_add_handler,
+                                      self, data)
+        self._requests.append(request)
+        self._request_queue.enqueue(self)
+
+    def _order_add_handler(self, data):
+        order_id = data['return']
+        amount = data['amount']
+        price = data['price']
+        order_type = data['query']['type']
+        if order_type == 'ask':
+            self.ask_orders_model.append_order(order_id, price, amount)
+        elif order_type == 'bid':
+            self.bid_orders_model.append_order(order_id, price, amount)
+        print data
+            
     def cancel_ask_order(self, order_id):
         self._cancel_order(order_id, 1)
 
@@ -290,29 +358,31 @@ class MtgoxAccount(_Mtgox):
 
     def _cancel_order(self, order_id, order_type):
         # MtGox doesn't have a method to cancel orders for API 1.
-        # type: 1 for sell order or 2 for buy order
+        # type: 1 for ask order or 2 for bid order
         url = QtCore.QUrl("https://mtgox.com/api/0/cancelOrder.php")
-        data = {'oid': order_id, 'type': order_type}
-        req = self._request(url, data)
+        data = {'query': {'oid': order_id, 'type': order_type} }
+        request = MtgoxPrivateRequestAPI0(url, self._cancelorder_handler,
+                                          self, data)
+        self._requests.append(request)
+        self._request_queue.enqueue(self)
 
-    def _cancelorder_handler(self, reply):
-        self._receive_reply()
-        # Since the reply is to an API 0 request, just refresh the orders.
-        self.refresh_orders()
-
-    def _debug_handler(self, reply):
-        self._receive_reply()
-        if logger.isEnabledFor(logging.DEBUG):
-            data =_generic_handler(reply)
-            logger.debug(data)
-
+    def _cancelorder_handler(self, data):
+        order_id = data['query']['oid']
+        order_type = data['query']['type']
+        if order_type == 1:
+            self.ask_orders_model.remove_order(order_id)
+        elif order_type == 2:
+            self.bid_orders_model.remove_order(order_id)
 
 
 class MtgoxProviderItem(tulpenmanie.providers.ProviderItem):
 
     provider_name = EXCHANGE_NAME
-    COLUMNS = 2
-    MARKETS, ACCOUNTS = range(COLUMNS)
+
+    COLUMNS = 3
+    MARKETS, ACCOUNTS, REFRESH_RATE = range(COLUMNS)
+    mappings = [('refresh rate', REFRESH_RATE)]
+
     markets = ( 'BTCUSD', 'BTCEUR', 'BTCAUD', 'BTCCAD', 'BTCCHF', 'BTCCNY',
                 'BTCDKK', 'BTCGBP', 'BTCHKD', 'BTCJPY', 'BTCNZD', 'BTCPLN',
                 'BTCRUB', 'BTCSEK', 'BTCSGD', 'BTCTHB' )
@@ -322,9 +392,12 @@ class MtgoxProviderItem(tulpenmanie.providers.ProviderItem):
     account_mappings = (('enable', ACCOUNT_ENABLE),
                         ('api_key', ACCOUNT_KEY),
                         ('secret', ACCOUNT_SECRET))
-    account_required = (ACCOUNT_KEY, ACCOUNT_SECRET)
-    account_hide = []
-    
+
+    numeric_settings = (REFRESH_RATE,)
+    boolean_settings = ()
+    required_account_settings = (ACCOUNT_KEY, ACCOUNT_SECRET)
+    hidden_account_settings = ()
+
 
 tulpenmanie.providers.register_exchange(MtgoxExchange)
 tulpenmanie.providers.register_account(MtgoxAccount)
