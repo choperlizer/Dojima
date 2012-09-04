@@ -19,3 +19,7 @@ Dependencies
 Install
 -------
 sudo python setup.py install
+
+Donations
+---------------------
+1NKKQBSaQ6XMViwC46b4JCxGUiUp6EDZR5
