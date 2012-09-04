@@ -76,6 +76,7 @@ class EditMarketsTab(QtGui.QWidget):
         self.mapper.setCurrentIndex(row)
 
     def save(self):
+        self.mapper.submit()
         self.model.save()
 
 
@@ -85,7 +86,7 @@ class MarketDockWidget(QtGui.QDockWidget):
         model = self.manager.markets_model
         row = markets_model_row
         name = model.item(row, model.NAME).text()
-        
+
         base_uuid = model.item(row, model.BASE).text()
         base_item = self.manager.commodities_model.findItems(base_uuid)[0]
         self.base_row = base_item.row()
