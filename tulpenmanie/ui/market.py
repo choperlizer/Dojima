@@ -1,17 +1,33 @@
+# Tuplenmanie, a commodities market client.
+# Copyright (C) 2012  Emery Hemingway
+# 
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+# 
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+# 
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
 from PyQt4 import QtCore, QtGui
 
 from tulpenmanie.model.market import *
 from tulpenmanie.ui.widget import UuidComboBox
 
-class EditMarketsTab(QtGui.QWidget):
+class EditMarketsWidget(QtGui.QWidget):
 
     def __init__(self, parent=None):
-        super(EditMarketsTab, self).__init__(parent)
+        super(EditMarketsWidget, self).__init__(parent)
 
         # Widgets
         self.list_view = QtGui.QListView()
-        base_combo = UuidComboBox()
-        counter_combo = UuidComboBox()
+        self.base_combo = UuidComboBox()
+        self.counter_combo = UuidComboBox()
         enable_check = QtGui.QCheckBox()
         new_button = QtGui.QPushButton("new")
         delete_button = QtGui.QPushButton("delete")
@@ -20,8 +36,8 @@ class EditMarketsTab(QtGui.QWidget):
         layout.addWidget(self.list_view, 0,0, 2,1)
 
         combo_layout = QtGui.QFormLayout()
-        combo_layout.addRow("&base:", base_combo)
-        combo_layout.addRow("coun&ter:", counter_combo)
+        combo_layout.addRow("&base:", self.base_combo)
+        combo_layout.addRow("coun&ter:", self.counter_combo)
         combo_layout.addRow("enable:", enable_check)
 
         layout.addLayout(combo_layout, 0,1, 1,2)
@@ -35,16 +51,16 @@ class EditMarketsTab(QtGui.QWidget):
         self.list_view.setModel(self.model)
         self.list_view.setModelColumn(self.model.NAME)
 
-        base_combo.setModel(self.manager.commodities_model)
-        base_combo.setModelColumn(self.manager.commodities_model.NAME)
-        counter_combo.setModel(self.manager.commodities_model)
-        counter_combo.setModelColumn(self.manager.commodities_model.NAME)
+        self.base_combo.setModel(self.manager.commodities_model)
+        self.base_combo.setModelColumn(self.manager.commodities_model.NAME)
+        self.counter_combo.setModel(self.manager.commodities_model)
+        self.counter_combo.setModelColumn(self.manager.commodities_model.NAME)
 
         self.mapper = QtGui.QDataWidgetMapper(self)
         self.mapper.setModel(self.model)
         self.mapper.setSubmitPolicy(QtGui.QDataWidgetMapper.AutoSubmit)
-        self.mapper.addMapping(base_combo, self.model.BASE, 'currentUuid')
-        self.mapper.addMapping(counter_combo, self.model.COUNTER, 'currentUuid')
+        self.mapper.addMapping(self.base_combo, self.model.BASE, 'currentUuid')
+        self.mapper.addMapping(self.counter_combo, self.model.COUNTER, 'currentUuid')
         self.mapper.addMapping(enable_check, self.model.ENABLE)
 
         # Connections
@@ -64,6 +80,9 @@ class EditMarketsTab(QtGui.QWidget):
         index = self.model.index(row, self.model.NAME)
         self.list_view.setCurrentIndex(index)
         self.mapper.setCurrentIndex(row)
+        self.base_combo.setCurrentIndex(0)
+        self.counter_combo.setCurrentIndex(0)
+        self.mapper.submit()
         self.list_view.setFocus()
         self.list_view.edit(index)
 
@@ -74,10 +93,6 @@ class EditMarketsTab(QtGui.QWidget):
         row -= 1
         self.list_view.setCurrentIndex(self.model.index(row, self.model.NAME))
         self.mapper.setCurrentIndex(row)
-
-    def save(self):
-        self.mapper.submit()
-        self.model.save()
 
 
 class MarketDockWidget(QtGui.QDockWidget):
@@ -98,7 +113,7 @@ class MarketDockWidget(QtGui.QDockWidget):
 
         widget = QtGui.QWidget(self)
         self.setWidget(widget)
-        self.layout = QtGui.QHBoxLayout()
+        self.layout = QtGui.QVBoxLayout()
         widget.setLayout(self.layout)
 
     def add_exchange_widget(self, exchange_widget):

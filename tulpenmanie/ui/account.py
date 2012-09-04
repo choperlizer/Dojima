@@ -1,13 +1,29 @@
+# Tuplenmanie, a commodities market client.
+# Copyright (C) 2012  Emery Hemingway
+# 
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+# 
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+# 
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
 from PyQt4 import QtCore, QtGui
 
 from tulpenmanie.ui.widget import CommoditySpinBox, CommodityWidget
 import tulpenmanie.providers
 
 
-class EditExchangeAccountsTab(QtGui.QWidget):
+class EditAccountsWidget(QtGui.QWidget):
 
     def __init__(self, parent=None):
-        super(EditExchangeAccountsTab, self).__init__(parent)
+        super(EditAccountsWidget, self).__init__(parent)
 
         model = self.manager.exchanges_model
 
@@ -79,7 +95,6 @@ class EditExchangeAccountsTab(QtGui.QWidget):
 
     def _new(self):
         index = self.exchange_item.new_account()
-        print index.row()
         self.accounts_view.setCurrentIndex(index)
         self.mapper.setCurrentModelIndex(index)
         self.accounts_view.setFocus()
@@ -100,7 +115,6 @@ class ExchangeAccountWidget(QtGui.QWidget):
 
     #TODO balance signals should connect to multiple account widgets,
     # where accounts and commodities are the same
-
 
     def __init__(self, exchange_item, account_row, remote_market, parent=None):
         super(ExchangeAccountWidget, self).__init__(parent)
@@ -220,7 +234,6 @@ class ExchangeAccountWidget(QtGui.QWidget):
         refresh_button.clicked.connect(self.account.refresh)
         #self.account.pending_requests_signal.connect(pending_requests_view.setNum)
         #self.account.pending_replies_signal.connect(pending_replies_view.setNum)
-
 
         # Request account info
         self.account.refresh()

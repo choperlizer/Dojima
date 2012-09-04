@@ -1,10 +1,26 @@
 # -*- coding: utf-8 -*-
+# Tuplenmanie, a commodities market client.
+# Copyright (C) 2012  Emery Hemingway
+# 
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+# 
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+# 
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
 from PyQt4 import QtCore, QtGui
 
-from tulpenmanie.ui.commodity import EditCommoditiesTab
-from tulpenmanie.ui.market import EditMarketsTab
-from tulpenmanie.ui.exchange import EditExchangesTab
-from tulpenmanie.ui.account import EditExchangeAccountsTab
+import tulpenmanie.ui.commodity
+import tulpenmanie.ui.market
+import tulpenmanie.ui.exchange
+import tulpenmanie.ui.account
 
 
 class EditMarketsDialog(QtGui.QDialog):
@@ -13,14 +29,14 @@ class EditMarketsDialog(QtGui.QDialog):
         super(EditMarketsDialog, self).__init__(parent)
 
         self.tab_widget = QtGui.QTabWidget()
-        self.tab_widget.addTab(EditCommoditiesTab(), "&commodities")
-        self.tab_widget.addTab(EditMarketsTab(), "&markets")
+        self.tab_widget.addTab(tulpenmanie.ui.commodity.EditCommoditiesWidget(),
+                               "&commodities")
+        self.tab_widget.addTab(tulpenmanie.ui.market.EditMarketsWidget(), "&markets")
 
         button_box = QtGui.QDialogButtonBox(
-            QtGui.QDialogButtonBox.Save |
-            QtGui.QDialogButtonBox.Cancel)
-        button_box.accepted.connect(self.save)
-        button_box.rejected.connect(self.reject)
+            QtGui.QDialogButtonBox.Close)
+        button_box.accepted.connect(self.accept)
+        button_box.rejected.connect(self.accept)
 
         layout = QtGui.QVBoxLayout()
         layout.addWidget(self.tab_widget)
@@ -29,26 +45,21 @@ class EditMarketsDialog(QtGui.QDialog):
 
         self.setWindowTitle("edit commodities, markets")
 
-    def save(self):
-        for index in range(self.tab_widget.count()):
-            self.tab_widget.widget(index).save()
-        self.accept()
-
-
 class EditProvidersDialog(QtGui.QDialog):
 
     def __init__(self, parent=None):
         super(EditProvidersDialog, self).__init__(parent)
 
         self.tab_widget = QtGui.QTabWidget()
-        self.tab_widget.addTab(EditExchangesTab(), "&exchanges")
-        self.tab_widget.addTab(EditExchangeAccountsTab(), "&accounts")
+        self.tab_widget.addTab(tulpenmanie.ui.exchange.EditExchangesWidget(),
+                               "&exchanges")
+        self.tab_widget.addTab(tulpenmanie.ui.account.EditAccountsWidget(),
+                               "&accounts")
 
         button_box = QtGui.QDialogButtonBox(
-            QtGui.QDialogButtonBox.Save |
-            QtGui.QDialogButtonBox.Cancel)
-        button_box.accepted.connect(self.save)
-        button_box.rejected.connect(self.reject)
+            QtGui.QDialogButtonBox.Close)
+        button_box.accepted.connect(self.accept)
+        button_box.rejected.connect(self.accept)
 
         layout = QtGui.QVBoxLayout()
         layout.addWidget(self.tab_widget)
@@ -56,7 +67,3 @@ class EditProvidersDialog(QtGui.QDialog):
         self.setLayout(layout)
 
         self.setWindowTitle("edit providers, account")
-
-    def save(self):
-        self.manager.exchanges_model.save()
-        self.accept()

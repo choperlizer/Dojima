@@ -1,13 +1,29 @@
+# Tuplenmanie, a commodities market client.
+# Copyright (C) 2012  Emery Hemingway
+# 
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+# 
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+# 
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
 from PyQt4 import QtCore, QtGui
 
 from tulpenmanie.ui.widget import BigCommodityWidget, CommodityWidget, UuidComboBox
 import tulpenmanie.providers
 
 
-class EditExchangesTab(QtGui.QWidget):
+class EditExchangesWidget(QtGui.QWidget):
 
     def __init__(self, parent=None):
-        super(EditExchangesTab, self).__init__(parent)
+        super(EditExchangesWidget, self).__init__(parent)
 
         model = self.manager.exchanges_model
 
@@ -25,6 +41,7 @@ class EditExchangesTab(QtGui.QWidget):
             mapper.setRootIndex(exchange_item.index())
             mapper.setSubmitPolicy(QtGui.QDataWidgetMapper.AutoSubmit)
             self.mappers.append(mapper)
+
             for setting, column in exchange_item.mappings:
                 label = QtGui.QLabel(setting)
                 if setting in exchange_item.numeric_settings:
@@ -37,6 +54,8 @@ class EditExchangesTab(QtGui.QWidget):
                 exchange_layout.addWidget(edit, grid_row,1)
                 grid_row += 1
                 mapper.addMapping(edit, column)
+            mapper.toFirst()
+            mapper.setCurrentIndex(row)
 
             markets_item = exchange_item.child(0, exchange_item.MARKETS)
             market_layout = QtGui.QGridLayout()
@@ -89,6 +108,10 @@ class EditExchangesTab(QtGui.QWidget):
         #row = self.manager.exchanges_model.item(exchange_index).row()
         row = exchange_index.row()
         self.stacked_widget.setCurrentIndex(row)
+
+    def closeEvent(self):
+        #TODO probably a redundant save
+        self.manager.exchanges_model.save()
 
 
 class ExchangeWidget(QtGui.QGroupBox):
@@ -143,6 +166,7 @@ class ExchangeWidget(QtGui.QGroupBox):
         layout.addLayout(self.account_layout)
         self.setLayout(layout)
 
+        self.exchange.refresh()
         self.refresh_timer = QtCore.QTimer(self)
         self.refresh_timer.timeout.connect(self.exchange.refresh)
         self.refresh_timer.start(refresh_rate)
