@@ -1,25 +1,21 @@
 Tulpenmanie
 ===========
-
 A commodities market client in PyQt4
 
 Supported Markets
------------------
- Campbx
- MtGox
+=================
+ - Campbx
+ - MtGox
 
 Dependencies
------------
- Python-2
- PyQt4
-  QtCore
-  QtGui
-  QtNetwork
+============
+ - Python-2
+ - PyQt4
 
 Install
--------
+=======
 sudo python setup.py install
 
 Donations
----------------------
+=========
 1NKKQBSaQ6XMViwC46b4JCxGUiUp6EDZR5
