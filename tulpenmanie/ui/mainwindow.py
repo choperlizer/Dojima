@@ -55,8 +55,8 @@ class MainWindow(QtGui.QMainWindow):
             if enable == "true":
                 ## make dock
                 dock = MarketDockWidget(market_row, self)
-                dock.setAllowedAreas(QtCore.Qt.LeftDockWidgetArea)
-                self.addDockWidget(QtCore.Qt.LeftDockWidgetArea, dock)
+                dock.setAllowedAreas(QtCore.Qt.TopDockWidgetArea)
+                self.addDockWidget(QtCore.Qt.TopDockWidgetArea, dock)
                 toggle_action = dock.toggleViewAction()
                 self.markets_menu.addAction(toggle_action)
 

@@ -1,16 +1,16 @@
 # Tuplenmanie, a commodities market client.
 # Copyright (C) 2012  Emery Hemingway
-# 
+#
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
-# 
+#
 # This program is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
-# 
+#
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
@@ -215,13 +215,18 @@ class ExchangeAccountWidget(QtGui.QWidget):
 
         self.setLayout(layout)
 
+        #Refresh orders action
+        refresh_orders_action = QtGui.QAction(
+            "&refresh orders", self, triggered=self.account.refresh_orders)
         #Cancel order action
-        cancel_ask = QtGui.QAction("&cancel ask order", self,
+        cancel_ask_action = QtGui.QAction("&cancel ask order", self,
                                    triggered=self._cancel_ask)
-        self.ask_orders_view.addAction(cancel_ask)
-        cancel_bid = QtGui.QAction("&cancel bid order", self,
+        self.ask_orders_view.addAction(cancel_ask_action)
+        self.ask_orders_view.addAction(refresh_orders_action)
+        cancel_bid_action = QtGui.QAction("&cancel bid order", self,
                                    triggered=self._cancel_bid)
-        self.bid_orders_view.addAction(cancel_bid)
+        self.bid_orders_view.addAction(cancel_bid_action)
+        self.bid_orders_view.addAction(refresh_orders_action)
 
         # Connect to account
         self.account.counter_balance_signal.connect(counter_balance_label.setValue)

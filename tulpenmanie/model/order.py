@@ -33,7 +33,7 @@ class OrdersModel(QtGui.QStandardItemModel):
                          QtGui.QStandardItem(str(amount)) ) )
 
     def remove_order(self, order_id):
-        orders = self.findItems(order_id)
+        orders = self.findItems(str(order_id))
         for order in orders:
             self.removeRow(order.row())
 

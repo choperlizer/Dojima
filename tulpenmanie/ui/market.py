@@ -1,16 +1,16 @@
 # Tuplenmanie, a commodities market client.
 # Copyright (C) 2012  Emery Hemingway
-# 
+#
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
-# 
+#
 # This program is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
-# 
+#
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
@@ -87,10 +87,11 @@ class EditMarketsWidget(QtGui.QWidget):
         self.list_view.edit(index)
 
     def _delete(self):
-        #TODO do something about exchange accounts
         row = self.list_view.currentIndex().row()
         self.model.delete_row(row)
         row -= 1
+        if row < 0:
+            row = 0
         self.list_view.setCurrentIndex(self.model.index(row, self.model.NAME))
         self.mapper.setCurrentIndex(row)
 

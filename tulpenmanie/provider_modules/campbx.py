@@ -294,8 +294,8 @@ class CampbxProviderItem(tulpenmanie.providers.ProviderItem):
 
     COLUMNS = 3
     MARKETS, ACCOUNTS, REFRESH_RATE = range(COLUMNS)
-    mappings = [('refresh rate', REFRESH_RATE)]
-    markets = ['BTC/USD']
+    mappings = (('refresh rate', REFRESH_RATE),)
+    markets = ('BTC/USD',)
 
     ACCOUNT_COLUMNS = 5
     ACCOUNT_NAME, ACCOUNT_ENABLE, ACCOUNT_USERNAME, ACCOUNT_PASSWORD, ACCOUNT_TRANSFER_CODE = range(ACCOUNT_COLUMNS)
