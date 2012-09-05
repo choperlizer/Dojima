@@ -108,7 +108,7 @@ class MtgoxPrivateRequest(MtgoxRequest):
         self.request.setHeader(QtNetwork.QNetworkRequest.ContentTypeHeader,
                           "application/x-www-form-urlencoded")
         query = QtCore.QUrl()
-        query.addQueryItem('nonce', str(int(time.time() * 8)))
+        query.addQueryItem('nonce', str(int(time.time() * 16)))
         if self.data:
             for key, value in self.data['query'].items():
                 query.addQueryItem(key, str(value))
@@ -268,12 +268,6 @@ class MtgoxAccount(_Mtgox):
             self._request_queue.enqueue(self)
 
     def refresh(self):
-        """Refresh orders, then balances."""
-        request = MtgoxPrivateRequest(self._orders_url,
-                                      self._orders_handler,
-                                      self)
-        self._requests.append(request)
-        self._request_queue.enqueue(self)
         request = MtgoxPrivateRequest(self._info_url,
                                       self._info_handler,
                                       self)

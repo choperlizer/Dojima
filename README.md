@@ -16,8 +16,11 @@ this [referral url](https://campbx.com/register.php?r=P3hAnksjDmY).
 The MtGox module uses POST methods rather than websocket interface. 
 Websocket support will be investigated as the program matures. MtGox specifies 
 that API calls should be atleast ten seconds apart, so this program spaces 
-them by five. Attempting to reduce the inter-call period may trigger anti-DOS
-measures.
+them by five. Attempting to reduce this period may trigger anti-DOS
+measures. You may also notice that the ask and bid buttons are disabled when
+first starting the application, this is because MtGox takes orders in whole 
+integers, and tuplenmanie requests the multiplication factor from MtGox at 
+startup.
 
 ## Dependencies
  - Python-2.7

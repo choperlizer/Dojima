@@ -180,7 +180,7 @@ class BtceExchange(_Btce):
                                         remote_market + "/ticker")
 
         # These must be the same length
-        remote_stats = ('sell', 'buy', 'last', 'vol',
+        remote_stats = ('buy', 'sell', 'last', 'vol',
                         'high', 'low', 'avg')
         self.stats = ('ask', 'bid', 'last', 'volume',
                        'high', 'low', 'average')
@@ -266,7 +266,6 @@ class BtceAccount(_Btce):
         request = BtcePrivateRequest('getInfo', self._getinfo_handler, self)
         self._requests.append(request)
         self._request_queue.enqueue(self)
-        self.refresh_orders()
 
     def _getinfo_handler(self, data):
         data = data['return']
@@ -358,7 +357,7 @@ class BtceProviderItem(tulpenmanie.providers.ProviderItem):
 
     COLUMNS = 3
     MARKETS, ACCOUNTS, REFRESH_RATE = range(COLUMNS)
-    mappings = [('refresh rate', REFRESH_RATE)]
+    mappings = (('refresh rate', REFRESH_RATE),)
 
     markets = ( 'BTC/USD', 'BTC/RUR', 'LTC/BTC', 'NMC/BTC', 'USD/RUR' )
 

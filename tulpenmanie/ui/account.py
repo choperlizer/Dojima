@@ -242,6 +242,7 @@ class ExchangeAccountWidget(QtGui.QWidget):
 
         # Request account info
         self.account.refresh()
+        self.account.refresh_orders()
         self.account.check_order_status()
 
         parent.add_account_widget(self)
