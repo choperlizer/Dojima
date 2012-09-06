@@ -1,16 +1,16 @@
 # Tuplenmanie, a commodities market client.
 # Copyright (C) 2012  Emery Hemingway
-# 
+#
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
-# 
+#
 # This program is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
-# 
+#
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
@@ -41,22 +41,6 @@ def _object_pairs_hook(pairs):
         dct[key] = decimal.Decimal(value)
     return dct
 
-def _process_reply(reply):
-    if logger.isEnabledFor(logging.INFO):
-        logger.debug("received reply to %s", reply.url().toString())
-    # TODO error handling
-    data = json.loads(str(reply.readAll()))#,
-        #object_pairs_hook=_object_pairs_hook)
-    if 'Error' in data:
-        msg = str(reply.url().toString()) + " : " + data['Error']
-        raise CampbxError(msg)
-    elif 'Info' in data:
-        msg = str(reply.url().toString()) + " : " + data['Error']
-        logger.info(msg)
-        return None
-    else:
-        return data
-
 
 class CampbxError(Exception):
 
@@ -74,6 +58,10 @@ class CampbxRequest(object):
         self.url = url
         self.handler = handler
         self.parent = parent
+        if data:
+            self.data = data
+        else:
+            self.data = dict()
         self.reply = None
 
         self.request = QtNetwork.QNetworkRequest(self.url)
@@ -81,15 +69,15 @@ class CampbxRequest(object):
                                "application/x-www-form-urlencoded")
         query = parent.base_query
         if data:
-            for key, value in data.items():
+            for key, value in data['query'].items():
                 query.addQueryItem(key, str(value))
-        self.data = query.encodedQuery()
+        self.query = query.encodedQuery()
 
     def post(self):
         if logger.isEnabledFor(logging.DEBUG):
             logger.debug("requesting %s", self.url.toString())
         self.reply = self.parent.network_manager.post(self.request,
-                                                      self.data)
+                                                      self.query)
         self.reply.finished.connect(self._process_reply)
         self.reply.error.connect(self._process_reply)
 
@@ -108,9 +96,13 @@ class CampbxRequest(object):
                 msg = str(reply.url().toString()) + " : " + data['Error']
                 logger.warning(msg)
             else:
-                self.handler(data)
-
+                if self.data:
+                    self.data.update(data)
+                    self.handler(self.data)
+                else:
+                    self.handler(data)
         self.reply.deleteLater()
+        self.parent._replies.remove(self)
 
 
 class _Campbx(QtCore.QObject):
@@ -119,7 +111,7 @@ class _Campbx(QtCore.QObject):
     def pop_request(self):
         request = heapq.heappop(self._requests)
         request.post()
-        self._replies.append(request)
+        self._replies.add(request)
 
 
 class CampbxExchangeMarket(_Campbx):
@@ -131,16 +123,16 @@ class CampbxExchangeMarket(_Campbx):
     _xticker_url = QtCore.QUrl(_BASE_URL + "xticker.php")
 
     ask = QtCore.pyqtSignal(decimal.Decimal)
-    bid = QtCore.pyqtSignal(decimal.Decimal)
     last = QtCore.pyqtSignal(decimal.Decimal)
+    bid = QtCore.pyqtSignal(decimal.Decimal)
 
     def __init__(self, remote_market, network_manager=None, parent=None):
         if network_manager is None:
             network_manager = self.manager.network_manager
         super(CampbxExchangeMarket, self).__init__(parent)
         # These must be the same length
-        remote_stats = ('Best Ask', 'Best Bid', 'Last Trade')
-        self.stats = ('ask', 'bid', 'last')
+        remote_stats = ('Best Ask', 'Last Trade', 'Best Bid')
+        self.stats = ('ask', 'last', 'bid')
         self.is_counter = (True, True, True)
         self._signals = dict()
         self.signals = dict()
@@ -154,7 +146,7 @@ class CampbxExchangeMarket(_Campbx):
         self._request_queue = self.network_manager.get_host_request_queue(
             HOSTNAME, 500)
         self._requests = list()
-        self._replies = list()
+        self._replies = set()
 
     def refresh(self):
         request = CampbxRequest(self._xticker_url, self._xticker_handler, self)
@@ -167,42 +159,41 @@ class CampbxExchangeMarket(_Campbx):
             signal.emit(decimal.Decimal(value))
 
 
-class CampbxAccount(_Campbx):
+class CampbxAccount(_Campbx, tulpenmanie.providers.ExchangeAccount):
     _myfunds_url = QtCore.QUrl(_BASE_URL + "myfunds.php")
     _myorders_url = QtCore.QUrl(_BASE_URL + "myorders.php")
     _tradeenter_url = QtCore.QUrl(_BASE_URL + "tradeenter.php")
     _tradecancel_url = QtCore.QUrl(_BASE_URL + "tradecancel.php")
 
-    counter_balance_signal = QtCore.pyqtSignal(decimal.Decimal)
-    base_balance_signal = QtCore.pyqtSignal(decimal.Decimal)
-    orders_refreshed_signal = QtCore.pyqtSignal()
+    BTC_balance_signal = QtCore.pyqtSignal(decimal.Decimal)
+    USD_balance_signal = QtCore.pyqtSignal(decimal.Decimal)
 
-    ask_enable_signal = QtCore.pyqtSignal(bool)
-    bid_enable_signal = QtCore.pyqtSignal(bool)
+    BTC_USD_ready_signal = QtCore.pyqtSignal(bool)
 
-    # pending requests comes from the request queue
-    pending_replies_signal = QtCore.pyqtSignal(int)
-
-    def __init__(self, credentials, remote,
-                 network_manager=None, parent=None):
+    def __init__(self, credentials, network_manager=None, parent=None):
         if network_manager is None:
             network_manager = self.manager.network_manager
         super(CampbxAccount, self).__init__(parent)
         self.base_query = QtCore.QUrl()
-        self.base_query.addQueryItem('user', credentials[2])
-        self.base_query.addQueryItem('pass', credentials[3])
+        self.base_query.addQueryItem('user', credentials[0])
+        self.base_query.addQueryItem('pass', credentials[2])
         self.network_manager = network_manager
         self._request_queue = self.network_manager.get_host_request_queue(
             HOSTNAME, 500)
         self._requests = list()
-        self._replies = list()
+        self._replies = set()
 
         self.ask_orders_model = OrdersModel()
         self.bid_orders_model = OrdersModel()
 
-    def check_order_status(self):
-        self.ask_enable_signal.emit(True)
-        self.bid_enable_signal.emit(True)
+    def check_order_status(self, remote_pair):
+        self.BTC_USD_ready_signal.emit(True)
+
+    def get_ask_orders_model(self, remote_pair):
+        return self.ask_orders_model
+
+    def get_bid_orders_model(self, remote_pair):
+        return self.bid_orders_model
 
     def refresh(self):
         request = CampbxRequest(self._myfunds_url, self._myfunds_handler, self)
@@ -211,8 +202,9 @@ class CampbxAccount(_Campbx):
         self.refresh_orders()
 
     def _myfunds_handler(self, data):
-        self.base_balance_signal.emit(decimal.Decimal(data['Total BTC']))
-        self.counter_balance_signal.emit(decimal.Decimal(data['Total USD']))
+        #TODO maybe not emit 'Total' but rather available
+        self.BTC_balance_signal.emit(decimal.Decimal(data['Total BTC']))
+        self.USD_balance_signal.emit(decimal.Decimal(data['Total USD']))
 
     def refresh_orders(self):
         request = CampbxRequest(self._myorders_url, self._myorders_handler, self)
@@ -234,19 +226,20 @@ class CampbxAccount(_Campbx):
                 model.append_order(order_id, price, amount)
             model.sort(1, QtCore.Qt.DescendingOrder)
 
-    def place_ask_order(self, amount, price=0):
+    def place_ask_order(self, pair, amount, price):
         self._place_order(amount, price, "QuickSell")
 
-    def place_bid_order(self, amount, price=0):
+    def place_bid_order(self, pair, amount, price):
         self._place_order(amount, price, "QuickBuy")
 
     def _place_order(self, amount, price, trade_mode):
-        data = {'TradeMode' : trade_mode,
-                'Quantity' : amount}
+        query = {'TradeMode' : trade_mode,
+                 'Quantity' : amount}
         if price:
-            data['Price'] = price
+            query['Price'] = price
         else:
-            data['Price'] = 'Market'
+            query['Price'] = 'Market'
+        data = {'query':query}
         request = CampbxRequest(self._tradeenter_url, self._tradeenter_handler,
                                 self, data)
         self._requests.append(request)
@@ -257,15 +250,15 @@ class CampbxAccount(_Campbx):
             # TODO could be a low priority request
             self.refresh_orders()
 
-    def cancel_ask_order(self, order_id):
+    def cancel_ask_order(self, pair, order_id):
         self._cancel_order(order_id, 'Sell')
 
-    def cancel_bid_order(self, order_id):
+    def cancel_bid_order(self, pair, order_id):
         self._cancel_order(order_id, 'Buy')
 
     def _cancel_order(self, order_id, order_type):
-        data = { 'Type' : order_type,
-                 'OrderID' : order_id }
+        data = {'query':{ 'Type' : order_type,
+                          'OrderID' : order_id }}
         request = CampbxRequest(self._tradecancel_url,
                                 self._tradecancel_handler,
                                 self, data)
@@ -276,7 +269,7 @@ class CampbxAccount(_Campbx):
         words = data['Success'].split()
         order_id = words[2]
         items = self.ask_orders_model.findItems(order_id,
-                                          QtCore.Qt.MatchExactly, 0)
+                                                QtCore.Qt.MatchExactly, 0)
         if len(items):
             row = items[0].row()
             self.ask_orders_model.removeRow(row)
@@ -295,17 +288,16 @@ class CampbxProviderItem(tulpenmanie.providers.ProviderItem):
     COLUMNS = 3
     MARKETS, ACCOUNTS, REFRESH_RATE = range(COLUMNS)
     mappings = (('refresh rate', REFRESH_RATE),)
-    markets = ('BTC/USD',)
+    markets = ('BTC_USD',)
 
-    ACCOUNT_COLUMNS = 5
-    ACCOUNT_NAME, ACCOUNT_ENABLE, ACCOUNT_USERNAME, ACCOUNT_PASSWORD, ACCOUNT_TRANSFER_CODE = range(ACCOUNT_COLUMNS)
-    account_mappings = (('enable', ACCOUNT_ENABLE),
-                        ('username', ACCOUNT_USERNAME),
-                        ('password', ACCOUNT_PASSWORD),
-                        ('transfer code', ACCOUNT_TRANSFER_CODE))
+    ACCOUNT_COLUMNS = 3
+    ACCOUNT_ID, ACCOUNT_ENABLE,  ACCOUNT_PASSWORD = range(ACCOUNT_COLUMNS)
+    account_mappings = (('username', ACCOUNT_ID),
+                        ('enable', ACCOUNT_ENABLE),
+                        ('password', ACCOUNT_PASSWORD))
     numeric_settings = (REFRESH_RATE,)
     boolean_settings = ()
-    required_account_settings = (ACCOUNT_USERNAME, ACCOUNT_PASSWORD)
+    required_account_settings = (ACCOUNT_PASSWORD,)
     hidden_account_settings = (ACCOUNT_PASSWORD,)
 
 

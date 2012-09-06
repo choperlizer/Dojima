@@ -17,6 +17,7 @@
 import logging
 from PyQt4 import QtCore, QtGui
 
+import tulpenmanie.model.order
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +35,29 @@ def register_account(account_class):
 
 def register_exchange_model_item(item_class):
     exchange_model_items.append(item_class)
+
+
+class ExchangeAccount(object):
+
+    def check_order_status(self):
+        self.ask_enable_signal.emit(True)
+        self.bid_enable_signal.emit(True)
+
+    def get_ask_orders_model(self, remote_pair):
+        if remote_pair in self.ask_orders.keys():
+            return self.ask_orders[remote_pair]
+        else:
+            model = tulpenmanie.model.order.OrdersModel()
+            self.ask_orders[remote_pair] = model
+            return model
+
+    def get_bid_orders_model(self, remote_pair):
+        if remote_pair in self.bid_orders.keys():
+            return self.bid_orders[remote_pair]
+        else:
+            model = tulpenmanie.model.order.OrdersModel()
+            self.bid_orders[remote_pair] = model
+            return model
 
 
 class ExchangesModel(QtGui.QStandardItemModel):
@@ -86,9 +110,10 @@ class ProviderItem(QtGui.QStandardItem):
         self.setChild(0, self.ACCOUNTS, self.accounts_item)
         self.settings.beginGroup('accounts')
         for account in self.settings.childGroups():
+            logger.debug("loading account %s", account)
             self.settings.beginGroup(account)
-            items = [ QtGui.QStandardItem(account) ]
-            for setting, column in self.account_mappings:
+            items = [QtGui.QStandardItem(account)]
+            for setting, column in self.account_mappings[1:]:
                 value = self.settings.value(setting).toString()
                 items.append(QtGui.QStandardItem(value))
             self.accounts_item.appendRow(items)
@@ -119,9 +144,10 @@ class ProviderItem(QtGui.QStandardItem):
         self.settings.beginGroup('accounts')
         self.settings.remove("")
         for row in range(self.accounts_item.rowCount()):
-            name = self.accounts_item.child(row, 0).text()
+            name = self.accounts_item.child(row, self.ACCOUNT_ID).text()
+            logger.debug("saving account %s", name)
             self.settings.beginGroup(name)
-            for setting, column in self.account_mappings:
+            for setting, column in self.account_mappings[1:]:
                 value = self.accounts_item.child(row, column).text()
                 self.settings.setValue(setting, value)
             self.settings.endGroup()

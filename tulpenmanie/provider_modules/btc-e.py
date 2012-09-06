@@ -32,9 +32,11 @@ logger = logging.getLogger(__name__)
 
 
 EXCHANGE_NAME = "BTC-e"
+COMMODITIES = ( 'btc', 'ltc', 'nmc', 'rur', 'usd' )
 HOSTNAME = "btc-e.com"
 _PUBLIC_BASE_URL = "https://" + HOSTNAME + "/api/2/"
 _PRIVATE_URL = "https://" + HOSTNAME + "/tapi"
+
 
 
 class BtceError(Exception):
@@ -93,6 +95,7 @@ class BtceRequest(QtCore.QObject):
                                    object_pairs_hook=self._object_pairs_hook)
             self.handler(self.data)
         self.reply.deleteLater()
+        self.parent._replies.remove(self)
 
 
 class BtcePrivateRequest(BtceRequest):
@@ -126,12 +129,6 @@ class BtcePrivateRequest(BtceRequest):
         self.request.setRawHeader('Key', self.parent._key)
         self.request.setRawHeader('Sign', sign)
 
-    def _object_hook(self, dct):
-        if 'funds' in dct:
-            for key, value in dct['funds'].items():
-                dct['funds'][key] = decimal.Decimal(value)
-        return dct
-
     def _process_reply(self):
         if self.reply.error():
             logger.error(self.reply.errorString())
@@ -139,7 +136,7 @@ class BtcePrivateRequest(BtceRequest):
             if logger.isEnabledFor(logging.DEBUG):
                 logger.debug("received reply to %s", self.url.toString())
             raw = str(self.reply.readAll())
-            data = json.loads(raw, object_hook=self._object_hook)
+            data = json.loads(raw)
             if data['success'] != 1:
                 msg = str(self.method) + " : " + data['error']
                 raise BtceError(msg)
@@ -150,6 +147,7 @@ class BtcePrivateRequest(BtceRequest):
                     self.data = data
                 self.handler(self.data)
         self.reply.deleteLater()
+        self.parent._replies.remove(self)
 
 
 class _Btce(QtCore.QObject):
@@ -158,15 +156,14 @@ class _Btce(QtCore.QObject):
     def pop_request(self):
         request = heapq.heappop(self._requests)
         request.post()
-        self._replies.append(request)
+        self._replies.add(request)
 
 
 class BtceExchange(_Btce):
 
     ask = QtCore.pyqtSignal(decimal.Decimal)
-    bid = QtCore.pyqtSignal(decimal.Decimal)
     last = QtCore.pyqtSignal(decimal.Decimal)
-    volume = QtCore.pyqtSignal(decimal.Decimal)
+    bid = QtCore.pyqtSignal(decimal.Decimal)
     high = QtCore.pyqtSignal(decimal.Decimal)
     low = QtCore.pyqtSignal(decimal.Decimal)
     average = QtCore.pyqtSignal(decimal.Decimal)
@@ -180,11 +177,11 @@ class BtceExchange(_Btce):
                                         remote_market + "/ticker")
 
         # These must be the same length
-        remote_stats = ('buy', 'sell', 'last', 'vol',
+        remote_stats = ('buy', 'last', 'sell',
                         'high', 'low', 'avg')
-        self.stats = ('ask', 'bid', 'last', 'volume',
+        self.stats = ('ask', 'last', 'bid',
                        'high', 'low', 'average')
-        self.is_counter = (True, True, True, False,
+        self.is_counter = (True, True, True,
                            True, True, True)
 
         self._signals = dict()
@@ -199,7 +196,7 @@ class BtceExchange(_Btce):
         self._request_queue = self.network_manager.get_host_request_queue(
             HOSTNAME, 500)
         self._requests = list()
-        self._replies = list()
+        self._replies = set()
 
     def refresh(self):
         request = BtceRequest(self._ticker_url, self._ticker_handler, self)
@@ -213,64 +210,52 @@ class BtceExchange(_Btce):
                 signal.emit(value)
 
 
-class BtceAccount(_Btce):
+class BtceAccount(_Btce, tulpenmanie.providers.ExchangeAccount):
 
-    counter_balance_signal = QtCore.pyqtSignal(decimal.Decimal)
-    base_balance_signal = QtCore.pyqtSignal(decimal.Decimal)
+    # BAD rudunant
+    markets = ( 'btc_usd', 'btc_rur', 'ltc_btc', 'nmc_btc', 'usd_rur' )
 
-    orders_refresh_signal = QtCore.pyqtSignal()
+    btc_balance_signal = QtCore.pyqtSignal(decimal.Decimal)
+    ltc_balance_signal = QtCore.pyqtSignal(decimal.Decimal)
+    nmc_balance_signal = QtCore.pyqtSignal(decimal.Decimal)
+    rur_balance_signal = QtCore.pyqtSignal(decimal.Decimal)
+    usd_balance_signal = QtCore.pyqtSignal(decimal.Decimal)
 
-    ask_enable_signal = QtCore.pyqtSignal(bool)
-    bid_enable_signal = QtCore.pyqtSignal(bool)
+    btc_usd_ready_signal = QtCore.pyqtSignal(bool)
+    btc_rur_ready_signal = QtCore.pyqtSignal(bool)
+    ltc_btc_ready_signal = QtCore.pyqtSignal(bool)
+    nmc_btc_ready_signal = QtCore.pyqtSignal(bool)
+    usd_rur_ready_signal = QtCore.pyqtSignal(bool)
 
-    def __init__(self, credentials, remote,
-                 network_manager=None, parent=None):
+    def __init__(self, credentials, network_manager=None, parent=None):
         if network_manager is None:
             network_manager = self.manager.network_manager
         super(BtceAccount, self).__init__(parent)
-        ##BAD, hardcoding
         self._key = str(credentials[2])
         self._secret = str(credentials[3])
-
-        self.remote_pair = str( remote.replace("/", "_") ).lower()
-        self.base = self.remote_pair[:3]
-        self.counter = self.remote_pair[4:]
-
-        # These must be the same length
-        remote_stats = ()
-        local_stats = ()
-        self._signals = dict()
-        self.signals = dict()
-        for i in range(len(remote_stats)):
-            signal = getattr(self, local_stats[i])
-            self._signals[remote_stats[i]] = signal
-            self.signals[local_stats[i]] = signal
 
         self.network_manager = network_manager
         self._request_queue = self.network_manager.get_host_request_queue(
             HOSTNAME, 5000)
         self._requests = list()
-        self._replies = list()
+        self._replies = set()
 
-        self.ask_orders_model = OrdersModel()
-        self.bid_orders_model = OrdersModel()
-
+        self.ask_orders = dict()
+        self.bid_orders = dict()
+        # TODO maybe divide smaller
         self.nonce = int(time.time() / 2)
 
-    def check_order_status(self):
-        self.ask_enable_signal.emit(True)
-        self.bid_enable_signal.emit(True)
+    def check_order_status(self, remote_pair):
+        signal = getattr(self, remote_pair + "_ready_signal")
+        signal.emit(True)
 
     def refresh(self):
-        """Refresh orders, then balances."""
         request = BtcePrivateRequest('getInfo', self._getinfo_handler, self)
         self._requests.append(request)
         self._request_queue.enqueue(self)
 
     def _getinfo_handler(self, data):
-        data = data['return']
-        self.base_balance_signal.emit(data['funds'][self.base])
-        self.counter_balance_signal.emit(data['funds'][self.counter])
+        self._emit_funds(data['return']['funds'])
 
     def refresh_orders(self):
         request = BtcePrivateRequest('OrderList', self._orderlist_handler, self)
@@ -280,35 +265,38 @@ class BtceAccount(_Btce):
     def _orderlist_handler(self, data):
         data = data['return']
         if data:
-            for model in self.ask_orders_model, self.bid_orders_model:
-                model.clear_orders()
+            for models in self.ask_orders, self.bid_orders:
+                for model in models.values():
+                    model.clear_orders()
         for order_id, order in data.items():
             price = order['rate']
             amount = order['amount']
             order_type = order['type']
+            pair = order['pair']
 
             if order_type == u'sell':
-                self.ask_orders_model.append_order(order_id, price, amount)
+                self.ask_orders[pair].append_order(order_id, price, amount)
             elif order_type == u'buy':
-                self.bid_orders_model.append_order(order_id, price, amount)
+                self.bid_orders_model[pair].append_order(order_id, price, amount)
             else:
                 logger.error("unknown order type: %s", order_type)
                 return
 
-            for model in self.ask_orders_model, self.bid_orders_model:
-                model.sort(1, QtCore.Qt.DescendingOrder)
+            for models in self.ask_orders, self.bid_orders:
+                for model in models.values():
+                    model.sort(1, QtCore.Qt.DescendingOrder)
 
-    def place_bid_order(self, amount, price=0):
-        self._place_order('buy', amount, price)
+    def place_bid_order(self, remote, amount, price):
+        self._place_order(remote, 'buy', amount, price)
 
-    def place_ask_order(self, amount, price=0):
-        self._place_order('sell', amount, price)
+    def place_ask_order(self, remote, amount, price):
+        self._place_order(remote, 'sell', amount, price)
 
-    def _place_order(self, order_type, amount, price):
-        data = {'query':{'pair': self.remote_pair,
-                'type': order_type,
-                'amount': amount,
-                'rate': price}}
+    def _place_order(self, remote_pair, order_type, amount, price):
+        data = {'query':{'pair': remote_pair,
+                         'type': order_type,
+                         'amount': amount,
+                         'rate': price} }
         request = BtcePrivateRequest('Trade', self._trade_handler, self, data)
         self._requests.append(request)
         self._request_queue.enqueue(self)
@@ -317,22 +305,23 @@ class BtceAccount(_Btce):
         order_id = data['return']['order_id']
         amount = data['return']['remains']
         price = data['query']['rate']
+        pair = data['query']['pair']
         order_type = data['query']['type']
         if order_type == 'sell':
-            self.ask_orders_model.append_order(order_id, price, amount)
+            self.ask_orders[pair].append_order(order_id, price, amount)
         elif order_type == 'buy':
-            self.bid_orders_model.append_order(order_id, price, amount)
-        self.base_balance_signal.emit(data['return']['funds'][self.base])
-        self.counter_balance_signal.emit(data['return']['funds'][self.counter])
+            self.bid_orders[pair].append_order(order_id, price, amount)
+        self._emit_funds(data['return']['funds'])
 
-    def cancel_ask_order(self, order_id):
-        self._cancel_order(order_id, 'ask')
+    def cancel_ask_order(self, pair, order_id):
+        self._cancel_order(pair, order_id, 'ask')
 
-    def cancel_bid_order(self, order_id):
-        self._cancel_order(order_id, 'bid')
+    def cancel_bid_order(self, pair, order_id):
+        self._cancel_order(pair, order_id, 'bid')
 
-    def _cancel_order(self, order_id, order_type):
-        data = {'type':order_type,
+    def _cancel_order(self, pair, order_id, order_type):
+        data = {'pair':pair,
+                'type':order_type,
                 'query':{'order_id':order_id}}
         request = BtcePrivateRequest('CancelOrder', self._cancelorder_handler,
                                      self, data)
@@ -341,15 +330,21 @@ class BtceAccount(_Btce):
 
     def _cancelorder_handler(self, data):
         order_id = data['return']['order_id']
+        pair = data['pair']
         order_type = data['type']
         if order_type == 'ask':
-            self.ask_orders_model.remove_order(order_id)
+            self.ask_orders[pair].remove_order(order_id)
         elif order_type == 'bid':
-            self.bid_orders_model.remove_order(order_id)
+            self.bid_orders[pair].remove_order(order_id)
+        self._emit_funds(data['return']['funds'])
 
-        self.base_balance_signal.emit(data['return']['funds'][self.base])
-        self.counter_balance_signal.emit(data['return']['funds'][self.counter])
-
+    def _emit_funds(self, data):
+        for commodity, balance in data.items():
+            signal = getattr(self, commodity + '_balance_signal', None)
+            if signal:
+                signal.emit(decimal.Decimal(balance))
+            else:
+                logger.warning("unknown commodity %s", commodity)
 
 class BtceProviderItem(tulpenmanie.providers.ProviderItem):
 
@@ -359,11 +354,12 @@ class BtceProviderItem(tulpenmanie.providers.ProviderItem):
     MARKETS, ACCOUNTS, REFRESH_RATE = range(COLUMNS)
     mappings = (('refresh rate', REFRESH_RATE),)
 
-    markets = ( 'BTC/USD', 'BTC/RUR', 'LTC/BTC', 'NMC/BTC', 'USD/RUR' )
+    markets = ( 'btc_usd', 'btc_rur', 'ltc_btc', 'nmc_btc', 'usd_rur' )
 
     ACCOUNT_COLUMNS = 4
-    ACCOUNT_NAME, ACCOUNT_ENABLE, ACCOUNT_KEY, ACCOUNT_SECRET = range(ACCOUNT_COLUMNS)
-    account_mappings = (('enable', ACCOUNT_ENABLE),
+    ACCOUNT_ID, ACCOUNT_ENABLE, ACCOUNT_KEY, ACCOUNT_SECRET = range(ACCOUNT_COLUMNS)
+    account_mappings = (('identifier', ACCOUNT_ID),
+                        ('enable', ACCOUNT_ENABLE),
                         ('key', ACCOUNT_KEY),
                         ('secret', ACCOUNT_SECRET))
 

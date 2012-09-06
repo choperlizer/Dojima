@@ -18,7 +18,7 @@ from PyQt4 import QtCore, QtGui
 
 from tulpenmanie.ui.widget import CommoditySpinBox, CommodityWidget
 import tulpenmanie.providers
-
+import tulpenmanie.translations
 
 class EditAccountsWidget(QtGui.QWidget):
 
@@ -27,10 +27,14 @@ class EditAccountsWidget(QtGui.QWidget):
 
         model = self.manager.exchanges_model
 
+        exchange_label = QtGui.QLabel(tulpenmanie.translations.exchange)
         exchange_combo = QtGui.QComboBox()
+        exchange_label.setBuddy(exchange_combo)
         exchange_combo.setModel(model)
 
+        self.account_id_label = QtGui.QLabel(tulpenmanie.translations.account_id)
         self.accounts_view = QtGui.QListView()
+        self.account_id_label.setBuddy(self.accounts_view)
         self.accounts_view.setModel(model)
 
         self.stacked_layout = QtGui.QStackedLayout()
@@ -46,15 +50,15 @@ class EditAccountsWidget(QtGui.QWidget):
             self.mappers.append(mapper)
 
             layout = QtGui.QFormLayout()
-            for name, column in exchange_item.account_mappings[1:]:
+            # first two columns are id and enable
+            for name, column in exchange_item.account_mappings[2:]:
                 edit = QtGui.QLineEdit()
                 if column in exchange_item.hidden_account_settings:
                     edit.setEchoMode(QtGui.QLineEdit.Password)
                 layout.addRow(name, edit)
                 mapper.addMapping(edit, column)
             enable_check = QtGui.QCheckBox()
-            # TODO translate
-            layout.addRow('enable', enable_check)
+            layout.addRow(tulpenmanie.translations.enable, enable_check)
             mapper.addMapping(enable_check, exchange_item.ACCOUNT_ENABLE)
             widget.setLayout(layout)
             self.stacked_layout.addWidget(widget)
@@ -63,12 +67,15 @@ class EditAccountsWidget(QtGui.QWidget):
         delete_button = QtGui.QPushButton("delete")
 
         grid_layout = QtGui.QGridLayout()
+        grid_layout.addWidget(exchange_label, 0,0)
+        grid_layout.addWidget(exchange_combo, 1,0)
+        grid_layout.addWidget(self.account_id_label, 2,0)
+        grid_layout.addWidget(self.accounts_view, 3,0, 2,1)
+        grid_layout.addLayout(self.stacked_layout, 1,1, 3,2,)
+        grid_layout.addWidget(new_button, 4,1)
+        grid_layout.addWidget(delete_button, 4,2)
         grid_layout.setColumnStretch(1, 1)
-        grid_layout.addWidget(exchange_combo, 0,0)
-        grid_layout.addWidget(self.accounts_view, 1,0, 2,1)
-        grid_layout.addLayout(self.stacked_layout, 0,1, 2,2,)
-        grid_layout.addWidget(new_button, 2,1)
-        grid_layout.addWidget(delete_button, 2,2)
+        grid_layout.setRowStretch(3, 1)
         self.setLayout(grid_layout)
 
         # Connections
@@ -85,6 +92,7 @@ class EditAccountsWidget(QtGui.QWidget):
         self.exchange_item = self.manager.exchanges_model.item(row)
         accounts_item = self.exchange_item.child(0, self.exchange_item.ACCOUNTS)
 
+        self.account_id_label.setText(self.exchange_item.account_mappings[0][0])
         self.accounts_view.setRootIndex(accounts_item.index())
         self.stacked_layout.setCurrentIndex(row)
         self.mapper = self.mappers[row]
@@ -116,19 +124,16 @@ class ExchangeAccountWidget(QtGui.QWidget):
     #TODO balance signals should connect to multiple account widgets,
     # where accounts and commodities are the same
 
-    def __init__(self, exchange_item, account_row, remote_market, parent=None):
+    def __init__(self, account_object, remote_market, parent):
         super(ExchangeAccountWidget, self).__init__(parent)
 
+        self.remote_pair = str(remote_market)
+        #TODO this will break if pair does not have 3 character codes
+        base = self.remote_pair[:3]
+        counter = self.remote_pair[-3:]
+
         # Data
-        exchange_name = exchange_item.text()
-
-        credentials = []
-        for column in range(exchange_item.ACCOUNT_COLUMNS):
-            credentials.append(exchange_item.accounts_item.child(account_row,
-                                                                column).text())
-
-        AccountClass = tulpenmanie.providers.accounts[str(exchange_name)]
-        self.account = AccountClass(credentials, remote_market)
+        self.account = account_object
 
         # Create UI
         self.ask_amount_spin = CommoditySpinBox(parent.base_row)
@@ -148,16 +153,18 @@ class ExchangeAccountWidget(QtGui.QWidget):
                      self.bid_amount_spin, self.bid_price_spin):
             spin.setMaximum(999999)
 
+        self.ask_model = self.account.get_ask_orders_model(self.remote_pair)
+        self.bid_model = self.account.get_bid_orders_model(self.remote_pair)
+        self.ask_model.setHorizontalHeaderLabels(("id", "ask", "amount"))
+        self.bid_model.setHorizontalHeaderLabels(("id", "bid", "amount"))
+
         # TODO these views should prefix/suffix price and amounts
         self.ask_orders_view = QtGui.QTableView()
-        self.ask_orders_view.setModel(self.account.ask_orders_model)
-        self.account.ask_orders_model.setHorizontalHeaderLabels(("id", "ask",
-                                                                 "amount"))
-        self.ask_orders_view.setSortingEnabled(True)
+        self.ask_orders_view.setModel(self.ask_model)
+
         self.bid_orders_view = QtGui.QTableView()
-        self.account.bid_orders_model.setHorizontalHeaderLabels(("id", "bid",
-                                                                 "amount"))
-        self.bid_orders_view.setModel(self.account.bid_orders_model)
+        self.bid_orders_view.setModel(self.bid_model)
+
         for view in self.ask_orders_view, self.bid_orders_view:
             view.setSelectionMode(QtGui.QListView.SingleSelection)
             view.setSelectionBehavior(QtGui.QListView.SelectRows)
@@ -229,11 +236,14 @@ class ExchangeAccountWidget(QtGui.QWidget):
         self.bid_orders_view.addAction(refresh_orders_action)
 
         # Connect to account
-        self.account.counter_balance_signal.connect(counter_balance_label.setValue)
-        self.account.base_balance_signal.connect(base_balance_label.setValue)
+        signal = getattr(self.account, counter + '_balance_signal')
+        signal.connect(counter_balance_label.setValue)
+        signal = getattr(self.account, base + '_balance_signal')
+        signal.connect(base_balance_label.setValue)
 
-        self.account.ask_enable_signal.connect(ask_button.setEnabled)
-        self.account.bid_enable_signal.connect(bid_button.setEnabled)
+        signal = getattr(self.account, self.remote_pair + '_ready_signal')
+        signal.connect(ask_button.setEnabled)
+        signal.connect(bid_button.setEnabled)
         ask_button.clicked.connect(self._ask)
         bid_button.clicked.connect(self._bid)
         refresh_button.clicked.connect(self.account.refresh)
@@ -241,30 +251,32 @@ class ExchangeAccountWidget(QtGui.QWidget):
         #self.account.pending_replies_signal.connect(pending_replies_view.setNum)
 
         # Request account info
+        self.account.check_order_status(self.remote_pair)
         self.account.refresh()
         self.account.refresh_orders()
-        self.account.check_order_status()
 
         parent.add_account_widget(self)
 
     def _bid(self):
         amount = self.bid_amount_spin.value()
         price = self.bid_price_spin.value()
-        self.account.place_bid_order(amount, price)
+        self.account.place_bid_order(self.remote_pair, amount, price)
 
     def _ask(self):
         amount = self.ask_amount_spin.value()
         price = self.ask_price_spin.value()
-        self.account.place_ask_order(amount, price)
+        self.account.place_ask_order(self.remote_pair, amount, price)
 
     def _cancel_ask(self):
         row = self.ask_orders_view.currentIndex().row()
-        order_id = self.account.ask_orders_model.item(row, 0).text()
-        self.account.cancel_ask_order(order_id)
+        item = self.ask_model.item(row, self.bid_model.ORDER_ID)
+        if item:
+            order_id = item.text()
+            self.account.cancel_ask_order(self.remote_pair, item.text())
 
     def _cancel_bid(self):
         row = self.bid_orders_view.currentIndex().row()
-        item = self.account.bid_orders_model.item(
-            row, self.account.bid_orders_model.ORDER_ID)
-        if item is not None:
-            self.account.cancel_bid_order(item.text())
+        item = self.bid_model.item(row, self.bid_model.ORDER_ID)
+        if item:
+            order_id = item.text()
+            self.account.cancel_bid_order(self.remote_pair, item.text())

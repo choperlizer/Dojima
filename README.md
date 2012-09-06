@@ -35,10 +35,5 @@ commodities and markets in the options->markets menu. After a market is defined,
 set exchange and account settings in the option->providers menu. At this time 
 the program must be restart for any new settings to take effect.
 
-## Known Issues
-Watching multiple markets with the same BTC-e account may cause problems. This 
-is becasue of race condition between account object authentication nonces, a 
-fix is in progress.
-
-## Donations
+## Support this project
 Bitcoin: 1NKKQBSaQ6XMViwC46b4JCxGUiUp6EDZR5

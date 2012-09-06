@@ -1,22 +1,21 @@
 # Tuplenmanie, a commodities market client.
 # Copyright (C) 2012  Emery Hemingway
-# 
+#
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
-# 
+#
 # This program is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
-# 
+#
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 from PyQt4 import QtCore, QtGui
-
-from tulpenmanie.ui.widget import BigCommodityWidget, CommodityWidget, UuidComboBox
+import tulpenmanie.ui.widget
 import tulpenmanie.providers
 
 
@@ -71,7 +70,7 @@ class EditExchangesWidget(QtGui.QWidget):
                 check_state = bool(markets_item.child(row, 1).text())
                 remote_label = QtGui.QLabel(remote_market)
                 check_box = QtGui.QCheckBox()
-                market_combo = UuidComboBox()
+                market_combo = tulpenmanie.ui.widget.UuidComboBox()
                 market_combo.setModel(self.manager.markets_model)
                 market_combo.setModelColumn(1)
                 market_combo.setEnabled(check_state)
@@ -135,33 +134,29 @@ class ExchangeWidget(QtGui.QGroupBox):
         refresh_rate = int(refresh_rate) * 1000
 
         #Widgets
-        side_layout = QtGui.QVBoxLayout()
-
+        side_layout = QtGui.QGridLayout()
+        side_layout.setColumnStretch(1,1)
         label_font = QtGui.QFont()
         label_font.setPointSize(7)
         for i, stat in enumerate(self.exchange.stats):
             label = QtGui.QLabel(stat)
-            #label.setAlignment(QtCore.Qt.AlignRight)
+            label.setAlignment(QtCore.Qt.AlignRight)
             label.setFont(label_font)
-
             if self.exchange.is_counter[i]:
-                widget = CommodityWidget(self.counter_row)
+                widget = tulpenmanie.ui.widget.CommodityLcdWidget(self.counter_row)
             else:
-                widget = CommodityWidget(self.base_row)
-            layout = QtGui.QHBoxLayout()
-            layout.addWidget(label)
-            layout.addWidget(widget)
-            side_layout.addLayout(layout)
+                widget = tulpenmanie.ui.widget.CommodityLcdWidget(self.base_row)
+            side_layout.addWidget(label, i,0)
+            side_layout.addWidget(widget, i,1)
 
             self.exchange.signals[stat].connect(widget.setValue)
 
             #side_layout.addWidget(separator, 0,3,
             #                  len(self.exchange.stats),1)
-        side_layout.addStretch()
+            #side_layout.addStretch()
 
         self.account_layout = QtGui.QVBoxLayout()
         layout = QtGui.QHBoxLayout()
-        layout.addStretch()
         layout.addLayout(side_layout)
         layout.addLayout(self.account_layout)
         self.setLayout(layout)

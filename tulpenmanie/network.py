@@ -54,10 +54,9 @@ class NetworkAccessManager(QtNetwork.QNetworkAccessManager):
     def __init__(self, parent=None):
         super(NetworkAccessManager, self).__init__(parent)
         self._host_request_queues = dict()
-        self.finished.connect(self.check_reply)
+        #self.finished.connect(self.check_reply)
 
     def check_reply(self, reply):
-        logger.debug("recieved %s", reply.url().toString())
         if reply.error():
             logger.error("%s - %s", reply.url().toString(), reply.errorString())
             reply.deleteLater()
