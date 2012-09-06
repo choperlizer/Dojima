@@ -38,7 +38,7 @@ class Manager(QtGui.QApplication):
 
         self.setOrganizationName("Emery Hemingway")
         self.setApplicationName("tulpenmanie")
-        self.setApplicationVersion('0.2.0')
+        self.setApplicationVersion('0.3.0')
 
         # Make settings models
         self.commodities_model = CommoditiesModel()
