@@ -104,6 +104,7 @@ class MarketDockWidget(QtGui.QDockWidget):
         model = tulpenmanie.market.markets_model
         row = markets_model_row
         name = model.item(row, model.NAME).text()
+        super(MarketDockWidget, self).__init__(name, parent)
 
         base_uuid = model.item(row, model.BASE).text()
         base_item = tulpenmanie.commodity.commodities_model.findItems(base_uuid)[0]
@@ -112,7 +113,7 @@ class MarketDockWidget(QtGui.QDockWidget):
         counter_item = tulpenmanie.commodity.commodities_model.findItems(counter_uuid)[0]
         self.counter_row = counter_item.row()
 
-        super(MarketDockWidget, self).__init__(name, parent)
+        self.enable_action = self.toggleViewAction()
 
         widget = QtGui.QWidget(self)
         self.setWidget(widget)

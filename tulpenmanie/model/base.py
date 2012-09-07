@@ -16,7 +16,7 @@
 
 import logging
 
-from PyQt4 import QtCore, QtGui, QtSql
+from PyQt4 import QtCore, QtGui
 
 
 logger = logging.getLogger(__name__)

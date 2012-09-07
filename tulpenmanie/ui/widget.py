@@ -27,7 +27,11 @@ class CommodityWidgetBase(object):
         model = tulpenmanie.commodity.commodities_model
         self.prefix = model.item(commodity_row, model.PREFIX).text()
         self.suffix = model.item(commodity_row, model.SUFFIX).text()
-        self.precision = int(model.item(commodity_row, model.PRECISION).text())
+        precision = model.item(commodity_row, model.PRECISION).text()
+        if not precision:
+            self.precision = None
+        else:
+            self.precision = int(precision)
 
 
 class CommodityLcdWidget(QtGui.QLCDNumber, CommodityWidgetBase):
@@ -35,6 +39,7 @@ class CommodityLcdWidget(QtGui.QLCDNumber, CommodityWidgetBase):
 
     def __init__(self, commodity_row, parent=None):
         super(CommodityLcdWidget, self).__init__(parent)
+        self._set_commodity_attributes(commodity_row)
 
         self.setStyleSheet('background : black')
         self.default_palette = QtGui.QPalette(self.palette())
@@ -51,7 +56,6 @@ class CommodityLcdWidget(QtGui.QLCDNumber, CommodityWidgetBase):
         self.setSegmentStyle(self.Flat)
 
         model = tulpenmanie.commodity.commodities_model
-        self.precision = int(model.item(commodity_row, model.PRECISION).text())
         self.value = None
 
     def setValue(self, value):
@@ -63,10 +67,15 @@ class CommodityLcdWidget(QtGui.QLCDNumber, CommodityWidgetBase):
             self.setPalette(self.default_palette)
 
         self.value = value
-        value_string = str(round(value, self.precision))
-        left, right = value_string.split('.')
-        value_string = left + '.' + right.ljust(self.precision, '0')
+        if self.precision:
+            value_string = str(round(value, self.precision))
+            left, right = value_string.split('.')
+            value_string = left + '.' + right.ljust(self.precision, '0')
+        else:
+            value_string = str(value)
 
+        # This probably takes the radix point into account,
+        # which doesn't take up a digit when displayed
         length = len(value_string)
         if self.digitCount() < length:
             self.setDigitCount(length)
@@ -81,7 +90,8 @@ class CommoditySpinBox(QtGui.QDoubleSpinBox, CommodityWidgetBase):
         self._set_commodity_attributes(commodity_row)
         self.setPrefix(self.prefix)
         self.setSuffix(self.suffix)
-        self.setDecimals(self.precision)
+        if self.precision:
+            self.setDecimals(self.precision)
 
 
 class CommodityWidget(QtGui.QLabel, CommodityWidgetBase):
@@ -107,7 +117,8 @@ class CommodityWidget(QtGui.QLabel, CommodityWidgetBase):
             self.setStyleSheet('color : black')
         self.value = value
 
-        value = round(value, self.precision)
+        if self.precision:
+            value = round(value, self.precision)
         self.setText(self.prefix + str(value) + self.suffix)
 
 

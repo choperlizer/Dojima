@@ -118,18 +118,15 @@ class ExchangeWidget(QtGui.QGroupBox):
 
         # Data
         exchange_name = exchange_item.text()
-        self.setTitle(exchange_name + ' - ' + remote_market)
+        title = exchange_name + ' - ' + remote_market
+        self.setTitle(title)
 
         ExchangeClass = tulpenmanie.providers.exchanges[str(exchange_name)]
+        self.exchange_item = exchange_item
         self.exchange = ExchangeClass(remote_market)
 
         self.base_row = parent.base_row
         self.counter_row = parent.counter_row
-
-        refresh_rate = exchange_item.child(0, exchange_item.REFRESH_RATE).text()
-        if not refresh_rate:
-            refresh_rate = 10
-        refresh_rate = int(refresh_rate) * 1000
 
         #Widgets
         side_layout = QtGui.QGridLayout()
@@ -159,12 +156,31 @@ class ExchangeWidget(QtGui.QGroupBox):
         layout.addLayout(self.account_layout)
         self.setLayout(layout)
 
-        self.exchange.refresh()
+        self.enable_action = QtGui.QAction(title, self)
+        self.enable_action.setCheckable(True)
+        parent.enable_action.toggled.connect(self.enable_action.toggle)
+        self.enable_action.toggled.connect(self.enable)
+
         self.refresh_timer = QtCore.QTimer(self)
         self.refresh_timer.timeout.connect(self.exchange.refresh)
-        self.refresh_timer.start(refresh_rate)
 
-        parent.add_exchange_widget(self)
+        self.dock = parent
+        self.dock.add_exchange_widget(self)
 
     def add_account_widget(self, widget):
         self.account_layout.addWidget(widget)
+
+    def enable(self, enable):
+        if enable:
+            self.exchange.refresh()
+            refresh_rate = int(self.exchange_item.child(
+                0, self.exchange_item.REFRESH_RATE).text())
+            if not refresh_rate:
+                refresh_rate = 10000
+            else:
+                refresh_rate = refresh_rate * 1000
+
+            self.refresh_timer.start(refresh_rate)
+        else:
+            self.refresh_timer.stop()
+            #self.close()

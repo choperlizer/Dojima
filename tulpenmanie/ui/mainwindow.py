@@ -41,9 +41,14 @@ class MainWindow(QtGui.QMainWindow):
                                               shortcut="Ctrl+P",
                                               triggered=self._edit_providers)
 
-        self.markets_menu = QtGui.QMenu("markets", self)
+        self.markets_menu = QtGui.QMenu(tulpenmanie.translation.markets,
+                                        self)
         self.menuBar().addMenu(self.markets_menu)
-        options_menu = QtGui.QMenu("options", self)
+        self.exchanges_menu = QtGui.QMenu(tulpenmanie.translation.exchanges,
+                                          self)
+        self.menuBar().addMenu(self.exchanges_menu)
+        options_menu = QtGui.QMenu(QtCore.QCoreApplication.translate(
+            "options menu title", "options"), self)
         options_menu.addAction(edit_markets_action)
         options_menu.addAction(edit_providers_action)
         self.menuBar().addMenu(options_menu)
@@ -67,8 +72,8 @@ class MainWindow(QtGui.QMainWindow):
                 dock = MarketDockWidget(market_row, self)
                 dock.setAllowedAreas(QtCore.Qt.TopDockWidgetArea)
                 self.addDockWidget(QtCore.Qt.TopDockWidgetArea, dock)
-                toggle_action = dock.toggleViewAction()
-                self.markets_menu.addAction(toggle_action)
+                enable_action = dock.enable_action
+                self.markets_menu.addAction(enable_action)
 
                 market_uuid = markets_model.item(market_row, markets_model.UUID).text()
                 tulpenmanie.market.market_docks[market_uuid] = dock
@@ -116,6 +121,7 @@ class MainWindow(QtGui.QMainWindow):
                                                      market_row,
                                                      remote_market,
                                                      dock)
+                    self.exchanges_menu.addAction(exchange_widget.enable_action)
 
                     for account_id, account_object in account_objects.items():
                         ### make account widget
