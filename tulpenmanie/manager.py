@@ -1,4 +1,4 @@
-# Tuplenmanie, a commodities market client.
+# Tulpenmanie, a commodities market client.
 # Copyright (C) 2012  Emery Hemingway
 #
 # This program is free software: you can redistribute it and/or modify
@@ -17,12 +17,7 @@
 import logging
 from PyQt4 import QtCore, QtGui
 
-from tulpenmanie.model.commodity import CommoditiesModel
-from tulpenmanie.model.market import MarketsModel
-
 import tulpenmanie.network
-import tulpenmanie.providers
-from tulpenmanie.provider_modules import *
 
 from tulpenmanie.ui.mainwindow import MainWindow
 
@@ -39,15 +34,6 @@ class Manager(QtGui.QApplication):
         self.setOrganizationName("Emery Hemingway")
         self.setApplicationName("tulpenmanie")
         self.setApplicationVersion('0.3.0')
-
-        # Make settings models
-        self.commodities_model = CommoditiesModel()
-        self.markets_model = MarketsModel()
-        self.exchanges_model = tulpenmanie.providers.ExchangesModel()
-
-        for Item in tulpenmanie.providers.exchange_model_items:
-            item = Item()
-            self.exchanges_model.appendRow(item)
 
         # Network stuff
         self.network_manager = tulpenmanie.network.NetworkAccessManager()

@@ -1,4 +1,4 @@
-# Tuplenmanie, a commodities market client.
+# Tulpenmanie, a commodities market client.
 # Copyright (C) 2012  Emery Hemingway
 #
 # This program is free software: you can redistribute it and/or modify
@@ -22,6 +22,7 @@ import tulpenmanie.model.order
 logger = logging.getLogger(__name__)
 
 
+exchanges_model = None
 exchanges = dict()
 accounts = dict()
 exchange_model_items = list()
@@ -36,31 +37,15 @@ def register_account(account_class):
 def register_exchange_model_item(item_class):
     exchange_model_items.append(item_class)
 
-
-class ExchangeAccount(object):
-
-    def check_order_status(self):
-        self.ask_enable_signal.emit(True)
-        self.bid_enable_signal.emit(True)
-
-    def get_ask_orders_model(self, remote_pair):
-        if remote_pair in self.ask_orders.keys():
-            return self.ask_orders[remote_pair]
-        else:
-            model = tulpenmanie.model.order.OrdersModel()
-            self.ask_orders[remote_pair] = model
-            return model
-
-    def get_bid_orders_model(self, remote_pair):
-        if remote_pair in self.bid_orders.keys():
-            return self.bid_orders[remote_pair]
-        else:
-            model = tulpenmanie.model.order.OrdersModel()
-            self.bid_orders[remote_pair] = model
-            return model
+def create_exchanges_model(parent):
+    global exchanges_model
+    exchanges_model = _ExchangesModel(parent)
+    for Item in exchange_model_items:
+        item = Item()
+        exchanges_model.appendRow(item)
 
 
-class ExchangesModel(QtGui.QStandardItemModel):
+class _ExchangesModel(QtGui.QStandardItemModel):
 
     def save(self):
         for row in range(self.rowCount()):
@@ -161,3 +146,26 @@ class ProviderItem(QtGui.QStandardItem):
             columns -= 1
         self.accounts_item.appendRow(items)
         return items[0].index()
+
+
+class ExchangeAccount(object):
+
+    def check_order_status(self):
+        self.ask_enable_signal.emit(True)
+        self.bid_enable_signal.emit(True)
+
+    def get_ask_orders_model(self, remote_pair):
+        if remote_pair in self.ask_orders.keys():
+            return self.ask_orders[remote_pair]
+        else:
+            model = tulpenmanie.model.order.OrdersModel()
+            self.ask_orders[remote_pair] = model
+            return model
+
+    def get_bid_orders_model(self, remote_pair):
+        if remote_pair in self.bid_orders.keys():
+            return self.bid_orders[remote_pair]
+        else:
+            model = tulpenmanie.model.order.OrdersModel()
+            self.bid_orders[remote_pair] = model
+            return model

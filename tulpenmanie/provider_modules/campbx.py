@@ -1,4 +1,4 @@
-# Tuplenmanie, a commodities market client.
+# Tulpenmanie, a commodities market client.
 # Copyright (C) 2012  Emery Hemingway
 #
 # This program is free software: you can redistribute it and/or modify
@@ -21,6 +21,7 @@ import logging
 from PyQt4 import QtCore, QtGui, QtNetwork
 
 import tulpenmanie.providers
+import tulpenmanie.translation
 from tulpenmanie.model.order import OrdersModel
 
 
@@ -116,9 +117,6 @@ class _Campbx(QtCore.QObject):
 
 class CampbxExchangeMarket(_Campbx):
 
-    register_url = "https://CampBX.com/register.php?r=P3hAnksjDmY"
-    register_url_info = """register at this link and receive a lifetime 10% """ \
-                        """discount on exchange commissions"""
 
     _xticker_url = QtCore.QUrl(_BASE_URL + "xticker.php")
 
@@ -287,14 +285,15 @@ class CampbxProviderItem(tulpenmanie.providers.ProviderItem):
 
     COLUMNS = 3
     MARKETS, ACCOUNTS, REFRESH_RATE = range(COLUMNS)
-    mappings = (('refresh rate', REFRESH_RATE),)
+    mappings = ((tulpenmanie.translation.refresh_rate, REFRESH_RATE),)
     markets = ('BTC_USD',)
 
     ACCOUNT_COLUMNS = 3
     ACCOUNT_ID, ACCOUNT_ENABLE,  ACCOUNT_PASSWORD = range(ACCOUNT_COLUMNS)
-    account_mappings = (('username', ACCOUNT_ID),
-                        ('enable', ACCOUNT_ENABLE),
-                        ('password', ACCOUNT_PASSWORD))
+    account_mappings = (
+        (QtCore.QCoreApplication.translate("settings", 'username'), ACCOUNT_ID),
+        (tulpenmanie.translation.enable, ACCOUNT_ENABLE),
+        (tulpenmanie.translation.password, ACCOUNT_PASSWORD))
     numeric_settings = (REFRESH_RATE,)
     boolean_settings = ()
     required_account_settings = (ACCOUNT_PASSWORD,)

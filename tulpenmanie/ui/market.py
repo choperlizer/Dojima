@@ -1,4 +1,4 @@
-# Tuplenmanie, a commodities market client.
+# Tulpenmanie, a commodities market client.
 # Copyright (C) 2012  Emery Hemingway
 #
 # This program is free software: you can redistribute it and/or modify
@@ -16,7 +16,9 @@
 
 from PyQt4 import QtCore, QtGui
 
-from tulpenmanie.model.market import *
+import tulpenmanie.commodity
+import tulpenmanie.market
+import tulpenmanie.translation
 from tulpenmanie.ui.widget import UuidComboBox
 
 class EditMarketsWidget(QtGui.QWidget):
@@ -29,16 +31,16 @@ class EditMarketsWidget(QtGui.QWidget):
         self.base_combo = UuidComboBox()
         self.counter_combo = UuidComboBox()
         enable_check = QtGui.QCheckBox()
-        new_button = QtGui.QPushButton("new")
-        delete_button = QtGui.QPushButton("delete")
+        new_button = QtGui.QPushButton(tulpenmanie.translation.new)
+        delete_button = QtGui.QPushButton(tulpenmanie.translation.remove)
 
         layout = QtGui.QGridLayout()
         layout.addWidget(self.list_view, 0,0, 2,1)
 
         combo_layout = QtGui.QFormLayout()
-        combo_layout.addRow("&base:", self.base_combo)
-        combo_layout.addRow("coun&ter:", self.counter_combo)
-        combo_layout.addRow("enable:", enable_check)
+        combo_layout.addRow(tulpenmanie.translation.base, self.base_combo)
+        combo_layout.addRow(tulpenmanie.translation.counter, self.counter_combo)
+        combo_layout.addRow(tulpenmanie.translation.enable, enable_check)
 
         layout.addLayout(combo_layout, 0,1, 1,2)
         layout.addWidget(new_button, 1,1)
@@ -46,15 +48,15 @@ class EditMarketsWidget(QtGui.QWidget):
         self.setLayout(layout)
 
         # Model
-        self.model = self.manager.markets_model
+        self.model = tulpenmanie.market.markets_model
 
         self.list_view.setModel(self.model)
         self.list_view.setModelColumn(self.model.NAME)
 
-        self.base_combo.setModel(self.manager.commodities_model)
-        self.base_combo.setModelColumn(self.manager.commodities_model.NAME)
-        self.counter_combo.setModel(self.manager.commodities_model)
-        self.counter_combo.setModelColumn(self.manager.commodities_model.NAME)
+        self.base_combo.setModel(tulpenmanie.commodity.commodities_model)
+        self.base_combo.setModelColumn(tulpenmanie.commodity.commodities_model.NAME)
+        self.counter_combo.setModel(tulpenmanie.commodity.commodities_model)
+        self.counter_combo.setModelColumn(tulpenmanie.commodity.commodities_model.NAME)
 
         self.mapper = QtGui.QDataWidgetMapper(self)
         self.mapper.setModel(self.model)
@@ -99,15 +101,15 @@ class EditMarketsWidget(QtGui.QWidget):
 class MarketDockWidget(QtGui.QDockWidget):
 
     def __init__(self, markets_model_row, parent=None):
-        model = self.manager.markets_model
+        model = tulpenmanie.market.markets_model
         row = markets_model_row
         name = model.item(row, model.NAME).text()
 
         base_uuid = model.item(row, model.BASE).text()
-        base_item = self.manager.commodities_model.findItems(base_uuid)[0]
+        base_item = tulpenmanie.commodity.commodities_model.findItems(base_uuid)[0]
         self.base_row = base_item.row()
         counter_uuid = model.item(row, model.COUNTER).text()
-        counter_item = self.manager.commodities_model.findItems(counter_uuid)[0]
+        counter_item = tulpenmanie.commodity.commodities_model.findItems(counter_uuid)[0]
         self.counter_row = counter_item.row()
 
         super(MarketDockWidget, self).__init__(name, parent)

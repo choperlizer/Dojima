@@ -1,26 +1,32 @@
 # -*- coding: utf-8 -*-
-# Tuplenmanie, a commodities market client.
+# Tulpenmanie, a commodities market client.
 # Copyright (C) 2012  Emery Hemingway
-# 
+#
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
-# 
+#
 # This program is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
-# 
+#
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 from PyQt4 import QtCore, QtGui
 
-from tulpenmanie.model.base import FlatSettingsModel
+import tulpenmanie.model.base
+
+commodities_model = None
+
+def create_model(parent):
+    global commodities_model
+    commodities_model = _CommoditiesModel(parent)
 
 
-class CommoditiesModel(FlatSettingsModel):
+class _CommoditiesModel(tulpenmanie.model.base.FlatSettingsModel):
 
     name = 'commodities'
     COLUMNS = 5
@@ -38,3 +44,6 @@ class CommoditiesModel(FlatSettingsModel):
                          QtGui.QStandardItem(),
                          QtGui.QStandardItem()) )
         return item.row()
+
+
+commodities_model = _CommoditiesModel()

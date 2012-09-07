@@ -1,4 +1,4 @@
-# Tuplenmanie, a commodities market client.
+# Tulpenmanie, a commodities market client.
 # Copyright (C) 2012  Emery Hemingway
 #
 # This program is free software: you can redistribute it and/or modify
@@ -15,8 +15,10 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 from PyQt4 import QtCore, QtGui
-import tulpenmanie.ui.widget
+
+import tulpenmanie.market
 import tulpenmanie.providers
+import tulpenmanie.ui.widget
 
 
 class EditExchangesWidget(QtGui.QWidget):
@@ -24,7 +26,7 @@ class EditExchangesWidget(QtGui.QWidget):
     def __init__(self, parent=None):
         super(EditExchangesWidget, self).__init__(parent)
 
-        model = self.manager.exchanges_model
+        model = tulpenmanie.providers.exchanges_model
 
         list_view = QtGui.QListView()
         list_view.setModel(model)
@@ -71,7 +73,7 @@ class EditExchangesWidget(QtGui.QWidget):
                 remote_label = QtGui.QLabel(remote_market)
                 check_box = QtGui.QCheckBox()
                 market_combo = tulpenmanie.ui.widget.UuidComboBox()
-                market_combo.setModel(self.manager.markets_model)
+                market_combo.setModel(tulpenmanie.market.markets_model)
                 market_combo.setModelColumn(1)
                 market_combo.setEnabled(check_state)
                 check_box.toggled.connect(market_combo.setEnabled)
@@ -104,13 +106,9 @@ class EditExchangesWidget(QtGui.QWidget):
         list_view.clicked.connect(self._exchange_changed)
 
     def _exchange_changed(self, exchange_index):
-        #row = self.manager.exchanges_model.item(exchange_index).row()
+        #row = tulpenmanie.providers.exchanges_model.item(exchange_index).row()
         row = exchange_index.row()
         self.stacked_widget.setCurrentIndex(row)
-
-    def closeEvent(self):
-        #TODO probably a redundant save
-        self.manager.exchanges_model.save()
 
 
 class ExchangeWidget(QtGui.QGroupBox):

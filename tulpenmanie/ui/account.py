@@ -1,4 +1,4 @@
-# Tuplenmanie, a commodities market client.
+# Tulpenmanie, a commodities market client.
 # Copyright (C) 2012  Emery Hemingway
 #
 # This program is free software: you can redistribute it and/or modify
@@ -25,7 +25,7 @@ class EditAccountsWidget(QtGui.QWidget):
     def __init__(self, parent=None):
         super(EditAccountsWidget, self).__init__(parent)
 
-        model = self.manager.exchanges_model
+        model = tulpenmanie.providers.exchanges_model
 
         exchange_label = QtGui.QLabel(tulpenmanie.translations.exchange)
         exchange_combo = QtGui.QComboBox()
@@ -89,7 +89,7 @@ class EditAccountsWidget(QtGui.QWidget):
         self._exchange_changed(0)
 
     def _exchange_changed(self, row):
-        self.exchange_item = self.manager.exchanges_model.item(row)
+        self.exchange_item = tulpenmanie.providers.exchanges_model.item(row)
         accounts_item = self.exchange_item.child(0, self.exchange_item.ACCOUNTS)
 
         self.account_id_label.setText(self.exchange_item.account_mappings[0][0])
@@ -136,6 +136,8 @@ class ExchangeAccountWidget(QtGui.QWidget):
         self.account = account_object
 
         # Create UI
+        # TODO
+        # make a parent widget to hold ask stuff and handle the enter-key
         self.ask_amount_spin = CommoditySpinBox(parent.base_row)
 
         self.ask_price_spin = CommoditySpinBox(parent.counter_row)

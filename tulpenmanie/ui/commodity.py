@@ -1,23 +1,24 @@
 # -*- coding: utf-8 -*-
-# Tuplenmanie, a commodities market client.
+# Tulpenmanie, a commodities market client.
 # Copyright (C) 2012  Emery Hemingway
-# 
+#
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
-# 
+#
 # This program is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
-# 
+#
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 from PyQt4 import QtCore, QtGui
 
-from tulpenmanie.model.commodity import *
+import tulpenmanie.commodity
+import tulpenmanie.market
 
 class EditCommoditiesWidget(QtGui.QWidget):
 
@@ -52,7 +53,7 @@ class EditCommoditiesWidget(QtGui.QWidget):
         self.setLayout(layout)
 
         # Model
-        self.model = self.manager.commodities_model
+        self.model = tulpenmanie.commodity.commodities_model
 
         self.list_view.setModel(self.model)
         self.list_view.setModelColumn(self.model.NAME)
@@ -84,9 +85,9 @@ class EditCommoditiesWidget(QtGui.QWidget):
         # Check if any markets use the selected commodity
         row = self.mapper.currentIndex()
         uuid = self.model.item(row, self.model.UUID).text()
-        results = self.manager.markets_model.findItems(
+        results = tulpenmanie.market.markets_model.findItems(
             uuid, QtCore.Qt.MatchExactly, 2)
-        results += self.manager.markets_model.findItems(
+        results += tulpenmanie.market.markets_model.findItems(
             uuid, QtCore.Qt.MatchExactly, 3)
         if results:
             name = self.model.item(row, self.model.NAME).text()
@@ -98,4 +99,3 @@ class EditCommoditiesWidget(QtGui.QWidget):
             self.model.delete_row(self.mapper.currentIndex())
             self.list_view.setCurrentIndex(self.model.index(0, self.model.NAME))
             self.mapper.toFirst()
-        

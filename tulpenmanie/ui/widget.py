@@ -1,4 +1,4 @@
-# Tuplenmanie, a commodities market client.
+# Tulpenmanie, a commodities market client.
 # Copyright (C) 2012  Emery Hemingway
 #
 # This program is free software: you can redistribute it and/or modify
@@ -19,10 +19,12 @@ from decimal import *
 from PyQt4 import QtCore, QtGui
 from PyQt4.QtCore import pyqtProperty
 
+import tulpenmanie.commodity
+
 class CommodityWidgetBase(object):
 
     def _set_commodity_attributes(self, commodity_row):
-        model = self.manager.commodities_model
+        model = tulpenmanie.commodity.commodities_model
         self.prefix = model.item(commodity_row, model.PREFIX).text()
         self.suffix = model.item(commodity_row, model.SUFFIX).text()
         self.precision = int(model.item(commodity_row, model.PRECISION).text())
@@ -48,7 +50,7 @@ class CommodityLcdWidget(QtGui.QLCDNumber, CommodityWidgetBase):
                                        QtCore.Qt.red)
         self.setSegmentStyle(self.Flat)
 
-        model = self.manager.commodities_model
+        model = tulpenmanie.commodity.commodities_model
         self.precision = int(model.item(commodity_row, model.PRECISION).text())
         self.value = None
 
@@ -65,7 +67,6 @@ class CommodityLcdWidget(QtGui.QLCDNumber, CommodityWidgetBase):
         left, right = value_string.split('.')
         value_string = left + '.' + right.ljust(self.precision, '0')
 
-        # connect this to other like widgets
         length = len(value_string)
         if self.digitCount() < length:
             self.setDigitCount(length)

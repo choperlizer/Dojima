@@ -1,4 +1,4 @@
-# Tuplenmanie, a commodities market client.
+# Tulpenmanie, a commodities market client.
 # Copyright (C) 2012  Emery Hemingway
 #
 # This program is free software: you can redistribute it and/or modify
@@ -16,6 +16,11 @@
 
 from PyQt4 import QtCore, QtGui
 
+import tulpenmanie.commodity
+import tulpenmanie.market
+import tulpenmanie.providers
+#This next import registers providers with the former module
+from tulpenmanie.provider_modules import *
 import tulpenmanie.ui.wizard
 from tulpenmanie.ui.edit import EditMarketsDialog, EditProvidersDialog
 from tulpenmanie.ui.market import MarketDockWidget
@@ -27,7 +32,6 @@ class MainWindow(QtGui.QMainWindow):
 
     def __init__(self, parent=None):
         super (MainWindow, self).__init__(parent)
-        self.market_docks = dict()
 
         edit_markets_action = QtGui.QAction("&markets", self,
                                             shortcut="Ctrl+E",
@@ -47,12 +51,15 @@ class MainWindow(QtGui.QMainWindow):
         # A place to put exchange accounts
         self.accounts = dict()
 
+        tulpenmanie.commodity.create_model(self)
+        tulpenmanie.market.create_model(self)
+        tulpenmanie.providers.create_exchanges_model(self)
+
         self.parse_models()
 
     def parse_models(self):
         # parse markets
-        markets_model = self.manager.markets_model
-        self.market_docks = dict()
+        markets_model = tulpenmanie.market.markets_model
         for market_row in range(markets_model.rowCount()):
             enable = markets_model.item(market_row, markets_model.ENABLE).text()
             if enable == "true":
@@ -64,11 +71,12 @@ class MainWindow(QtGui.QMainWindow):
                 self.markets_menu.addAction(toggle_action)
 
                 market_uuid = markets_model.item(market_row, markets_model.UUID).text()
-                self.market_docks[market_uuid] = dock
+                tulpenmanie.market.market_docks[market_uuid] = dock
 
         # parse exchanges
-        for exchange_row in range(self.manager.exchanges_model.rowCount()):
-            exchange_item = self.manager.exchanges_model.item(exchange_row)
+        exchanges_model = tulpenmanie.providers.exchanges_model
+        for exchange_row in range(exchanges_model.rowCount()):
+            exchange_item = exchanges_model.item(exchange_row)
             exchange_name = str(exchange_item.text())
             account_objects = dict()
             self.accounts[exchange_name] = account_objects
@@ -99,8 +107,8 @@ class MainWindow(QtGui.QMainWindow):
                 local_market = markets_item.child(market_row,
                                                   exchange_item.MARKET_LOCAL).text()
 
-                if (enable == "true") and (local_market in self.market_docks):
-                    dock = self.market_docks[local_market]
+                if (enable == "true") and (local_market in tulpenmanie.market.market_docks):
+                    dock = tulpenmanie.market.market_docks[local_market]
                     remote_market = markets_item.child(
                         market_row, exchange_item.MARKET_REMOTE).text()
                     ### make exchange widget
@@ -115,8 +123,6 @@ class MainWindow(QtGui.QMainWindow):
                                                                remote_market,
                                                                exchange_widget)
 
-
-
     def _edit_markets(self):
         dialog = EditMarketsDialog(self)
         dialog.exec_()
@@ -128,8 +134,8 @@ class MainWindow(QtGui.QMainWindow):
     def closeEvent(self, event):
         #TODO maybe a market model could store
         #commodities items in a second place
-        self.manager.commodities_model.save()
-        self.manager.markets_model.save()
-        self.manager.exchanges_model.save()
+        tulpenmanie.commodity.commodities_model.save()
+        tulpenmanie.market.markets_model.save()
+        tulpenmanie.providers.exchanges_model.save()
 
         event.accept()
