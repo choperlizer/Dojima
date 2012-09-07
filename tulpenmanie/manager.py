@@ -33,7 +33,7 @@ class Manager(QtGui.QApplication):
 
         self.setOrganizationName("Emery Hemingway")
         self.setApplicationName("tulpenmanie")
-        self.setApplicationVersion('0.3.0')
+        self.setApplicationVersion('0.3.1')
 
         # Network stuff
         self.network_manager = tulpenmanie.network.NetworkAccessManager()
