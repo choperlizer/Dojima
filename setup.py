@@ -1,7 +1,7 @@
 from distutils.core import setup
 
 setup(name='tulpenmanie',
-      version='0.3.1',
+      version='0.4.0',
       description='Graphical commodity market client.',
       url='https://github.com/3M3RY/tulpenmanie',
       author='Emery Hemingway',
