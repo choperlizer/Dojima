@@ -17,6 +17,7 @@
 import heapq
 import Queue
 import logging
+import random
 from PyQt4 import QtCore, QtNetwork
 
 
@@ -30,8 +31,8 @@ class HostRequestQueue(QtCore.QObject):
 
     def __init__(self, wait, parent=None):
         super(HostRequestQueue, self).__init__(parent)
-        #self.queue = Queue.PriorityQueue()
-        self.queue = Queue.Queue()
+        self.queue = Queue.PriorityQueue()
+        self.wait = wait
         self.timer = QtCore.QTimer(self)
         self.timer.timeout.connect(self.pop)
         self.timer.start(wait)
@@ -39,17 +40,27 @@ class HostRequestQueue(QtCore.QObject):
     def set_wait(self, wait):
         """Change the minimum interval between requests"""
         self.timer.setInterval(wait)
+        self.wait = wait
 
-    def enqueue(self, requester):
+    def enqueue(self, requester, priority=None):
         """Enqueue an object that wishes to request"""
-        self.queue.put(requester)
+        if not self.timer.isActive():
+            self.timer.start(self.wait)
+            requester.pop_request()
+        else:
+            if priority is None:
+                priority = random.randint(4,16)
+            self.queue.put((priority, requester))
 
     def pop(self):
-        """Pop an object that has a request queued call pop_request()"""
+        # TODO !!! if queue is empty and wait has elasped since the last
+        # pop, pop immediatly
+        """Pop an object that has a request queued and call pop_request()"""
         if self.queue.empty():
-            return
-        requester = self.queue.get(False)
-        requester.pop_request()
+            self.timer.stop()
+        else:
+            requester = self.queue.get(False)[1]
+            requester.pop_request()
 
 
 class NetworkAccessManager(QtNetwork.QNetworkAccessManager):

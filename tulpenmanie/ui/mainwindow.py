@@ -19,13 +19,10 @@ from PyQt4 import QtCore, QtGui
 import tulpenmanie.commodity
 import tulpenmanie.market
 import tulpenmanie.providers
+import tulpenmanie.exchange
 #This next import registers providers with the former module
 from tulpenmanie.provider_modules import *
-import tulpenmanie.ui.wizard
-from tulpenmanie.ui.edit import EditMarketsDialog, EditProvidersDialog
-from tulpenmanie.ui.market import MarketDockWidget
-from tulpenmanie.ui.exchange import ExchangeWidget
-from tulpenmanie.ui.account import ExchangeAccountWidget
+import tulpenmanie.ui.edit
 
 
 class MainWindow(QtGui.QMainWindow):
@@ -33,115 +30,137 @@ class MainWindow(QtGui.QMainWindow):
     def __init__(self, parent=None):
         super (MainWindow, self).__init__(parent)
 
-        edit_markets_action = QtGui.QAction("&markets", self,
-                                            shortcut="Ctrl+E",
-                                            triggered=self._edit_markets)
+        tulpenmanie.commodity.create_model(self)
+        tulpenmanie.market.create_model(self)
+        tulpenmanie.exchange.create_exchanges_model(self)
 
-        edit_providers_action = QtGui.QAction("&providers", self,
-                                              shortcut="Ctrl+P",
-                                              triggered=self._edit_providers)
+        edit_definitions_action = QtGui.QAction("&definitions", self,
+                                            shortcut="Ctrl+E",
+                                            triggered=self._edit_definitions)
 
         self.markets_menu = QtGui.QMenu(tulpenmanie.translation.markets,
                                         self)
         self.menuBar().addMenu(self.markets_menu)
-        self.exchanges_menu = QtGui.QMenu(tulpenmanie.translation.exchanges,
-                                          self)
-        self.menuBar().addMenu(self.exchanges_menu)
         options_menu = QtGui.QMenu(QtCore.QCoreApplication.translate(
             "options menu title", "options"), self)
-        options_menu.addAction(edit_markets_action)
-        options_menu.addAction(edit_providers_action)
+        options_menu.addAction(edit_definitions_action)
         self.menuBar().addMenu(options_menu)
 
-        # A place to put exchange accounts
+        self.market_docks = dict()
         self.accounts = dict()
-
-        tulpenmanie.commodity.create_model(self)
-        tulpenmanie.market.create_model(self)
-        tulpenmanie.providers.create_exchanges_model(self)
-
         self.parse_models()
 
     def parse_models(self):
-        # parse markets
-        markets_model = tulpenmanie.market.markets_model
-        for market_row in range(markets_model.rowCount()):
-            enable = markets_model.item(market_row, markets_model.ENABLE).text()
-            if enable == "true":
-                ## make dock
-                dock = MarketDockWidget(market_row, self)
+        self.parse_markets()
+        self.parse_exchanges()
+
+    def parse_markets(self):
+        "if a dock doesn't exist for market create it"
+        # Delete a  dock if it isn't in the model
+        for uuid in self.market_docks.keys():
+            if not tulpenmanie.market.model.findItems(uuid):
+                dock = self.market_docks.pop(uuid)
+                dock.deleteLater()
+
+        for market_row in range(tulpenmanie.market.model.rowCount()):
+            market_uuid = str(tulpenmanie.market.model.item(
+                market_row, tulpenmanie.market.model.UUID).text())
+            if market_uuid in self.market_docks:
+                dock = self.market_docks[market_uuid]
+            else:
+                dock = tulpenmanie.market.DockWidget(market_row, self)
                 dock.setAllowedAreas(QtCore.Qt.TopDockWidgetArea)
                 self.addDockWidget(QtCore.Qt.TopDockWidgetArea, dock)
-                enable_action = dock.enable_action
-                self.markets_menu.addAction(enable_action)
+                self.market_docks[market_uuid] = dock
+                self.markets_menu.addMenu(dock.menu)
 
-                market_uuid = markets_model.item(market_row, markets_model.UUID).text()
-                tulpenmanie.market.market_docks[market_uuid] = dock
+            enable = tulpenmanie.market.model.item(
+                market_row, tulpenmanie.market.model.ENABLE).text()
+            # TODO we should just get a bool instead of a string
+            if enable == "true":
+                enable = True
+            else:
+                enable = False
+            dock.enable_market_action.setChecked(enable)
+            dock.enable_market(enable)
 
-        # parse exchanges
-        exchanges_model = tulpenmanie.providers.exchanges_model
-        for exchange_row in range(exchanges_model.rowCount()):
-            exchange_item = exchanges_model.item(exchange_row)
+    def parse_exchanges(self):
+        for exchange_row in range(tulpenmanie.exchange.model.rowCount()):
+            exchange_item = tulpenmanie.exchange.model.item(exchange_row)
             exchange_name = str(exchange_item.text())
-            account_objects = dict()
-            self.accounts[exchange_name] = account_objects
 
-            ## parse exchange accounts
-            accounts_item = exchange_item.child(0, exchange_item.ACCOUNTS)
-            for account_row in range(accounts_item.rowCount()):
-                enable = accounts_item.child(account_row,
-                                             exchange_item.ACCOUNT_ENABLE).text()
-                if enable == 'true':
-                    ### make account object
-                    account_identifier = accounts_item.child(
-                        account_row, exchange_item.ACCOUNT_ID).text()
-                    credentials = []
-                    ### the first two columns are id and enable
-                    for column in range(exchange_item.ACCOUNT_COLUMNS):
-                        credentials.append(exchange_item.accounts_item.child(
-                                           account_row, column).text())
+            # parse accounts
+            credentials = []
+            account_valid = True
+            for setting in exchange_item.required_account_settings:
+                credential = exchange_item.child(0, setting).text()
+                if credential:
+                    credentials.append(credential)
+                else:
+                    account_valid = False
+
+            if account_valid:
+                if exchange_name in self.accounts:
+                    account_object = self.accounts[exchange_name]
+                    if account_object:
+                        account_object.set_credentials(credentials)
+                    else:
+                        AccountClass = tulpenmanie.providers.accounts[exchange_name]
+                        account_object = AccountClass(credentials)
+                        self.accounts[exchange_name] = account_object
+                else:
                     AccountClass = tulpenmanie.providers.accounts[exchange_name]
                     account_object = AccountClass(credentials)
-                    account_objects[account_identifier] = account_object
+                    self.accounts[exchange_name] = account_object
+            else:
+                account_object = None
+                self.accounts[exchange_name] = account_object
 
             ## parse remote markets
             markets_item = exchange_item.child(0, exchange_item.MARKETS)
             for market_row in range(markets_item.rowCount()):
-                enable = markets_item.child(market_row,
-                                            exchange_item.MARKET_ENABLE).text()
-                local_market = markets_item.child(market_row,
-                                                  exchange_item.MARKET_LOCAL).text()
-
-                if (enable == "true") and (local_market in tulpenmanie.market.market_docks):
-                    dock = tulpenmanie.market.market_docks[local_market]
+                local_market = str(markets_item.child(
+                    market_row, exchange_item.MARKET_LOCAL).text())
+                if local_market:
                     remote_market = markets_item.child(
                         market_row, exchange_item.MARKET_REMOTE).text()
-                    ### make exchange widget
-                    exchange_widget = ExchangeWidget(exchange_item,
-                                                     market_row,
-                                                     remote_market,
-                                                     dock)
-                    self.exchanges_menu.addAction(exchange_widget.enable_action)
+                    dock = self.market_docks[local_market]
+                    if exchange_name in dock.exchanges:
+                        exchange_widget = dock.exchanges[exchange_name]
+                    else:
+                        # make exchange widget
+                        exchange_widget = tulpenmanie.exchange.ExchangeWidget(
+                            exchange_item, market_row, remote_market, dock)
+                    enable = markets_item.child(
+                        market_row, exchange_item.MARKET_ENABLE).text()
+                    if enable == "true":
+                        enable = True
+                    else:
+                        enable = False
+                    exchange_widget.enable_exchange_action.setChecked(enable)
+                    if dock.isEnabled():
+                        exchange_widget.enable_exchange(enable)
+                    else:
+                        exchange_widget.setEnabled(False)
+                    account_widget = exchange_widget.account_widget
+                    if not account_widget and account_object:
+                        account_widget = tulpenmanie.exchange.AccountWidget(
+                            account_object, remote_market, exchange_widget)
+                        account_widget.enable_account(exchange_widget.isEnabled())
+                    if account_widget and not account_object:
+                        exchange_widget.account_widget = None
+                        account_widget.deleteLater()
 
-                    for account_id, account_object in account_objects.items():
-                        ### make account widget
-                        account_widget = ExchangeAccountWidget(account_object,
-                                                               remote_market,
-                                                               exchange_widget)
-
-    def _edit_markets(self):
-        dialog = EditMarketsDialog(self)
+    def _edit_definitions(self):
+        dialog = tulpenmanie.ui.edit.EditDefinitionsDialog(self)
         dialog.exec_()
-
-    def _edit_providers(self):
-        dialog = EditProvidersDialog(self)
-        dialog.exec_()
+        self.parse_models()
 
     def closeEvent(self, event):
         #TODO maybe a market model could store
         #commodities items in a second place
-        tulpenmanie.commodity.commodities_model.save()
-        tulpenmanie.market.markets_model.save()
-        tulpenmanie.providers.exchanges_model.save()
+        tulpenmanie.commodity.model.save()
+        tulpenmanie.market.model.save()
+        tulpenmanie.exchange.model.save()
 
         event.accept()

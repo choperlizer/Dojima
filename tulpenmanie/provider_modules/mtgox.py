@@ -21,13 +21,14 @@ import hashlib
 import hmac
 import json
 import logging
+import random
 import time
 
 
 from PyQt4 import QtCore, QtGui, QtNetwork
 
 import tulpenmanie.providers
-from tulpenmanie.model.order import OrdersModel
+import tulpenmanie.exchange
 
 
 logger = logging.getLogger(__name__)
@@ -66,7 +67,6 @@ class MtgoxRequest(QtCore.QObject):
         self.parent = parent
         self.data = data
         self.reply = None
-        self._prepare_request()
 
     def _prepare_request(self):
         self.request = QtNetwork.QNetworkRequest(self.url)
@@ -79,8 +79,9 @@ class MtgoxRequest(QtCore.QObject):
         self.query = query.encodedQuery()
 
     def post(self):
+        self._prepare_request()
         if logger.isEnabledFor(logging.DEBUG):
-            logger.debug("POSTing to %s", self.url.toString())
+            logger.debug("POST to %s", self.url.toString())
         self.reply = self.parent.network_manager.post(self.request,
                                                       self.query)
         self.reply.finished.connect(self._process_reply)
@@ -94,7 +95,7 @@ class MtgoxRequest(QtCore.QObject):
             raw = str(self.reply.readAll())
             data = json.loads(raw, object_hook=_object_hook)
             if data['result'] != u'success':
-                msg = str(reply.url().toString()) + " : " + data['error']
+                msg = str(self.reply.url().toString()) + " : " + data['error']
                 raise MtgoxError(msg)
             else:
                 if self.data:
@@ -126,6 +127,7 @@ class MtgoxPrivateRequest(MtgoxRequest):
         self.request.setRawHeader('Rest-Key', self.parent._key)
         self.request.setRawHeader('Rest-Sign', signature)
 
+
 class MtgoxPrivateRequestAPI0(MtgoxPrivateRequest):
 
     def _process_reply(self):
@@ -149,7 +151,7 @@ class _Mtgox(QtCore.QObject):
     provider_name = EXCHANGE_NAME
 
     def pop_request(self):
-        request = heapq.heappop(self._requests)
+        request = heapq.heappop(self._requests)[1]
         request.post()
         self._replies.add(request)
 
@@ -190,15 +192,15 @@ class MtgoxExchange(_Mtgox):
 
         # TODO make this wait time a user option
         self.network_manager = network_manager
-        self._request_queue = self.network_manager.get_host_request_queue(
+        self._host_queue = self.network_manager.get_host_request_queue(
             HOSTNAME, 5000)
         self._requests = list()
         self._replies = set()
 
     def refresh(self):
         request = MtgoxRequest(self._ticker_url, self._ticker_handler, self)
-        self._requests.append(request)
-        self._request_queue.enqueue(self)
+        self._requests.append((1, request))
+        self._host_queue.enqueue(self)
 
     def _ticker_handler(self, data):
         data = data['return']
@@ -208,7 +210,7 @@ class MtgoxExchange(_Mtgox):
                 signal.emit(value)
 
 
-class MtgoxAccount(_Mtgox, tulpenmanie.providers.ExchangeAccount):
+class MtgoxAccount(_Mtgox, tulpenmanie.exchange.ExchangeAccount):
 
     # BAD redundant
     markets = ( 'BTCAUD', 'BTCCAD', 'BTCCHF', 'BTCCNY', 'BTCDKK',
@@ -233,6 +235,24 @@ class MtgoxAccount(_Mtgox, tulpenmanie.providers.ExchangeAccount):
     SGD_balance_signal = QtCore.pyqtSignal(decimal.Decimal)
     THB_balance_signal = QtCore.pyqtSignal(decimal.Decimal)
     USD_balance_signal = QtCore.pyqtSignal(decimal.Decimal)
+
+    AUD_balance_changed_signal = QtCore.pyqtSignal(decimal.Decimal)
+    BTC_balance_changed_signal = QtCore.pyqtSignal(decimal.Decimal)
+    CAD_balance_changed_signal = QtCore.pyqtSignal(decimal.Decimal)
+    CHF_balance_changed_signal = QtCore.pyqtSignal(decimal.Decimal)
+    CNY_balance_changed_signal = QtCore.pyqtSignal(decimal.Decimal)
+    DKK_balance_changed_signal = QtCore.pyqtSignal(decimal.Decimal)
+    EUR_balance_changed_signal = QtCore.pyqtSignal(decimal.Decimal)
+    GBP_balance_changed_signal = QtCore.pyqtSignal(decimal.Decimal)
+    HKD_balance_changed_signal = QtCore.pyqtSignal(decimal.Decimal)
+    JPY_balance_changed_signal = QtCore.pyqtSignal(decimal.Decimal)
+    NZD_balance_changed_signal = QtCore.pyqtSignal(decimal.Decimal)
+    PLN_balance_changed_signal = QtCore.pyqtSignal(decimal.Decimal)
+    RUB_balance_changed_signal = QtCore.pyqtSignal(decimal.Decimal)
+    SEK_balance_changed_signal = QtCore.pyqtSignal(decimal.Decimal)
+    SGD_balance_changed_signal = QtCore.pyqtSignal(decimal.Decimal)
+    THB_balance_changed_signal = QtCore.pyqtSignal(decimal.Decimal)
+    USD_balance_changed_signal = QtCore.pyqtSignal(decimal.Decimal)
 
     BTCAUD_ready_signal = QtCore.pyqtSignal(bool)
     BTCCAD_ready_signal = QtCore.pyqtSignal(bool)
@@ -261,9 +281,7 @@ class MtgoxAccount(_Mtgox, tulpenmanie.providers.ExchangeAccount):
         if network_manager is None:
             network_manager = self.manager.network_manager
         super(MtgoxAccount, self).__init__(parent)
-        self._key = str(credentials[2])
-        self._secret = base64.b64decode(credentials[3])
-
+        self.set_credentials(credentials)
         # These must be the same length
         remote_stats = ()
         local_stats = ()
@@ -275,7 +293,7 @@ class MtgoxAccount(_Mtgox, tulpenmanie.providers.ExchangeAccount):
             self.signals[local_stats[i]] = signal
 
         self.network_manager = network_manager
-        self._request_queue = self.network_manager.get_host_request_queue(
+        self._host_queue = self.network_manager.get_host_request_queue(
             HOSTNAME, 5000)
         self._requests = list()
         self._replies = set()
@@ -287,26 +305,34 @@ class MtgoxAccount(_Mtgox, tulpenmanie.providers.ExchangeAccount):
         # TODO maybe divide smaller
         self.nonce = int(time.time() / 2)
 
+    def set_credentials(self, credentials):
+        self._key = str(credentials[0])
+        self._secret = base64.b64decode(credentials[1])
+
     def check_order_status(self, remote_pair):
-        base = 'BTC'
+        # This can probaly call for BTC info twice at
+        # startup but whatever
         counter = remote_pair[-3:]
         multipliers = self.multipliers.keys()
-        if base not in multipliers:
-            request = MtgoxRequest(self._currency_url,
-                                   self._currency_handler,
-                                   self, {'pair': remote_pair,
-                                          'query': {'currency':base} })
-            self._requests.append(request)
-            self._request_queue.enqueue(self)
-            return
 
         if counter not in multipliers:
             request = MtgoxRequest(self._currency_url,
                                    self._currency_handler,
                                    self, {'pair': remote_pair,
                                           'query': {'currency':counter} })
-            self._requests.append(request)
-            self._request_queue.enqueue(self)
+            self._requests.append((1, request))
+            self._host_queue.enqueue(self, 0)
+            return
+
+        signal = getattr(self, remote_pair + "_ready_signal")
+
+        if 'BTC' not in multipliers:
+            request = MtgoxRequest(self._currency_url,
+                                   self._currency_handler,
+                                   self, {'pair': remote_pair,
+                                          'query': {'currency':'BTC'} })
+            self._requests.append((1, request))
+            self._host_queue.enqueue(self, 1)
             return
 
         signal = getattr(self, remote_pair + "_ready_signal")
@@ -324,23 +350,24 @@ class MtgoxAccount(_Mtgox, tulpenmanie.providers.ExchangeAccount):
         request = MtgoxPrivateRequest(self._info_url,
                                       self._info_handler,
                                       self)
-        self._requests.append(request)
-        self._request_queue.enqueue(self)
+        self._requests.append((2, request))
+        self._host_queue.enqueue(self, 2)
 
     def _info_handler(self, data):
         data = data['return']
         for symbol, dct in data['Wallets'].items():
             signal = getattr(self, symbol + '_balance_signal', None)
             if signal:
-                signal.emit(dct['Balance'])
+                balance = dct['Balance'] - dct['Open_Orders']
+                signal.emit(balance)
             else:
                 logger.warning("unknown commodity %s found in balances", symbol)
 
     def refresh_orders(self):
         request = MtgoxPrivateRequest(self._orders_url, self._orders_handler,
                                       self)
-        self._requests.append(request)
-        self._request_queue.enqueue(self)
+        self._requests.append((2, request))
+        self._host_queue.enqueue(self, 2)
 
     def _orders_handler(self, data):
         #TODO probably contains multi-market order list
@@ -376,10 +403,12 @@ class MtgoxAccount(_Mtgox, tulpenmanie.providers.ExchangeAccount):
 
     def _place_order(self, remote_pair, order_type, amount, price):
         counter = remote_pair[-3:]
+        amount = decimal.Decimal(amount)
         query_data = {'type': order_type,
-                      'amount_int': amount * self.multipliers['BTC']}
+                      'amount_int': int(amount * self.multipliers['BTC'])}
         if price:
-            query_data['price_int'] = price * self.multipliers[counter]
+            price = decimal.Decimal(price)
+            query_data['price_int'] = int(price * self.multipliers[counter])
         else:
             logger.info("placing a market order")
 
@@ -389,8 +418,8 @@ class MtgoxAccount(_Mtgox, tulpenmanie.providers.ExchangeAccount):
         url = QtCore.QUrl(_BASE_URL + remote_pair + "/private/order/add")
         request = MtgoxPrivateRequest(url, self._order_add_handler,
                                       self, data)
-        self._requests.append(request)
-        self._request_queue.enqueue(self)
+        self._requests.append((1, request))
+        self._host_queue.enqueue(self, 1)
 
     def _order_add_handler(self, data):
         order_id = data['return']
@@ -398,9 +427,13 @@ class MtgoxAccount(_Mtgox, tulpenmanie.providers.ExchangeAccount):
         price = data['price']
         pair = data['pair']
         order_type = data['query']['type']
+        base_signal = self.BTC_balance_changed_signal
+        counter_signal = getattr(self, pair[-3:] + '_balance_changed_signal')
         if order_type == 'ask':
             self.ask_orders[pair].append_order(order_id, price, amount)
+            base_signal.emit(-amount)
         elif order_type == 'bid':
+            counter_signal.emit(-decimal.Decimal(amount * price))
             self.bid_orders[pair].append_order(order_id, price, amount)
 
     def cancel_ask_order(self, pair, order_id):
@@ -417,8 +450,8 @@ class MtgoxAccount(_Mtgox, tulpenmanie.providers.ExchangeAccount):
                 'query': {'oid': order_id, 'type': order_type} }
         request = MtgoxPrivateRequestAPI0(url, self._cancelorder_handler,
                                           self, data)
-        self._requests.append(request)
-        self._request_queue.enqueue(self)
+        self._requests.append((0, request))
+        self._host_queue.enqueue(self, 0)
 
     def _cancelorder_handler(self, data):
         pair = data['pair']
@@ -430,32 +463,26 @@ class MtgoxAccount(_Mtgox, tulpenmanie.providers.ExchangeAccount):
             self.bid_orders[pair].remove_order(order_id)
 
 
-class MtgoxProviderItem(tulpenmanie.providers.ProviderItem):
+class MtgoxExchangeItem(tulpenmanie.exchange.ExchangeItem):
 
     provider_name = EXCHANGE_NAME
 
-    COLUMNS = 3
-    MARKETS, ACCOUNTS, REFRESH_RATE = range(COLUMNS)
-    mappings = (('refresh rate', REFRESH_RATE),)
-
+    COLUMNS = 4
+    MARKETS, REFRESH_RATE, ACCOUNT_KEY, ACCOUNT_SECRET = range(COLUMNS)
+    mappings = (('refresh rate', REFRESH_RATE),
+                ('key', ACCOUNT_KEY),
+                ('secret', ACCOUNT_SECRET),)
     markets = ( 'BTCAUD', 'BTCCAD', 'BTCCHF', 'BTCCNY', 'BTCDKK',
                 'BTCEUR', 'BTCGBP', 'BTCHKD', 'BTCJPY', 'BTCNZD',
                 'BTCPLN', 'BTCRUB', 'BTCSEK', 'BTCSGD', 'BTCTHB',
                 'BTCUSD' )
 
-    ACCOUNT_COLUMNS = 4
-    ACCOUNT_ID, ACCOUNT_ENABLE, ACCOUNT_KEY, ACCOUNT_SECRET = range(ACCOUNT_COLUMNS)
-    account_mappings = (('identifier', ACCOUNT_ID),
-                        ('enable', ACCOUNT_ENABLE),
-                        ('key', ACCOUNT_KEY),
-                        ('secret', ACCOUNT_SECRET))
-
     numeric_settings = (REFRESH_RATE,)
     boolean_settings = ()
     required_account_settings = (ACCOUNT_KEY, ACCOUNT_SECRET)
-    hidden_account_settings = ()
+    hidden_settings = ()
 
 
 tulpenmanie.providers.register_exchange(MtgoxExchange)
 tulpenmanie.providers.register_account(MtgoxAccount)
-tulpenmanie.providers.register_exchange_model_item(MtgoxProviderItem)
+tulpenmanie.providers.register_exchange_model_item(MtgoxExchangeItem)

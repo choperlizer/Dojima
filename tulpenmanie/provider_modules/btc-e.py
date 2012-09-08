@@ -25,7 +25,7 @@ import time
 from PyQt4 import QtCore, QtGui, QtNetwork
 
 import tulpenmanie.providers
-from tulpenmanie.model.order import OrdersModel
+import tulpenmanie.exchange
 
 
 logger = logging.getLogger(__name__)
@@ -56,8 +56,6 @@ class BtceRequest(QtCore.QObject):
         self.parent = parent
         self.data = data
         self.reply = None
-        self._prepare_request()
-
 
     def _prepare_request(self):
         self.request = QtNetwork.QNetworkRequest(self.url)
@@ -70,8 +68,9 @@ class BtceRequest(QtCore.QObject):
         self.query = query.encodedQuery()
 
     def post(self):
+        self._prepare_request()
         if logger.isEnabledFor(logging.DEBUG):
-            logger.debug("POSTing to %s", self.url.toString())
+            logger.debug("POST to %s", self.url.toString())
         self.reply = self.parent.network_manager.post(self.request,
                                                       self.query)
         self.reply.finished.connect(self._process_reply)
@@ -107,7 +106,6 @@ class BtcePrivateRequest(BtceRequest):
         self.parent = parent
         self.data = data
         self.reply = None
-        self._prepare_request()
 
     def _prepare_request(self):
         self.request = QtNetwork.QNetworkRequest(self.url)
@@ -154,7 +152,7 @@ class _Btce(QtCore.QObject):
     provider_name = EXCHANGE_NAME
 
     def pop_request(self):
-        request = heapq.heappop(self._requests)
+        request = heapq.heappop(self._requests)[1]
         request.post()
         self._replies.add(request)
 
@@ -193,15 +191,15 @@ class BtceExchange(_Btce):
 
         # TODO make this wait time a user option
         self.network_manager = network_manager
-        self._request_queue = self.network_manager.get_host_request_queue(
+        self._host_queue = self.network_manager.get_host_request_queue(
             HOSTNAME, 500)
         self._requests = list()
         self._replies = set()
 
     def refresh(self):
         request = BtceRequest(self._ticker_url, self._ticker_handler, self)
-        self._requests.append(request)
-        self._request_queue.enqueue(self)
+        self._requests.append((2, request))
+        self._host_queue.enqueue(self)
 
     def _ticker_handler(self, data):
         for key, value in data.items():
@@ -210,7 +208,7 @@ class BtceExchange(_Btce):
                 signal.emit(value)
 
 
-class BtceAccount(_Btce, tulpenmanie.providers.ExchangeAccount):
+class BtceAccount(_Btce, tulpenmanie.exchange.ExchangeAccount):
 
     # BAD rudunant
     markets = ( 'btc_usd', 'btc_rur', 'ltc_btc', 'nmc_btc', 'usd_rur' )
@@ -231,11 +229,10 @@ class BtceAccount(_Btce, tulpenmanie.providers.ExchangeAccount):
         if network_manager is None:
             network_manager = self.manager.network_manager
         super(BtceAccount, self).__init__(parent)
-        self._key = str(credentials[2])
-        self._secret = str(credentials[3])
+        self.set_credentials(credentials)
 
         self.network_manager = network_manager
-        self._request_queue = self.network_manager.get_host_request_queue(
+        self._host_queue = self.network_manager.get_host_request_queue(
             HOSTNAME, 5000)
         self._requests = list()
         self._replies = set()
@@ -245,22 +242,26 @@ class BtceAccount(_Btce, tulpenmanie.providers.ExchangeAccount):
         # TODO maybe divide smaller
         self.nonce = int(time.time() / 2)
 
+    def set_credentials(self, credentials):
+        self._key = str(credentials[0])
+        self._secret = str(credentials[1])
+        
     def check_order_status(self, remote_pair):
         signal = getattr(self, remote_pair + "_ready_signal")
         signal.emit(True)
 
     def refresh(self):
         request = BtcePrivateRequest('getInfo', self._getinfo_handler, self)
-        self._requests.append(request)
-        self._request_queue.enqueue(self)
+        self._requests.append((2, request))
+        self._host_queue.enqueue(self, 2)
 
     def _getinfo_handler(self, data):
         self._emit_funds(data['return']['funds'])
 
     def refresh_orders(self):
         request = BtcePrivateRequest('OrderList', self._orderlist_handler, self)
-        self._requests.append(request)
-        self._request_queue.enqueue(self)
+        self._requests.append((2, request))
+        self._host_queue.enqueue(self, 2)
 
     def _orderlist_handler(self, data):
         data = data['return']
@@ -298,8 +299,8 @@ class BtceAccount(_Btce, tulpenmanie.providers.ExchangeAccount):
                          'amount': amount,
                          'rate': price} }
         request = BtcePrivateRequest('Trade', self._trade_handler, self, data)
-        self._requests.append(request)
-        self._request_queue.enqueue(self)
+        self._requests.append((1, request))
+        self._host_queue.enqueue(self, 1)
 
     def _trade_handler(self, data):
         order_id = data['return']['order_id']
@@ -325,8 +326,8 @@ class BtceAccount(_Btce, tulpenmanie.providers.ExchangeAccount):
                 'query':{'order_id':order_id}}
         request = BtcePrivateRequest('CancelOrder', self._cancelorder_handler,
                                      self, data)
-        self._requests.append(request)
-        self._request_queue.enqueue(self)
+        self._requests.append((0, request))
+        self._host_queue.enqueue(self, 0)
 
     def _cancelorder_handler(self, data):
         order_id = data['return']['order_id']
@@ -346,27 +347,21 @@ class BtceAccount(_Btce, tulpenmanie.providers.ExchangeAccount):
             else:
                 logger.warning("unknown commodity %s", commodity)
 
-class BtceProviderItem(tulpenmanie.providers.ProviderItem):
+class BtceProviderItem(tulpenmanie.exchange.ExchangeItem):
 
     provider_name = EXCHANGE_NAME
 
-    COLUMNS = 3
-    MARKETS, ACCOUNTS, REFRESH_RATE = range(COLUMNS)
-    mappings = (('refresh rate', REFRESH_RATE),)
-
+    COLUMNS = 4
+    MARKETS, REFRESH_RATE, ACCOUNT_KEY, ACCOUNT_SECRET = range(COLUMNS)
+    mappings = (("refresh rate", REFRESH_RATE),
+                ("key", ACCOUNT_KEY),
+                ("secret", ACCOUNT_SECRET),)
     markets = ( 'btc_usd', 'btc_rur', 'ltc_btc', 'nmc_btc', 'usd_rur' )
-
-    ACCOUNT_COLUMNS = 4
-    ACCOUNT_ID, ACCOUNT_ENABLE, ACCOUNT_KEY, ACCOUNT_SECRET = range(ACCOUNT_COLUMNS)
-    account_mappings = (('identifier', ACCOUNT_ID),
-                        ('enable', ACCOUNT_ENABLE),
-                        ('key', ACCOUNT_KEY),
-                        ('secret', ACCOUNT_SECRET))
 
     numeric_settings = (REFRESH_RATE,)
     boolean_settings = ()
     required_account_settings = (ACCOUNT_KEY, ACCOUNT_SECRET)
-    hidden_account_settings = ()
+    hidden_settings = ()
 
 
 tulpenmanie.providers.register_exchange(BtceExchange)

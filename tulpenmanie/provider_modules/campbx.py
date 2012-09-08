@@ -20,9 +20,10 @@ import json
 import logging
 from PyQt4 import QtCore, QtGui, QtNetwork
 
+import tulpenmanie.exchange
 import tulpenmanie.providers
 import tulpenmanie.translation
-from tulpenmanie.model.order import OrdersModel
+import tulpenmanie.orders
 
 
 logger = logging.getLogger(__name__)
@@ -76,7 +77,7 @@ class CampbxRequest(object):
 
     def post(self):
         if logger.isEnabledFor(logging.DEBUG):
-            logger.debug("requesting %s", self.url.toString())
+            logger.debug("POST to %s", self.url.toString())
         self.reply = self.parent.network_manager.post(self.request,
                                                       self.query)
         self.reply.finished.connect(self._process_reply)
@@ -91,10 +92,10 @@ class CampbxRequest(object):
             data = json.loads(str(self.reply.readAll()))#,
                 #object_pairs_hook=_object_pairs_hook)
             if 'Error' in data:
-                msg = str(reply.url().toString()) + " : " + data['Error']
+                msg = str(self.reply.url().toString()) + " : " + data['Error']
                 raise CampbxError(msg)
             elif 'Info' in data:
-                msg = str(reply.url().toString()) + " : " + data['Error']
+                msg = str(self.reply.url().toString()) + " : " + data['Error']
                 logger.warning(msg)
             else:
                 if self.data:
@@ -157,7 +158,7 @@ class CampbxExchangeMarket(_Campbx):
             signal.emit(decimal.Decimal(value))
 
 
-class CampbxAccount(_Campbx, tulpenmanie.providers.ExchangeAccount):
+class CampbxAccount(_Campbx, tulpenmanie.exchange.ExchangeAccount):
     _myfunds_url = QtCore.QUrl(_BASE_URL + "myfunds.php")
     _myorders_url = QtCore.QUrl(_BASE_URL + "myorders.php")
     _tradeenter_url = QtCore.QUrl(_BASE_URL + "tradeenter.php")
@@ -166,6 +167,9 @@ class CampbxAccount(_Campbx, tulpenmanie.providers.ExchangeAccount):
     BTC_balance_signal = QtCore.pyqtSignal(decimal.Decimal)
     USD_balance_signal = QtCore.pyqtSignal(decimal.Decimal)
 
+    BTC_balance_changed_signal = QtCore.pyqtSignal(decimal.Decimal)
+    USD_balance_changed_signal = QtCore.pyqtSignal(decimal.Decimal)
+
     BTC_USD_ready_signal = QtCore.pyqtSignal(bool)
 
     def __init__(self, credentials, network_manager=None, parent=None):
@@ -173,16 +177,19 @@ class CampbxAccount(_Campbx, tulpenmanie.providers.ExchangeAccount):
             network_manager = self.manager.network_manager
         super(CampbxAccount, self).__init__(parent)
         self.base_query = QtCore.QUrl()
-        self.base_query.addQueryItem('user', credentials[0])
-        self.base_query.addQueryItem('pass', credentials[2])
+        self.set_credentials(credentials)
         self.network_manager = network_manager
         self._request_queue = self.network_manager.get_host_request_queue(
             HOSTNAME, 500)
         self._requests = list()
         self._replies = set()
 
-        self.ask_orders_model = OrdersModel()
-        self.bid_orders_model = OrdersModel()
+        self.ask_orders_model = tulpenmanie.orders.OrdersModel()
+        self.bid_orders_model = tulpenmanie.orders.OrdersModel()
+
+    def set_credentials(self, credentials):
+        self.base_query.addQueryItem('user', credentials[0])
+        self.base_query.addQueryItem('pass', credentials[1])
 
     def check_order_status(self, remote_pair):
         self.BTC_USD_ready_signal.emit(True)
@@ -196,18 +203,18 @@ class CampbxAccount(_Campbx, tulpenmanie.providers.ExchangeAccount):
     def refresh(self):
         request = CampbxRequest(self._myfunds_url, self._myfunds_handler, self)
         self._requests.append(request)
-        self._request_queue.enqueue(self)
+        self._request_queue.enqueue(self, 2)
         self.refresh_orders()
 
     def _myfunds_handler(self, data):
         #TODO maybe not emit 'Total' but rather available
-        self.BTC_balance_signal.emit(decimal.Decimal(data['Total BTC']))
-        self.USD_balance_signal.emit(decimal.Decimal(data['Total USD']))
+        self.BTC_balance_signal.emit(decimal.Decimal(data['Liquid BTC']))
+        self.USD_balance_signal.emit(decimal.Decimal(data['Liquid USD']))
 
     def refresh_orders(self):
         request = CampbxRequest(self._myorders_url, self._myorders_handler, self)
         self._requests.append(request)
-        self._request_queue.enqueue(self)
+        self._request_queue.enqueue(self, 2)
 
     def _myorders_handler(self, data):
         for model, array, in ((self.ask_orders_model, 'Sell'),
@@ -225,28 +232,38 @@ class CampbxAccount(_Campbx, tulpenmanie.providers.ExchangeAccount):
             model.sort(1, QtCore.Qt.DescendingOrder)
 
     def place_ask_order(self, pair, amount, price):
-        self._place_order(amount, price, "QuickSell")
+        self._place_order(amount, price, 0)
 
     def place_bid_order(self, pair, amount, price):
-        self._place_order(amount, price, "QuickBuy")
+        self._place_order(amount, price, 1)
 
-    def _place_order(self, amount, price, trade_mode):
-        query = {'TradeMode' : trade_mode,
+    def _place_order(self, amount, price, trade_type):
+        amount = decimal.Decimal(amount)
+        price = decimal.Decimal(price)
+        if trade_type:
+            mode = "QuickBuy"
+        else:
+            mode = "QuickSell"
+        query = {'TradeMode' : mode,
                  'Quantity' : amount}
         if price:
             query['Price'] = price
         else:
             query['Price'] = 'Market'
-        data = {'query':query}
+        data = {'type': trade_type, 'amount': amount, 'price': price,
+                'query': query}
         request = CampbxRequest(self._tradeenter_url, self._tradeenter_handler,
                                 self, data)
         self._requests.append(request)
-        self._request_queue.enqueue(self)
+        self._request_queue.enqueue(self, 1)
 
     def _tradeenter_handler(self, data):
         if data['Success'] != '0':
-            # TODO could be a low priority request
-            self.refresh_orders()
+            if data['type']: #it's an ask
+                self.USD_balance_changed_signal.emit(-(data['amount']
+                                                       * data['price']))
+            else:
+                self.BTC_balance_changed_signal.emit(-data['amount'])
 
     def cancel_ask_order(self, pair, order_id):
         self._cancel_order(order_id, 'Sell')
@@ -261,7 +278,7 @@ class CampbxAccount(_Campbx, tulpenmanie.providers.ExchangeAccount):
                                 self._tradecancel_handler,
                                 self, data)
         self._requests.append(request)
-        self._request_queue.enqueue(self)
+        self._request_queue.enqueue(self, 0)
 
     def _tradecancel_handler(self, data):
         words = data['Success'].split()
@@ -279,27 +296,23 @@ class CampbxAccount(_Campbx, tulpenmanie.providers.ExchangeAccount):
         logger.debug("Trimmed order %s from a model", order_id)
 
 
-class CampbxProviderItem(tulpenmanie.providers.ProviderItem):
+class CampbxExchangeItem(tulpenmanie.exchange.ExchangeItem):
 
     provider_name = EXCHANGE_NAME
 
-    COLUMNS = 3
-    MARKETS, ACCOUNTS, REFRESH_RATE = range(COLUMNS)
-    mappings = ((tulpenmanie.translation.refresh_rate, REFRESH_RATE),)
+    COLUMNS = 4
+    MARKETS, REFRESH_RATE, ACCOUNT_USERNAME, ACCOUNT_PASSWORD = range(COLUMNS)
+    mappings = (("refresh rate", REFRESH_RATE),
+                ("username", ACCOUNT_USERNAME),
+                ("password", ACCOUNT_PASSWORD),)
     markets = ('BTC_USD',)
 
-    ACCOUNT_COLUMNS = 3
-    ACCOUNT_ID, ACCOUNT_ENABLE,  ACCOUNT_PASSWORD = range(ACCOUNT_COLUMNS)
-    account_mappings = (
-        (QtCore.QCoreApplication.translate("settings", 'username'), ACCOUNT_ID),
-        (tulpenmanie.translation.enable, ACCOUNT_ENABLE),
-        (tulpenmanie.translation.password, ACCOUNT_PASSWORD))
     numeric_settings = (REFRESH_RATE,)
     boolean_settings = ()
-    required_account_settings = (ACCOUNT_PASSWORD,)
-    hidden_account_settings = (ACCOUNT_PASSWORD,)
+    required_account_settings = (ACCOUNT_USERNAME, ACCOUNT_PASSWORD,)
+    hidden_settings = (ACCOUNT_PASSWORD,)
 
 
 tulpenmanie.providers.register_exchange(CampbxExchangeMarket)
 tulpenmanie.providers.register_account(CampbxAccount)
-tulpenmanie.providers.register_exchange_model_item(CampbxProviderItem)
+tulpenmanie.providers.register_exchange_model_item(CampbxExchangeItem)

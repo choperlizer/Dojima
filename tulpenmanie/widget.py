@@ -23,15 +23,25 @@ import tulpenmanie.commodity
 
 class CommodityWidgetBase(object):
 
-    def _set_commodity_attributes(self, commodity_row):
-        model = tulpenmanie.commodity.commodities_model
-        self.prefix = model.item(commodity_row, model.PREFIX).text()
-        self.suffix = model.item(commodity_row, model.SUFFIX).text()
-        precision = model.item(commodity_row, model.PRECISION).text()
+    def get_prefix(self):
+        return tulpenmanie.commodity.model.item(
+            self.commodity_row, tulpenmanie.commodity.model.PREFIX).text()
+    prefix = property(get_prefix)
+
+    def get_suffix(self):
+        return tulpenmanie.commodity.model.item(
+            self.commodity_row, tulpenmanie.commodity.model.SUFFIX).text()
+    suffix = property(get_suffix)
+
+    def get_precision(self):
+        precision = tulpenmanie.commodity.model.item(
+            self.commodity_row, tulpenmanie.commodity.model.PRECISION).text()
         if not precision:
-            self.precision = None
+            precision = None
         else:
-            self.precision = int(precision)
+            precision = int(precision)
+        return precision
+    precision = property(get_precision)
 
 
 class CommodityLcdWidget(QtGui.QLCDNumber, CommodityWidgetBase):
@@ -39,7 +49,7 @@ class CommodityLcdWidget(QtGui.QLCDNumber, CommodityWidgetBase):
 
     def __init__(self, commodity_row, parent=None):
         super(CommodityLcdWidget, self).__init__(parent)
-        self._set_commodity_attributes(commodity_row)
+        self.commodity_row = commodity_row
 
         self.setStyleSheet('background : black')
         self.default_palette = QtGui.QPalette(self.palette())
@@ -55,7 +65,6 @@ class CommodityLcdWidget(QtGui.QLCDNumber, CommodityWidgetBase):
                                        QtCore.Qt.red)
         self.setSegmentStyle(self.Flat)
 
-        model = tulpenmanie.commodity.commodities_model
         self.value = None
 
     def setValue(self, value):
@@ -86,27 +95,22 @@ class CommoditySpinBox(QtGui.QDoubleSpinBox, CommodityWidgetBase):
 
     def __init__(self, commodity_row, parent=None):
         super(CommoditySpinBox, self).__init__(parent)
+        self.commodity_row = commodity_row
 
-        self._set_commodity_attributes(commodity_row)
-        self.setPrefix(self.prefix)
-        self.setSuffix(self.suffix)
+        self.setPrefix(self.get_prefix())
+        self.setSuffix(self.get_suffix())
         if self.precision:
             self.setDecimals(self.precision)
 
 
 class CommodityWidget(QtGui.QLabel, CommodityWidgetBase):
 
-    alignment = QtCore.Qt.AlignRight
+    #alignment = QtCore.Qt.AlignRight
 
     def __init__(self, commodity_row, parent=None):
         super(CommodityWidget, self).__init__(parent)
-
-        self._set_commodity_attributes(commodity_row)
+        self.commodity_row = commodity_row
         self.value = None
-
-    def refresh_settings(self):
-        #maybe prefix, suffix, precision best drawn from the model each time
-        pass
 
     def setValue(self, value):
         if self.value and value > self.value:
@@ -121,10 +125,24 @@ class CommodityWidget(QtGui.QLabel, CommodityWidgetBase):
             value = round(value, self.precision)
         self.setText(self.prefix + str(value) + self.suffix)
 
+    def change_value(self, change):
+        value = self.value + change
+        if value > self.value:
+            self.setStyleSheet('color : green')
+        elif value < self.value:
+            self.setStyleSheet('color : red')
+        else:
+            self.setStyleSheet('color : black')
+        self.value = value
+
+        if self.precision:
+            value = round(value, self.precision)
+        self.setText(self.prefix + str(value) + self.suffix)
+
 
 class UuidComboBox(QtGui.QComboBox):
 
-    #TODO set the default model column to 1
+    #TODO set the default tulpenmanie.commodity.model column to 1
 
     def _get_current_uuid(self):
         return self.model().item(self.currentIndex(), 0).text()

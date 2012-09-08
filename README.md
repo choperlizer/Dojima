@@ -29,11 +29,19 @@ startup.
 ## Install
 sudo python setup.py install
 
-## Getting started
+## Notes
+### Getting started
 Tulpenmanie makes no assumptions about what you trade, so you must first define
-commodities and markets in the options->markets menu. After a market is defined,
-set exchange and account settings in the option->providers menu. At this time 
-the program must be restart for any new settings to take effect.
+commodities, markets, and set exchange settings in the options->definitions
+menu.
+### balance display
+Liquid balance is displayed, rather than total balance.
+### request queueing
+Requests are queue in the following descending priority:
+ - order cancelation
+ - ordering
+ - account info
+ - ticker requests, chosen at random between tickers per-exchange
 
 ## Support this project
 Bitcoin: 1NKKQBSaQ6XMViwC46b4JCxGUiUp6EDZR5
