@@ -1,10 +1,21 @@
 #!python
 
+import argparse
 import logging
 import sys
 import tulpenmanie.manager
 
-logging.basicConfig(level=logging.DEBUG)
+parser = argparse.ArgumentParser()
+parser.add_argument('-d', '--debug', action='store_true',
+                    help="print debugging messages to stderr")
+parser.add_argument('-v', '--verbose', action='store_true',
+                    help="print informative internal "
+                         "messages to stderr")
+args = parser.parse_args()
+if args.verbose:
+    logging.basicConfig(level=logging.INFO)
+if args.debug:
+    logging.basicConfig(level=logging.DEBUG)
+
 manager = tulpenmanie.manager.Manager(sys.argv)
 sys.exit(manager.run())
-
