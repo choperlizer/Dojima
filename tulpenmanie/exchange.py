@@ -91,6 +91,7 @@ class ExchangeItem(QtGui.QStandardItem):
 
         if self.markets:
             logger.debug("saving %s markets", self.provider_name)
+            # wipe out account information format from previous version
             self.settings.remove("accounts")
             self.settings.beginGroup('markets')
             self.settings.remove("")
