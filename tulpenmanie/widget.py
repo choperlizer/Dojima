@@ -45,36 +45,46 @@ class CommodityWidgetBase(object):
 
 
 class CommodityLcdWidget(QtGui.QLCDNumber, CommodityWidgetBase):
-    # maybe display prefixes/suffixes as well
+
+    white_palette = QtGui.QPalette(QtGui.QApplication.palette())
+    white_palette.setColor(QtGui.QPalette.WindowText,
+                           QtCore.Qt.white)
+
+    green_palette = QtGui.QPalette(QtGui.QApplication.palette())
+    green_palette.setColor(QtGui.QPalette.WindowText,
+                           QtGui.QColor.fromHsv(120, 255, 255))
+    light_green_palette = QtGui.QPalette(QtGui.QApplication.palette())
+    light_green_palette.setColor(QtGui.QPalette.WindowText,
+                                QtGui.QColor.fromHsv(120, 128, 255))
+
+    red_palette = QtGui.QPalette(QtGui.QApplication.palette())
+    red_palette.setColor(QtGui.QPalette.WindowText,
+                         QtGui.QColor.fromHsv( 0, 255, 255))
+    light_red_palette = QtGui.QPalette(QtGui.QApplication.palette())
+    light_red_palette.setColor(QtGui.QPalette.WindowText,
+                               QtGui.QColor.fromHsv(0, 128, 255))
+
 
     def __init__(self, commodity_row, parent=None):
         super(CommodityLcdWidget, self).__init__(parent)
         self.commodity_row = commodity_row
 
         self.setStyleSheet('background : black')
-        self.default_palette = QtGui.QPalette(self.palette())
-        self.default_palette.setColor(QtGui.QPalette.WindowText,
-                                      QtCore.Qt.white)
-
-        self.increase_palette = QtGui.QPalette(self.palette())
-        self.increase_palette.setColor(QtGui.QPalette.WindowText,
-                                       QtCore.Qt.green)
-
-        self.decrease_palette = QtGui.QPalette(self.palette())
-        self.decrease_palette.setColor(QtGui.QPalette.WindowText,
-                                       QtCore.Qt.red)
         self.setSegmentStyle(self.Flat)
-
+        self.steady_palette = self.white_palette
         self.value = None
 
     def setValue(self, value):
         if self.value and value > self.value:
-            self.setPalette(self.increase_palette)
+            self.setPalette(self.green_palette)
+            self.steady_palette = self.light_green_palette
         elif self.value and value < self.value:
-            self.setPalette(self.decrease_palette)
+            self.setPalette(self.red_palette)
+            self.steady_palette = self.light_red_palette
         else:
-            self.setPalette(self.default_palette)
+            self.setPalette(self.steady_palette)
 
+        # TODO could perhaps be more efficient
         self.value = value
         if self.precision:
             value_string = str(round(value, self.precision))
@@ -83,8 +93,6 @@ class CommodityLcdWidget(QtGui.QLCDNumber, CommodityWidgetBase):
         else:
             value_string = str(value)
 
-        # This probably takes the radix point into account,
-        # which doesn't take up a digit when displayed
         length = len(value_string)
         if self.digitCount() < length:
             self.setDigitCount(length)
