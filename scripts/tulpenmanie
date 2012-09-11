@@ -12,6 +12,8 @@ parser.add_argument('-v', '--verbose', action='store_true',
                     help="print informative internal "
                          "messages to stderr")
 args = parser.parse_args()
+
+logging.basicConfig(level=logging.WARNING)
 if args.verbose:
     logging.basicConfig(level=logging.INFO)
 if args.debug:
