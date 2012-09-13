@@ -27,9 +27,18 @@ startup.
  - PyQt4
 
 ## Install
-sudo python setup.py install
+    sudo python setup.py install
+If you don't want to commit to a sudo, you can install to ~/.local
+    python setup.py install --user
+    # You'll need ~/.local/bin in your PATH or 
+    # you'll have to run the command  ~/.local/bin/tuplenmanie
 
 ## Notes
+### Credential storage
+Settings and API credentials are stored at 
+'~/.config/Emery Hemingway/tulpenmanie.conf' on POSIX systems. On windows they're
+stored in the registry.
+
 ### Getting started
 Tulpenmanie makes no assumptions about what you trade, so you must first define
 commodities, markets, and set exchange settings in the options->definitions
@@ -42,6 +51,13 @@ Requests are queue in the following descending priority:
  - ordering
  - account info
  - ticker requests, chosen at random between tickers per-exchange
+
+## Disclaimer
+To reiterate from the GPL:
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
 
 ## Support this project
 Bitcoin: 1NKKQBSaQ6XMViwC46b4JCxGUiUp6EDZR5

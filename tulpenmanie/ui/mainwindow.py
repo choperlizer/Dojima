@@ -68,7 +68,7 @@ class MainWindow(QtGui.QMainWindow):
             if market_uuid in self.market_docks:
                 dock = self.market_docks[market_uuid]
             else:
-                dock = tulpenmanie.market.DockWidget(market_row, self)
+                dock = tulpenmanie.ui.market.DockWidget(market_row, self)
                 dock.setAllowedAreas(QtCore.Qt.TopDockWidgetArea)
                 self.addDockWidget(QtCore.Qt.TopDockWidgetArea, dock)
                 self.market_docks[market_uuid] = dock

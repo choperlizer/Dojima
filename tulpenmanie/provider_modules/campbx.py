@@ -162,6 +162,7 @@ class CampbxAccount(_Campbx, tulpenmanie.exchange.ExchangeAccount):
     _myfunds_url = QtCore.QUrl(_BASE_URL + "myfunds.php")
     _myorders_url = QtCore.QUrl(_BASE_URL + "myorders.php")
     _tradeenter_url = QtCore.QUrl(_BASE_URL + "tradeenter.php")
+    _tradeadv_url = QtCore.QUrl(_BASE_URL + "tradeadv.php")
     _tradecancel_url = QtCore.QUrl(_BASE_URL + "tradecancel.php")
 
     BTC_balance_signal = QtCore.pyqtSignal(decimal.Decimal)
@@ -170,7 +171,8 @@ class CampbxAccount(_Campbx, tulpenmanie.exchange.ExchangeAccount):
     BTC_balance_changed_signal = QtCore.pyqtSignal(decimal.Decimal)
     USD_balance_changed_signal = QtCore.pyqtSignal(decimal.Decimal)
 
-    BTC_USD_ready_signal = QtCore.pyqtSignal(bool)
+    BTC_USD_limit_ready_signal = QtCore.pyqtSignal(bool)
+    BTC_USD_market_ready_signal = QtCore.pyqtSignal(bool)
 
     def __init__(self, credentials, network_manager=None, parent=None):
         if network_manager is None:
@@ -192,7 +194,8 @@ class CampbxAccount(_Campbx, tulpenmanie.exchange.ExchangeAccount):
         self.base_query.addQueryItem('pass', credentials[1])
 
     def check_order_status(self, remote_pair):
-        self.BTC_USD_ready_signal.emit(True)
+        self.BTC_USD_limit_ready_signal.emit(True)
+        self.BTC_USD_market_ready_signal.emit(True)
 
     def get_ask_orders_model(self, remote_pair):
         return self.ask_orders_model
@@ -201,10 +204,12 @@ class CampbxAccount(_Campbx, tulpenmanie.exchange.ExchangeAccount):
         return self.bid_orders_model
 
     def refresh(self):
+        self._refresh_funds()
+
+    def _refresh_funds(self):
         request = CampbxRequest(self._myfunds_url, self._myfunds_handler, self)
         self._requests.append(request)
         self._request_queue.enqueue(self, 2)
-        self.refresh_orders()
 
     def _myfunds_handler(self, data):
         #TODO maybe not emit 'Total' but rather available
@@ -231,39 +236,58 @@ class CampbxAccount(_Campbx, tulpenmanie.exchange.ExchangeAccount):
                 model.append_order(order_id, price, amount)
             model.sort(1, QtCore.Qt.DescendingOrder)
 
-    def place_ask_order(self, pair, amount, price):
-        self._place_order(amount, price, 0)
+    def place_ask_limit_order(self, pair, amount, price):
+        self._place_limit_order(amount, price, "QuickSell")
 
-    def place_bid_order(self, pair, amount, price):
-        self._place_order(amount, price, 1)
+    def place_bid_limit_order(self, pair, amount, price):
+        self._place_limit_order(amount, price, "QuickBuy")
 
-    def _place_order(self, amount, price, trade_type):
-        amount = decimal.Decimal(amount)
-        price = decimal.Decimal(price)
-        if trade_type:
-            mode = "QuickBuy"
-        else:
-            mode = "QuickSell"
-        query = {'TradeMode' : mode,
-                 'Quantity' : amount}
-        if price:
-            query['Price'] = price
-        else:
-            query['Price'] = 'Market'
-        data = {'type': trade_type, 'amount': amount, 'price': price,
-                'query': query}
+    def place_ask_market_order(self, pair, amount):
+        self._place_market_order(amount, "AdvancedSell")
+
+    def place_bid_market_order(self, pair, amount):
+        self._place_market_order(amount, "AdvancedBuy")
+
+    # TODO these could both be advanced
+    def _place_limit_order(self, amount, price, trade_type):
+        query = {'TradeMode': trade_type,
+                 'Quantity': amount,
+                 'Price': price}
+        data = {'query': query}
         request = CampbxRequest(self._tradeenter_url, self._tradeenter_handler,
                                 self, data)
         self._requests.append(request)
         self._request_queue.enqueue(self, 1)
 
+    def _place_market_order(self, amount, trade_type):
+        query = {'TradeMode': trade_type,
+                 'Quantity': amount,
+                 'Price': 'Market'}
+        data = {'query': query}
+        request = CampbxRequest(self._tradeadv_url, self._tradeenter_handler,
+                                self, data)
+        self._requests.append(request)
+        self._request_queue.enqueue(self, 1)
+
     def _tradeenter_handler(self, data):
-        if data['Success'] != '0':
-            if data['type']: #it's an ask
-                self.USD_balance_changed_signal.emit(-(data['amount']
-                                                       * data['price']))
-            else:
-                self.BTC_balance_changed_signal.emit(-data['amount'])
+        order_id = int(data['Success'])
+        data = data['query']
+        amount = data['Quantity']
+        price = data['Price']
+
+        if data['TradeMode'][-4:] == 'Sell':
+            if order_id:
+                logger.info("ask order %s in place", order_id)
+                self.ask_orders_model.append_order(order_id, price, amount)
+            self.BTC_balance_changed_signal.emit(
+                -decimal.Decimal(data['Quantity']))
+        elif data['TradeMode'][-3:] == 'Buy':
+            if order_id:
+                logger.info("bid order %s in place", order_id)
+                self.bid_orders_model.append_order(order_id, price, amount)
+            self.USD_balance_changed_signal.emit(
+                -(decimal.Decimal(data['Quantity']) *
+                  decimal.Decimal(data['Price'])))
 
     def cancel_ask_order(self, pair, order_id):
         self._cancel_order(order_id, 'Sell')

@@ -254,22 +254,40 @@ class MtgoxAccount(_Mtgox, tulpenmanie.exchange.ExchangeAccount):
     THB_balance_changed_signal = QtCore.pyqtSignal(decimal.Decimal)
     USD_balance_changed_signal = QtCore.pyqtSignal(decimal.Decimal)
 
-    BTCAUD_ready_signal = QtCore.pyqtSignal(bool)
-    BTCCAD_ready_signal = QtCore.pyqtSignal(bool)
-    BTCCHF_ready_signal = QtCore.pyqtSignal(bool)
-    BTCCNY_ready_signal = QtCore.pyqtSignal(bool)
-    BTCDKK_ready_signal = QtCore.pyqtSignal(bool)
-    BTCEUR_ready_signal = QtCore.pyqtSignal(bool)
-    BTCGBP_ready_signal = QtCore.pyqtSignal(bool)
-    BTCHKD_ready_signal = QtCore.pyqtSignal(bool)
-    BTCJPY_ready_signal = QtCore.pyqtSignal(bool)
-    BTCNZD_ready_signal = QtCore.pyqtSignal(bool)
-    BTCPLN_ready_signal = QtCore.pyqtSignal(bool)
-    BTCRUB_ready_signal = QtCore.pyqtSignal(bool)
-    BTCSEK_ready_signal = QtCore.pyqtSignal(bool)
-    BTCSGD_ready_signal = QtCore.pyqtSignal(bool)
-    BTCTHB_ready_signal = QtCore.pyqtSignal(bool)
-    BTCUSD_ready_signal = QtCore.pyqtSignal(bool)
+    BTCAUD_limit_ready_signal = QtCore.pyqtSignal(bool)
+    BTCCAD_limit_ready_signal = QtCore.pyqtSignal(bool)
+    BTCCHF_limit_ready_signal = QtCore.pyqtSignal(bool)
+    BTCCNY_limit_ready_signal = QtCore.pyqtSignal(bool)
+    BTCDKK_limit_ready_signal = QtCore.pyqtSignal(bool)
+    BTCEUR_limit_ready_signal = QtCore.pyqtSignal(bool)
+    BTCGBP_limit_ready_signal = QtCore.pyqtSignal(bool)
+    BTCHKD_limit_ready_signal = QtCore.pyqtSignal(bool)
+    BTCJPY_limit_ready_signal = QtCore.pyqtSignal(bool)
+    BTCNZD_limit_ready_signal = QtCore.pyqtSignal(bool)
+    BTCPLN_limit_ready_signal = QtCore.pyqtSignal(bool)
+    BTCRUB_limit_ready_signal = QtCore.pyqtSignal(bool)
+    BTCSEK_limit_ready_signal = QtCore.pyqtSignal(bool)
+    BTCSGD_limit_ready_signal = QtCore.pyqtSignal(bool)
+    BTCTHB_limit_ready_signal = QtCore.pyqtSignal(bool)
+    BTCUSD_limit_ready_signal = QtCore.pyqtSignal(bool)
+
+    BTCAUD_market_ready_signal = QtCore.pyqtSignal(bool)
+    BTCCAD_market_ready_signal = QtCore.pyqtSignal(bool)
+    BTCCHF_market_ready_signal = QtCore.pyqtSignal(bool)
+    BTCCNY_market_ready_signal = QtCore.pyqtSignal(bool)
+    BTCDKK_market_ready_signal = QtCore.pyqtSignal(bool)
+    BTCEUR_market_ready_signal = QtCore.pyqtSignal(bool)
+    BTCGBP_market_ready_signal = QtCore.pyqtSignal(bool)
+    BTCHKD_market_ready_signal = QtCore.pyqtSignal(bool)
+    BTCJPY_market_ready_signal = QtCore.pyqtSignal(bool)
+    BTCNZD_market_ready_signal = QtCore.pyqtSignal(bool)
+    BTCPLN_market_ready_signal = QtCore.pyqtSignal(bool)
+    BTCRUB_market_ready_signal = QtCore.pyqtSignal(bool)
+    BTCSEK_market_ready_signal = QtCore.pyqtSignal(bool)
+    BTCSGD_market_ready_signal = QtCore.pyqtSignal(bool)
+    BTCTHB_market_ready_signal = QtCore.pyqtSignal(bool)
+    BTCUSD_market_ready_signal = QtCore.pyqtSignal(bool)
+
 
     _info_url = QtCore.QUrl(_BASE_URL + "generic/private/info")
     _currency_url = QtCore.QUrl(_BASE_URL + "generic/currency")
@@ -324,8 +342,6 @@ class MtgoxAccount(_Mtgox, tulpenmanie.exchange.ExchangeAccount):
             self._host_queue.enqueue(self, 0)
             return
 
-        signal = getattr(self, remote_pair + "_ready_signal")
-
         if 'BTC' not in multipliers:
             request = MtgoxRequest(self._currency_url,
                                    self._currency_handler,
@@ -335,7 +351,9 @@ class MtgoxAccount(_Mtgox, tulpenmanie.exchange.ExchangeAccount):
             self._host_queue.enqueue(self, 1)
             return
 
-        signal = getattr(self, remote_pair + "_ready_signal")
+        signal = getattr(self, remote_pair + "_limit_ready_signal")
+        signal.emit(True)
+        signal = getattr(self, remote_pair + "_market_ready_signal")
         signal.emit(True)
 
     def _currency_handler(self, data):
@@ -384,8 +402,10 @@ class MtgoxAccount(_Mtgox, tulpenmanie.exchange.ExchangeAccount):
             order_type = order['type']
 
             if order_type == u'ask':
+                logger.info("ask order %s in place", order_id)
                 self.ask_orders[pair].append_order(order_id, price, amount)
             elif order_type == u'bid':
+                logger.info("bid order %s in place", order_id)
                 self.bid_orders[pair].append_order(order_id, price, amount)
             else:
                 logger.error("unknown order type: %s", order_type)
@@ -395,13 +415,19 @@ class MtgoxAccount(_Mtgox, tulpenmanie.exchange.ExchangeAccount):
                 for model in models.values():
                     model.sort(1, QtCore.Qt.DescendingOrder)
 
-    def place_bid_order(self, remote_pair, amount, price):
-        self._place_order(remote_pair, 'bid', amount, price)
-
-    def place_ask_order(self, remote_pair, amount, price):
+    def place_ask_limit_order(self, remote_pair, amount, price):
         self._place_order(remote_pair, 'ask', amount, price)
 
-    def _place_order(self, remote_pair, order_type, amount, price):
+    def place_bid_limit_order(self, remote_pair, amount, price):
+        self._place_order(remote_pair, 'bid', amount, price)
+
+    def place_ask_market_order(self, remote_pair, amount):
+        self._place_order(remote_pair, 'ask', amount)
+
+    def place_bid_market_order(self, remote_pair, amount):
+        self._place_order(remote_pair, 'bid', amount)
+
+    def _place_order(self, remote_pair, order_type, amount, price=None):
         counter = remote_pair[-3:]
         amount = decimal.Decimal(amount)
         query_data = {'type': order_type,
@@ -409,8 +435,6 @@ class MtgoxAccount(_Mtgox, tulpenmanie.exchange.ExchangeAccount):
         if price:
             price = decimal.Decimal(price)
             query_data['price_int'] = int(price * self.multipliers[counter])
-        else:
-            logger.info("placing a market order")
 
         data = {'pair': remote_pair, 'amount':amount, 'price':price,
                 'query': query_data }

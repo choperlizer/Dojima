@@ -219,11 +219,11 @@ class BtceAccount(_Btce, tulpenmanie.exchange.ExchangeAccount):
     rur_balance_signal = QtCore.pyqtSignal(decimal.Decimal)
     usd_balance_signal = QtCore.pyqtSignal(decimal.Decimal)
 
-    btc_usd_ready_signal = QtCore.pyqtSignal(bool)
-    btc_rur_ready_signal = QtCore.pyqtSignal(bool)
-    ltc_btc_ready_signal = QtCore.pyqtSignal(bool)
-    nmc_btc_ready_signal = QtCore.pyqtSignal(bool)
-    usd_rur_ready_signal = QtCore.pyqtSignal(bool)
+    btc_usd_limit_ready_signal = QtCore.pyqtSignal(bool)
+    btc_rur_limit_ready_signal = QtCore.pyqtSignal(bool)
+    ltc_btc_limit_ready_signal = QtCore.pyqtSignal(bool)
+    nmc_btc_limit_ready_signal = QtCore.pyqtSignal(bool)
+    usd_rur_limit_ready_signal = QtCore.pyqtSignal(bool)
 
     def __init__(self, credentials, network_manager=None, parent=None):
         if network_manager is None:
@@ -245,9 +245,9 @@ class BtceAccount(_Btce, tulpenmanie.exchange.ExchangeAccount):
     def set_credentials(self, credentials):
         self._key = str(credentials[0])
         self._secret = str(credentials[1])
-        
+
     def check_order_status(self, remote_pair):
-        signal = getattr(self, remote_pair + "_ready_signal")
+        signal = getattr(self, remote_pair + "_limit_ready_signal")
         signal.emit(True)
 
     def refresh(self):
@@ -287,11 +287,11 @@ class BtceAccount(_Btce, tulpenmanie.exchange.ExchangeAccount):
                 for model in models.values():
                     model.sort(1, QtCore.Qt.DescendingOrder)
 
-    def place_bid_order(self, remote, amount, price):
-        self._place_order(remote, 'buy', amount, price)
-
-    def place_ask_order(self, remote, amount, price):
+    def place_ask_limit_order(self, remote, amount, price):
         self._place_order(remote, 'sell', amount, price)
+
+    def place_bid_limit_order(self, remote, amount, price):
+        self._place_order(remote, 'buy', amount, price)
 
     def _place_order(self, remote_pair, order_type, amount, price):
         data = {'query':{'pair': remote_pair,
@@ -309,8 +309,10 @@ class BtceAccount(_Btce, tulpenmanie.exchange.ExchangeAccount):
         pair = data['query']['pair']
         order_type = data['query']['type']
         if order_type == 'sell':
+            logger.info("ask order %s in place", order_id)
             self.ask_orders[pair].append_order(order_id, price, amount)
         elif order_type == 'buy':
+            logger.info("bid order %s in place", order_id)
             self.bid_orders[pair].append_order(order_id, price, amount)
         self._emit_funds(data['return']['funds'])
 

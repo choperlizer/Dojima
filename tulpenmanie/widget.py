@@ -14,8 +14,6 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-from decimal import *
-
 from PyQt4 import QtCore, QtGui
 from PyQt4.QtCore import pyqtProperty
 
@@ -75,16 +73,17 @@ class CommodityLcdWidget(QtGui.QLCDNumber, CommodityWidgetBase):
         self.value = None
 
     def setValue(self, value):
-        if self.value and value > self.value:
+        if value == self.value:
+            if self.palette is not self.steady_palette:
+                self.setPalette(self.steady_palette)
+                return
+        elif self.value and value > self.value:
             self.setPalette(self.green_palette)
             self.steady_palette = self.light_green_palette
         elif self.value and value < self.value:
             self.setPalette(self.red_palette)
             self.steady_palette = self.light_red_palette
-        else:
-            self.setPalette(self.steady_palette)
 
-        # TODO could perhaps be more efficient
         self.value = value
         if self.precision:
             value_string = str(round(value, self.precision))
@@ -111,41 +110,47 @@ class CommoditySpinBox(QtGui.QDoubleSpinBox, CommodityWidgetBase):
             self.setDecimals(self.precision)
 
 
-class CommodityWidget(QtGui.QLabel, CommodityWidgetBase):
-
-    #alignment = QtCore.Qt.AlignRight
+class BalanceLabel(QtGui.QLabel, CommodityWidgetBase):
+    steady_style = 'color : black'
+    increase_style = 'color : green'
+    decrease_style = 'color : red'
 
     def __init__(self, commodity_row, parent=None):
-        super(CommodityWidget, self).__init__(parent)
+        super(BalanceLabel, self).__init__(parent)
         self.commodity_row = commodity_row
         self.value = None
+        self.estimated = True
 
     def setValue(self, value):
-        if self.value and value > self.value:
-            self.setStyleSheet('color : green')
+        if value == self.value:
+            self.setStyleSheet(self.steady_style)
+            if not self.estimated:
+                return
+
+        elif self.value and value > self.value:
+            self.setStyleSheet(self.increase_style)
         elif self.value and value < self.value:
-            self.setStyleSheet('color : red')
-        else:
-            self.setStyleSheet('color : black')
+            self.setStyleSheet(self.decrease_style)
+
         self.value = value
 
         if self.precision:
             value = round(value, self.precision)
         self.setText(self.prefix + str(value) + self.suffix)
+        self.setToolTip(QtCore.QCoreApplication.translate(
+            "balance display widget", "liquid balance"))
+        self.estimated = False
 
     def change_value(self, change):
         value = self.value + change
-        if value > self.value:
-            self.setStyleSheet('color : green')
-        elif value < self.value:
-            self.setStyleSheet('color : red')
-        else:
-            self.setStyleSheet('color : black')
-        self.value = value
+        self.setStyleSheet(self.steady_style)
 
         if self.precision:
             value = round(value, self.precision)
-        self.setText(self.prefix + str(value) + self.suffix)
+        self.setText("(" + self.prefix + str(value) + self.suffix + ")")
+        self.setToolTip(QtCore.QCoreApplication.translate(
+            "balance display widget", "estimated liquid balance"))
+        self.estimated = True
 
 
 class UuidComboBox(QtGui.QComboBox):
