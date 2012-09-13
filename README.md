@@ -28,7 +28,9 @@ startup.
 
 ## Install
     sudo python setup.py install
+
 If you don't want to commit to a sudo, you can install to ~/.local
+
     python setup.py install --user
     # You'll need ~/.local/bin in your PATH or 
     # you'll have to run the command  ~/.local/bin/tuplenmanie
