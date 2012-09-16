@@ -112,21 +112,23 @@ class DockWidget(QtGui.QDockWidget):
         super(DockWidget, self).__init__(name, parent)
         self.exchanges = dict()
 
-        base_uuid = tulpenmanie.market.model.item(self.row, tulpenmanie.market.model.BASE).text()
-        search = tulpenmanie.commodity.model.findItems(base_uuid)
-        if not search:
-            logger.critical("settings error, invalid base commodity mapping "
-                            "in market '%s'", name)
-        # TODO raise error
-        base_item = search[0]
+        base_uuid = tulpenmanie.market.model.item(
+            self.row, tulpenmanie.market.model.BASE).text()
+        try:
+            base_item = tulpenmanie.commodity.model.findItems(base_uuid)[0]
+
+            counter_uuid = tulpenmanie.market.model.item(
+                self.row, tulpenmanie.market.model.COUNTER).text()
+
+            counter_item = tulpenmanie.commodity.model.findItems(counter_uuid)[0]
+
+        except IndexError:
+            msg = "settings error, invalid commodity mapping in market " + name
+            print msg
+            logger.critical(msg)
+            return None
+
         self.base_row = base_item.row()
-        counter_uuid = tulpenmanie.market.model.item(self.row, tulpenmanie.market.model.COUNTER).text()
-        search = tulpenmanie.commodity.model.findItems(counter_uuid)
-        if not search:
-            logger.critical("settings error, invalid counter commodity mapping "
-                            "in market '%s'", name)
-        # TODO raise error
-        counter_item = search[0]
         self.counter_row = counter_item.row()
 
         widget = QtGui.QWidget(self)
@@ -134,25 +136,18 @@ class DockWidget(QtGui.QDockWidget):
         self.layout = QtGui.QVBoxLayout()
         widget.setLayout(self.layout)
 
-        # Create menu and action
-        # the menu and action belongs to parent
+        # Create action
+        # the action belongs to parent
         # so self can be disabled without disabling
         # menu and action
-        self.menu = QtGui.QMenu(name, parent)
         self.enable_market_action = QtGui.QAction(
             tulpenmanie.translation.enable, parent)
         self.enable_market_action.setCheckable(True)
         #changed from toggle
         self.enable_market_action.triggered.connect(self.enable_market)
 
-        self.menu.addAction(self.enable_market_action)
-        # TODO perhaps this menu could tear off
-        # also, looking into collapsing separators
-        self.menu.addSeparator()
-
     def add_exchange_widget(self, exchange_widget, exchange_name):
         self.layout.addWidget(exchange_widget)
-        self.menu.addAction(exchange_widget.enable_exchange_action)
         self.addAction(exchange_widget.enable_exchange_action)
         exchange_widget.enable_exchange_action.setEnabled(self.isEnabled())
         self.exchanges[exchange_name] = exchange_widget

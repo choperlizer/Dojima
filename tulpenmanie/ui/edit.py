@@ -17,9 +17,9 @@
 
 from PyQt4 import QtCore, QtGui
 
-import tulpenmanie.commodity
+import tulpenmanie.ui.commodity
 import tulpenmanie.ui.market
-import tulpenmanie.exchange
+import tulpenmanie.ui.exchange
 
 class EditDefinitionsDialog(QtGui.QDialog):
 
@@ -27,11 +27,11 @@ class EditDefinitionsDialog(QtGui.QDialog):
         super(EditDefinitionsDialog, self).__init__(parent)
 
         self.tab_widget = QtGui.QTabWidget()
-        self.tab_widget.addTab(tulpenmanie.commodity.EditWidget(),
+        self.tab_widget.addTab(tulpenmanie.ui.commodity.EditWidget(),
                                "&commodities")
         self.tab_widget.addTab(tulpenmanie.ui.market.EditWidget(),
                                "&markets")
-        self.tab_widget.addTab(tulpenmanie.exchange.EditWidget(),
+        self.tab_widget.addTab(tulpenmanie.ui.exchange.EditWidget(),
                                "&exchanges")
         button_box = QtGui.QDialogButtonBox(
             QtGui.QDialogButtonBox.Close)

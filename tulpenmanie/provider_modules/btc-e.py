@@ -136,8 +136,10 @@ class BtcePrivateRequest(BtceRequest):
             raw = str(self.reply.readAll())
             data = json.loads(raw)
             if data['success'] != 1:
-                msg = str(self.method) + " : " + data['error']
-                raise BtceError(msg)
+                if data['error'] != 'no orders':
+                    msg = HOSTNAME + " " + str(self.method) + " : " + data['error']
+                    self.parent.exchange_error_signal.emit(msg)
+                    logger.warning(msg)
             else:
                 if self.data:
                     self.data.update(data)
@@ -149,7 +151,9 @@ class BtcePrivateRequest(BtceRequest):
 
 
 class _Btce(QtCore.QObject):
+
     provider_name = EXCHANGE_NAME
+    exchange_error_signal = QtCore.pyqtSignal(str)
 
     def pop_request(self):
         request = heapq.heappop(self._requests)[1]

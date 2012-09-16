@@ -48,6 +48,7 @@ class CampbxError(Exception):
 
     def __init__(self, value):
         self.value = value
+
     def __str__(self):
         error_msg= repr(self.value)
         logger.error(error_msg)
@@ -93,7 +94,8 @@ class CampbxRequest(object):
                 #object_pairs_hook=_object_pairs_hook)
             if 'Error' in data:
                 msg = str(self.reply.url().toString()) + " : " + data['Error']
-                raise CampbxError(msg)
+                self.parent.exchange_error_signal.emit(msg)
+                logger.warning(msg)
             elif 'Info' in data:
                 msg = str(self.reply.url().toString()) + " : " + data['Error']
                 logger.warning(msg)
@@ -108,7 +110,9 @@ class CampbxRequest(object):
 
 
 class _Campbx(QtCore.QObject):
+
     provider_name = EXCHANGE_NAME
+    exchange_error_signal = QtCore.pyqtSignal(str)
 
     def pop_request(self):
         request = heapq.heappop(self._requests)
@@ -285,9 +289,12 @@ class CampbxAccount(_Campbx, tulpenmanie.exchange.ExchangeAccount):
             if order_id:
                 logger.info("bid order %s in place", order_id)
                 self.bid_orders_model.append_order(order_id, price, amount)
-            self.USD_balance_changed_signal.emit(
-                -(decimal.Decimal(data['Quantity']) *
-                  decimal.Decimal(data['Price'])))
+            if price == 'Market':
+                price = tulpenmanie.translation.market_order_type
+            else:
+                self.USD_balance_changed_signal.emit(
+                    -(decimal.Decimal(data['Quantity']) *
+                      decimal.Decimal(data['Price'])))
 
     def cancel_ask_order(self, pair, order_id):
         self._cancel_order(order_id, 'Sell')

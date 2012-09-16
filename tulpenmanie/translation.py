@@ -56,3 +56,6 @@ password = QtCore.QCoreApplication.translate(
 
 exchange = QtCore.QCoreApplication.translate(
     'exchange service provider', 'exchange')
+
+market_order_type = QtCore.QCoreApplication.translate(
+    "a market order type of order", "market")

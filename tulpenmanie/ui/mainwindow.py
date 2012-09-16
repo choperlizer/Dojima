@@ -22,6 +22,7 @@ import tulpenmanie.providers
 import tulpenmanie.exchange
 #This next import registers providers with the former module
 from tulpenmanie.provider_modules import *
+import tulpenmanie.ui.exchange
 import tulpenmanie.ui.edit
 
 
@@ -46,7 +47,7 @@ class MainWindow(QtGui.QMainWindow):
         options_menu.addAction(edit_definitions_action)
         self.menuBar().addMenu(options_menu)
 
-        self.market_docks = dict()
+        self.markets = dict()
         self.accounts = dict()
         self.parse_models()
 
@@ -57,22 +58,36 @@ class MainWindow(QtGui.QMainWindow):
     def parse_markets(self):
         "if a dock doesn't exist for market create it"
         # Delete a  dock if it isn't in the model
-        for uuid in self.market_docks.keys():
+        for uuid in self.markets.keys():
             if not tulpenmanie.market.model.findItems(uuid):
-                dock = self.market_docks.pop(uuid)
-                dock.deleteLater()
+                for thing in self.markets[uuid].values():
+                    thing.deleteLater()
+                    self.markets.pop(uuid)
 
         for market_row in range(tulpenmanie.market.model.rowCount()):
             market_uuid = str(tulpenmanie.market.model.item(
                 market_row, tulpenmanie.market.model.UUID).text())
-            if market_uuid in self.market_docks:
-                dock = self.market_docks[market_uuid]
+
+            if market_uuid in self.markets:
+                dock = self.markets[market_uuid]['dock']
+
             else:
+                market_dict = dict()
+                market_name = tulpenmanie.market.model.item(
+                    market_row, tulpenmanie.market.model.NAME).text()
+                menu = QtGui.QMenu(market_name, self)
+                self.markets_menu.addMenu(menu)
+
                 dock = tulpenmanie.ui.market.DockWidget(market_row, self)
                 dock.setAllowedAreas(QtCore.Qt.TopDockWidgetArea)
                 self.addDockWidget(QtCore.Qt.TopDockWidgetArea, dock)
-                self.market_docks[market_uuid] = dock
-                self.markets_menu.addMenu(dock.menu)
+
+                menu.addAction(dock.enable_market_action)
+                menu.addSeparator()
+
+                market_dict['menu'] = menu
+                market_dict['dock'] = dock
+                self.markets[market_uuid] = market_dict
 
             enable = tulpenmanie.market.model.item(
                 market_row, tulpenmanie.market.model.ENABLE).text()
@@ -121,16 +136,19 @@ class MainWindow(QtGui.QMainWindow):
             for market_row in range(markets_item.rowCount()):
                 local_market = str(markets_item.child(
                     market_row, exchange_item.MARKET_LOCAL).text())
+
                 if local_market:
                     remote_market = markets_item.child(
                         market_row, exchange_item.MARKET_REMOTE).text()
-                    dock = self.market_docks[local_market]
+                    dock = self.markets[local_market]['dock']
+
                     if exchange_name in dock.exchanges:
                         exchange_widget = dock.exchanges[exchange_name]
                     else:
                         # make exchange widget
-                        exchange_widget = tulpenmanie.exchange.ExchangeWidget(
+                        exchange_widget = tulpenmanie.ui.exchange.ExchangeWidget(
                             exchange_item, market_row, remote_market, dock)
+
                     enable = markets_item.child(
                         market_row, exchange_item.MARKET_ENABLE).text()
                     if enable == "true":
@@ -138,13 +156,16 @@ class MainWindow(QtGui.QMainWindow):
                     else:
                         enable = False
                     exchange_widget.enable_exchange_action.setChecked(enable)
+                    self.markets[local_market]['menu'].addAction(
+                        exchange_widget.enable_exchange_action)
+
                     if dock.isEnabled():
                         exchange_widget.enable_exchange(enable)
                     else:
                         exchange_widget.setEnabled(False)
                     account_widget = exchange_widget.account_widget
                     if not account_widget and account_object:
-                        account_widget = tulpenmanie.exchange.AccountWidget(
+                        account_widget = tulpenmanie.ui.exchange.AccountWidget(
                             account_object, remote_market, exchange_widget)
                         account_widget.enable_account(exchange_widget.isEnabled())
                     if account_widget and not account_object:
@@ -164,3 +185,4 @@ class MainWindow(QtGui.QMainWindow):
         tulpenmanie.exchange.model.save()
 
         event.accept()
+

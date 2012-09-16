@@ -96,7 +96,8 @@ class MtgoxRequest(QtCore.QObject):
             data = json.loads(raw, object_hook=_object_hook)
             if data['result'] != u'success':
                 msg = str(self.reply.url().toString()) + " : " + data['error']
-                raise MtgoxError(msg)
+                self.parent.exchange_error_signal.emit(msg)
+                logger.warning(msg)
             else:
                 if self.data:
                     self.data.update(data)
@@ -149,6 +150,7 @@ class MtgoxPrivateRequestAPI0(MtgoxPrivateRequest):
 
 class _Mtgox(QtCore.QObject):
     provider_name = EXCHANGE_NAME
+    exchange_error_signal = QtCore.pyqtSignal(str)
 
     def pop_request(self):
         request = heapq.heappop(self._requests)[1]
@@ -295,6 +297,8 @@ class MtgoxAccount(_Mtgox, tulpenmanie.exchange.ExchangeAccount):
     _cancelorder_url = QtCore.QUrl("https://" + HOSTNAME +
                                    "/api/0/cancelOrder.php")
 
+    multipliers = dict()
+
     def __init__(self, credentials, network_manager=None, parent=None):
         if network_manager is None:
             network_manager = self.manager.network_manager
@@ -315,7 +319,6 @@ class MtgoxAccount(_Mtgox, tulpenmanie.exchange.ExchangeAccount):
             HOSTNAME, 5000)
         self._requests = list()
         self._replies = set()
-        self.multipliers = dict()
 
         self.ask_orders = dict()
         self.bid_orders = dict()
@@ -457,7 +460,10 @@ class MtgoxAccount(_Mtgox, tulpenmanie.exchange.ExchangeAccount):
             self.ask_orders[pair].append_order(order_id, price, amount)
             base_signal.emit(-amount)
         elif order_type == 'bid':
-            counter_signal.emit(-decimal.Decimal(amount * price))
+            if price:
+                counter_signal.emit(-decimal.Decimal(amount * price))
+            else:
+                price = tulpenmanie.translation.market_order_type
             self.bid_orders[pair].append_order(order_id, price, amount)
 
     def cancel_ask_order(self, pair, order_id):
