@@ -46,9 +46,6 @@ class _ExchangesModel(QtGui.QStandardItemModel):
 
 class ExchangeItem(QtGui.QStandardItem):
 
-    mappings = None
-    markets = None
-
     MARKET_COLUMNS = 3
     MARKET_REMOTE, MARKET_ENABLE, MARKET_LOCAL = range(MARKET_COLUMNS)
     market_mappings = (('enable', MARKET_ENABLE),
@@ -90,20 +87,18 @@ class ExchangeItem(QtGui.QStandardItem):
                 value = self.child(0, column).text()
                 self.settings.setValue(setting, value)
 
-        if self.markets:
-            logger.debug("saving %s markets", self.provider_name)
-            # wipe out account information format from previous version
-            self.settings.remove("accounts")
-            self.settings.beginGroup('markets')
-            self.settings.remove("")
-            for row in range(self.markets_item.rowCount()):
-                remote_market = self.markets_item.child(row, 0).text()
-                self.settings.beginGroup(remote_market)
-                for setting, column in self.market_mappings:
-                    value = self.markets_item.child(row, column).text()
-                    self.settings.setValue(setting, value)
-                self.settings.endGroup()
+        logger.debug("saving %s markets", self.provider_name)
+        # wipe out account information format from previous version
+        self.settings.remove("accounts")
+        self.settings.beginGroup('markets')
+        for row in range(self.markets_item.rowCount()):
+            remote_market = self.markets_item.child(row, 0).text()
+            self.settings.beginGroup(remote_market)
+            for setting, column in self.market_mappings:
+                value = self.markets_item.child(row, column).text()
+                self.settings.setValue(setting, value)
             self.settings.endGroup()
+        self.settings.endGroup()
 
     def new_account(self):
         columns = self.ACCOUNT_COLUMNS
@@ -136,5 +131,3 @@ class ExchangeAccount(object):
             model = tulpenmanie.model.order.OrdersModel()
             self.bid_orders[remote_pair] = model
             return model
-
-

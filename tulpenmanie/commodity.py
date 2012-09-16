@@ -20,7 +20,7 @@ from PyQt4 import QtCore, QtGui
 
 import tulpenmanie.model.base
 import tulpenmanie.market
-
+import tulpenmanie.translate
 
 logger = logging.getLogger(__name__)
 
@@ -30,48 +30,6 @@ def create_model(parent):
     global model
     model = _CommoditiesModel(parent)
 
-
-    
-class FlatSettingsModel(QtGui.QStandardItemModel):
-
-    def __init__(self, parent=None):
-        super(FlatSettingsModel, self).__init__(parent)
-        self.settings = QtCore.QSettings()
-        self.settings.beginGroup(self.name)
-        self.setColumnCount(self.COLUMNS)
-        self._populate()
-
-    def _populate(self):
-        logger.debug("loading %s", self.name)
-        for row, uuid in enumerate(self.settings.childGroups()):
-            self.settings.beginGroup(uuid)
-            item = QtGui.QStandardItem(uuid)
-            self.setItem(row, self.UUID, item)
-            for setting, column in self.SETTINGS_MAP:
-                item = QtGui.QStandardItem(
-                    self.settings.value(setting).toString())
-                self.setItem(int(row), column, item)
-            self.settings.endGroup()
-
-    def save(self):
-        logger.debug("saving %s", self.name)
-        rows = range(self.rowCount())
-
-        for row in rows:
-            uuid = self.item(row, self.UUID).text()
-            self.settings.beginGroup(uuid)
-            for setting, column in self.SETTINGS_MAP:
-                value =  self.item(row, column).text()
-                self.settings.setValue(setting, value)
-            self.settings.endGroup()
-
-    def delete_row(self, row):
-        uuid = self.item(self.UUID, row).text()
-        self.settings.remove(uuid)
-        self.removeRow(row)
-
-
-
 class _CommoditiesModel(tulpenmanie.model.base.FlatSettingsModel):
 
     name = 'commodities'
@@ -79,6 +37,31 @@ class _CommoditiesModel(tulpenmanie.model.base.FlatSettingsModel):
     UUID, NAME, PREFIX, SUFFIX, PRECISION = range(COLUMNS)
     SETTINGS_MAP = (('name', NAME), ('prefix', PREFIX),
                     ('suffix', SUFFIX), ('precision', PRECISION))
+    BITCOIN_UUID = 'ef699000-02d3-45f8-8dc1-c1345bf1f521'
+
+    def __init__(self, parent=None):
+        super(_CommoditiesModel, self).__init__(parent)
+        search_static = self.findItems(self.BITCOIN_UUID,
+                                QtCore.Qt.MatchExactly,
+                                self.UUID)
+        if not search_static:
+            search_existing = self.findItems(tulpenmanie.translate.bitcoin,
+                                             QtCore.Qt.MatchFixedString,
+                                             self.NAME)
+            for item in search_existing:
+                text = item.text()
+                item.setText(text + QtCore.QCoreApplication.translate(
+                    "commodities", " (user defined)"))
+
+            items = [QtGui.QStandardItem(self.BITCOIN_UUID),
+                     QtGui.QStandardItem(tulpenmanie.translate.bitcoin),
+                     QtGui.QStandardItem(),
+                     QtGui.QStandardItem(),
+                     QtGui.QStandardItem('8')]
+            self.appendRow(items)
+
+            # Create a bitcoin commodity
+            # TODO search for existing bitcoin and rename it
 
     def new_commodity(self):
         uuid = QtCore.QUuid.createUuid().toString()[1:-1]

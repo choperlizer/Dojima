@@ -59,3 +59,6 @@ exchange = QtCore.QCoreApplication.translate(
 
 market_order_type = QtCore.QCoreApplication.translate(
     "a market order type of order", "market")
+
+bitcoin = QtCore.QCoreApplication.translate(
+    "the bitcoin currency system", "bitcoin")

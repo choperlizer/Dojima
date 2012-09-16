@@ -79,3 +79,12 @@ class NetworkAccessManager(QtNetwork.QNetworkAccessManager):
             host_queue = HostRequestQueue(wait, self)
             self._host_request_queues[hostname] = host_queue
         return host_queue
+
+
+class NetworkRequest(QtNetwork.QNetworkRequest):
+
+    def __init__(self, url):
+        super(NetworkRequest, self).__init__(url)
+        # BAD hardcoding
+        # TODO get this from QApplication
+        self.setRawHeader("User-Agent", "tulpenmanie/0.5.0")

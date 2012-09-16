@@ -69,7 +69,7 @@ class MtgoxRequest(QtCore.QObject):
         self.reply = None
 
     def _prepare_request(self):
-        self.request = QtNetwork.QNetworkRequest(self.url)
+        self.request = tulpenmanie.network.NetworkRequest(self.url)
         self.request.setHeader(QtNetwork.QNetworkRequest.ContentTypeHeader,
                                "application/x-www-form-urlencoded")
         query = QtCore.QUrl()
@@ -111,7 +111,7 @@ class MtgoxRequest(QtCore.QObject):
 class MtgoxPrivateRequest(MtgoxRequest):
 
     def _prepare_request(self):
-        self.request = QtNetwork.QNetworkRequest(self.url)
+        self.request = tulpenmanie.network.NetworkRequest(self.url)
         self.request.setHeader(QtNetwork.QNetworkRequest.ContentTypeHeader,
                           "application/x-www-form-urlencoded")
         query = QtCore.QUrl()
@@ -463,7 +463,7 @@ class MtgoxAccount(_Mtgox, tulpenmanie.exchange.ExchangeAccount):
             if price:
                 counter_signal.emit(-decimal.Decimal(amount * price))
             else:
-                price = tulpenmanie.translation.market_order_type
+                price = tulpenmanie.translate.market_order_type
             self.bid_orders[pair].append_order(order_id, price, amount)
 
     def cancel_ask_order(self, pair, order_id):

@@ -19,7 +19,7 @@ from PyQt4 import QtCore, QtGui
 
 import tulpenmanie.market
 import tulpenmanie.commodity
-import tulpenmanie.translation
+import tulpenmanie.translate
 from tulpenmanie.widget import UuidComboBox
 
 
@@ -35,16 +35,16 @@ class EditWidget(QtGui.QWidget):
         self.base_combo = UuidComboBox()
         self.counter_combo = UuidComboBox()
         enable_check = QtGui.QCheckBox()
-        new_button = QtGui.QPushButton(tulpenmanie.translation.new)
-        delete_button = QtGui.QPushButton(tulpenmanie.translation.remove)
+        new_button = QtGui.QPushButton(tulpenmanie.translate.new)
+        delete_button = QtGui.QPushButton(tulpenmanie.translate.remove)
 
         layout = QtGui.QGridLayout()
         layout.addWidget(self.list_view, 0,0, 2,1)
 
         combo_layout = QtGui.QFormLayout()
-        combo_layout.addRow(tulpenmanie.translation.base, self.base_combo)
-        combo_layout.addRow(tulpenmanie.translation.counter, self.counter_combo)
-        combo_layout.addRow(tulpenmanie.translation.enable, enable_check)
+        combo_layout.addRow(tulpenmanie.translate.base, self.base_combo)
+        combo_layout.addRow(tulpenmanie.translate.counter, self.counter_combo)
+        combo_layout.addRow(tulpenmanie.translate.enable, enable_check)
 
         layout.addLayout(combo_layout, 0,1, 1,2)
         layout.addWidget(new_button, 1,1)
@@ -93,7 +93,7 @@ class EditWidget(QtGui.QWidget):
 
     def _delete(self):
         row = self.list_view.currentIndex().row()
-        model.delete_row(row)
+        tulpenmanie.market.model.delete_row(row)
         row -= 1
         if row < 0:
             row = 0
@@ -141,7 +141,7 @@ class DockWidget(QtGui.QDockWidget):
         # so self can be disabled without disabling
         # menu and action
         self.enable_market_action = QtGui.QAction(
-            tulpenmanie.translation.enable, parent)
+            tulpenmanie.translate.enable, parent)
         self.enable_market_action.setCheckable(True)
         #changed from toggle
         self.enable_market_action.triggered.connect(self.enable_market)
@@ -161,10 +161,11 @@ class DockWidget(QtGui.QDockWidget):
 
         enable_item = tulpenmanie.market.model.item(
             self.row, tulpenmanie.market.model.ENABLE)
-        if enable:
-            enable_item.setText("true")
-        else:
-            enable_item.setText("false")
+        if enable_item:
+            if enable:
+                enable_item.setText("true")
+            else:
+                enable_item.setText("false")
 
     def closeEvent(self, event):
         # TODO is close event ever called?

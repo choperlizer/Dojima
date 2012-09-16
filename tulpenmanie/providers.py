@@ -19,13 +19,12 @@ from PyQt4 import QtCore, QtGui
 
 import tulpenmanie.model.order
 
-logger = logging.getLogger(__name__)
 
+logger = logging.getLogger(__name__)
 
 exchanges = dict()
 accounts = dict()
 exchange_model_items = list()
-
 
 def register_exchange(exchange_class):
 	exchanges[exchange_class.provider_name] = exchange_class
@@ -35,5 +34,3 @@ def register_account(account_class):
 
 def register_exchange_model_item(item_class):
     exchange_model_items.append(item_class)
-
-

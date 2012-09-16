@@ -14,6 +14,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+import logging
 from PyQt4 import QtCore, QtGui
 
 import tulpenmanie.commodity
@@ -22,9 +23,12 @@ import tulpenmanie.providers
 import tulpenmanie.exchange
 #This next import registers providers with the former module
 from tulpenmanie.provider_modules import *
+#import tulpenmanie.ui.chart
 import tulpenmanie.ui.exchange
 import tulpenmanie.ui.edit
 
+
+logger = logging.getLogger(__name__)
 
 class MainWindow(QtGui.QMainWindow):
 
@@ -39,7 +43,7 @@ class MainWindow(QtGui.QMainWindow):
                                             shortcut="Ctrl+E",
                                             triggered=self._edit_definitions)
 
-        self.markets_menu = QtGui.QMenu(tulpenmanie.translation.markets,
+        self.markets_menu = QtGui.QMenu(tulpenmanie.translate.markets,
                                         self)
         self.menuBar().addMenu(self.markets_menu)
         options_menu = QtGui.QMenu(QtCore.QCoreApplication.translate(
@@ -59,10 +63,11 @@ class MainWindow(QtGui.QMainWindow):
         "if a dock doesn't exist for market create it"
         # Delete a  dock if it isn't in the model
         for uuid in self.markets.keys():
-            if not tulpenmanie.market.model.findItems(uuid):
-                for thing in self.markets[uuid].values():
-                    thing.deleteLater()
-                    self.markets.pop(uuid)
+            if not tulpenmanie.market.model.findItems(
+                    uuid, QtCore.Qt.MatchExactly, tulpenmanie.market.model.UUID):
+                for value in self.markets[uuid].values():
+                    value.deleteLater()
+                self.markets.pop(uuid)
 
         for market_row in range(tulpenmanie.market.model.rowCount()):
             market_uuid = str(tulpenmanie.market.model.item(
@@ -77,6 +82,9 @@ class MainWindow(QtGui.QMainWindow):
                     market_row, tulpenmanie.market.model.NAME).text()
                 menu = QtGui.QMenu(market_name, self)
                 self.markets_menu.addMenu(menu)
+                #chart_action = ChartAction(market_uuid, self)
+                #chart_action.setEnabled(False)
+                #menu.addAction(chart_action)
 
                 dock = tulpenmanie.ui.market.DockWidget(market_row, self)
                 dock.setAllowedAreas(QtCore.Qt.TopDockWidgetArea)
@@ -86,6 +94,7 @@ class MainWindow(QtGui.QMainWindow):
                 menu.addSeparator()
 
                 market_dict['menu'] = menu
+                #market_dict['chart_action'] = chart_action
                 market_dict['dock'] = dock
                 self.markets[market_uuid] = market_dict
 
@@ -140,6 +149,13 @@ class MainWindow(QtGui.QMainWindow):
                 if local_market:
                     remote_market = markets_item.child(
                         market_row, exchange_item.MARKET_REMOTE).text()
+                    if local_market not in self.markets:
+                        logger.critical("%s has a remote market %s mapped to "
+                                        "unknown local market %s",
+                                        exchange_name,
+                                        remote_market,
+                                        local_market)
+                        break
                     dock = self.markets[local_market]['dock']
 
                     if exchange_name in dock.exchanges:
@@ -185,4 +201,16 @@ class MainWindow(QtGui.QMainWindow):
         tulpenmanie.exchange.model.save()
 
         event.accept()
-
+        
+#class ChartAction(QtGui.QAction):
+#
+#    title = QtCore.QCoreApplication.translate(
+#        "ChartAction, to chart", "chart")
+#    def __init__(self, market_uuid, parent):
+#        super(ChartAction, self).__init__(self.title, parent)
+#        self.market_uuid = market_uuid
+#        self.triggered.connect(self._show_chart)
+#
+#    def _show_chart(self):
+#        dialog = tulpenmanie.ui.chart.Dialog(self.market_uuid, self.parent())
+#        dialog.show()

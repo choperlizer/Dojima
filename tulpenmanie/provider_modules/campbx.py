@@ -22,7 +22,7 @@ from PyQt4 import QtCore, QtGui, QtNetwork
 
 import tulpenmanie.exchange
 import tulpenmanie.providers
-import tulpenmanie.translation
+import tulpenmanie.translate
 import tulpenmanie.orders
 
 
@@ -67,7 +67,7 @@ class CampbxRequest(object):
             self.data = dict()
         self.reply = None
 
-        self.request = QtNetwork.QNetworkRequest(self.url)
+        self.request = tulpenmanie.network.NetworkRequest(self.url)
         self.request.setHeader(QtNetwork.QNetworkRequest.ContentTypeHeader,
                                "application/x-www-form-urlencoded")
         query = parent.base_query
@@ -290,7 +290,7 @@ class CampbxAccount(_Campbx, tulpenmanie.exchange.ExchangeAccount):
                 logger.info("bid order %s in place", order_id)
                 self.bid_orders_model.append_order(order_id, price, amount)
             if price == 'Market':
-                price = tulpenmanie.translation.market_order_type
+                price = tulpenmanie.translate.market_order_type
             else:
                 self.USD_balance_changed_signal.emit(
                     -(decimal.Decimal(data['Quantity']) *

@@ -1,16 +1,16 @@
 # Tulpenmanie, a commodities market client.
 # Copyright (C) 2012  Emery Hemingway
-# 
+#
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
-# 
+#
 # This program is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
-# 
+#
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
@@ -46,7 +46,7 @@ class FlatSettingsModel(QtGui.QStandardItemModel):
     def save(self):
         logger.debug("saving %s", self.name)
         rows = range(self.rowCount())
-
+        self.settings.remove('')
         for row in rows:
             uuid = self.item(row, self.UUID).text()
             self.settings.beginGroup(uuid)
@@ -78,7 +78,9 @@ class OrdersModel(QtGui.QStandardItemModel):
                          QtGui.QStandardItem(str(amount)) ) )
 
     def remove_order(self, order_id):
-        orders = self.findItems(str(order_id))
+        orders = self.findItems(str(order_id),
+                                QtCore.Qt.MatchExactly,
+                                self.ORDER_ID)
         for order in orders:
             self.removeRow(order.row())
 

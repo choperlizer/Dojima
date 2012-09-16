@@ -108,9 +108,9 @@ class BtcePrivateRequest(BtceRequest):
         self.reply = None
 
     def _prepare_request(self):
-        self.request = QtNetwork.QNetworkRequest(self.url)
+        self.request = tulpenmanie.network.NetworkRequest(self.url)
         self.request.setHeader(QtNetwork.QNetworkRequest.ContentTypeHeader,
-                          "application/x-www-form-urlencoded")
+                               "application/x-www-form-urlencoded")
         query = QtCore.QUrl()
         query.addQueryItem('method', self.method)
         self.parent.nonce += 1

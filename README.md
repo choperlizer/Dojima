@@ -2,9 +2,10 @@
 A commodities market client in PyQt4
 
 ## Supported Markets
- - BTC-e
- - Campbx
- - MtGox
+ - [Bitstamp](https://www.bitstamp.net/)
+ - [BTC-e](https://btc-e.com/)
+ - [Campbx](https://campbx.com/)
+ - [MtGox](https://mtgox.com/)
 
 ### Module notes
 #### CampBX
