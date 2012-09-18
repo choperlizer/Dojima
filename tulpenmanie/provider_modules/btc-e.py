@@ -179,12 +179,8 @@ class BtceExchange(_Btce):
                                         remote_market + "/ticker")
 
         # These must be the same length
-        remote_stats = ('buy', 'last', 'sell',
-                        'high', 'low', 'avg')
-        self.stats = ('ask', 'last', 'bid',
-                       'high', 'low', 'average')
-        self.is_counter = (True, True, True,
-                           True, True, True)
+        remote_stats = ('buy', 'last', 'sell')
+        self.stats = ('ask', 'last', 'bid')
 
         self._signals = dict()
         self.signals = dict()

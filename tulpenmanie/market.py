@@ -35,10 +35,9 @@ class _MarketsModel(tulpenmanie.model.base.FlatSettingsModel):
     """Intended to be instaniated in this module only."""
 
     name = 'markets'
-    COLUMNS = 5
-    UUID, NAME, BASE, COUNTER, ENABLE = range(COLUMNS)
-    SETTINGS_MAP = (('name', NAME), ('base', BASE),
-                    ('counter', COUNTER), ('enable', ENABLE))
+    COLUMNS = 4
+    UUID, NAME, BASE, COUNTER = range(COLUMNS)
+    SETTINGS_MAP = (('name', NAME), ('base', BASE), ('counter', COUNTER))
 
     def new_market(self):
         uuid = QtCore.QUuid.createUuid().toString()[1:-1]

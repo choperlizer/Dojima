@@ -178,13 +178,8 @@ class MtgoxExchange(_Mtgox):
         self._ticker_url = QtCore.QUrl(_BASE_URL +
                                         remote_market + "/ticker")
         # These must be the same length
-        remote_stats = ('sell', 'last_local', 'buy',
-                        'high', 'low', 'avg', 'vwap')
-        self.stats = ('ask', 'last', 'bid',
-                       'high', 'low', 'average', 'VWAP')
-        self.is_counter = (True, True, True,
-                           True, True, True, True)
-
+        remote_stats = ('sell', 'last_local', 'buy')
+        self.stats = ('ask', 'last', 'bid')
         self._signals = dict()
         self.signals = dict()
         for i in range(len(remote_stats)):

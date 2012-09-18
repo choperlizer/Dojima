@@ -126,24 +126,45 @@ class ErrorHandling(object):
         message_box.setText(message)
         message_box.exec_()
 
-class ExchangeWidget(QtGui.QGroupBox, ErrorHandling):
 
-    def __init__(self, exchange_item, market_row, remote_market, parent):
+class ExchangeWidget(QtGui.QWidget, ErrorHandling):
+
+    exchange_enable_signal = QtCore.pyqtSignal(bool)
+
+    def __init__(self, exchange_item, exchange_market_row, parent=None):
         super(ExchangeWidget, self).__init__(parent)
         self.account_widget = None
-
-        self.row = market_row
-        # Data
-        exchange_name = str(exchange_item.text())
-        title = exchange_name + ' - ' + remote_market
-        self.setTitle(title)
-
-        ExchangeClass = tulpenmanie.providers.exchanges[exchange_name]
         self.exchange_item = exchange_item
+        self.market_row = exchange_market_row
+
+        exchange_name = exchange_item.text()
+        remote_market = exchange_item.markets_item.child(
+            exchange_market_row, exchange_item.MARKET_REMOTE).text()
+
+        ExchangeClass = tulpenmanie.providers.exchanges[str(exchange_name)]
         self.exchange = ExchangeClass(remote_market, parent=self)
 
-        self.base_row = parent.base_row
-        self.counter_row = parent.counter_row
+        try:
+            market_uuid = exchange_item.markets_item.child(
+                exchange_market_row, exchange_item.MARKET_LOCAL).text()
+            market_item = tulpenmanie.market.model.findItems(market_uuid)[0]
+            local_market_row = market_item.row()
+
+            base_uuid = tulpenmanie.market.model.item(
+                local_market_row, tulpenmanie.market.model.BASE).text()
+            base_item = tulpenmanie.commodity.model.findItems(base_uuid)[0]
+
+            counter_uuid = tulpenmanie.market.model.item(
+                local_market_row, tulpenmanie.market.model.COUNTER).text()
+            counter_item = tulpenmanie.commodity.model.findItems(counter_uuid)[0]
+        except IndexError:
+            logger.critical("settings error, invalid model mapping in market "
+                            "%s or exchange %s", market_uuid, exchange_name)
+            logger.critical(msg)
+            return None
+
+        self.base_row = base_item.row()
+        self.counter_row = counter_item.row()
 
         #Widgets
         side_layout = QtGui.QGridLayout()
@@ -154,18 +175,11 @@ class ExchangeWidget(QtGui.QGroupBox, ErrorHandling):
             label = QtGui.QLabel(stat)
             label.setAlignment(QtCore.Qt.AlignRight)
             label.setFont(label_font)
-            if self.exchange.is_counter[i]:
-                widget = tulpenmanie.widget.CommodityLcdWidget(self.counter_row)
-            else:
-                widget = tulpenmanie.widget.CommodityLcdWidget(self.base_row)
+            widget = tulpenmanie.widget.CommodityLcdWidget(self.counter_row)
             side_layout.addWidget(label, i,0)
             side_layout.addWidget(widget, i,1)
 
             self.exchange.signals[stat].connect(widget.setValue)
-
-            #side_layout.addWidget(separator, 0,3,
-            #                  len(self.exchange.stats),1)
-            #side_layout.addStretch()
 
         self.account_layout = QtGui.QVBoxLayout()
         layout = QtGui.QHBoxLayout()
@@ -173,6 +187,7 @@ class ExchangeWidget(QtGui.QGroupBox, ErrorHandling):
         layout.addLayout(self.account_layout)
         self.setLayout(layout)
 
+        title = exchange_name + '-' + remote_market
         self.enable_exchange_action = QtGui.QAction(title, parent)
         self.enable_exchange_action.setCheckable(True)
         self.enable_exchange_action.triggered.connect(self.enable_exchange)
@@ -182,31 +197,24 @@ class ExchangeWidget(QtGui.QGroupBox, ErrorHandling):
 
         self.exchange.exchange_error_signal.connect(self.exchange_error_handler)
 
-        parent.add_exchange_widget(self, exchange_name)
-        parent.enable_market_action.triggered.connect(self._enable_timer)
-        parent.enable_market_changed.connect(self._enable_timer)
-
-
     def add_account_widget(self, widget):
         self.account_widget = widget
         self.account_layout.addWidget(widget)
 
     def enable_exchange(self, enable):
-        self.setVisible(enable)
         self.setEnabled(enable)
+        #self.setVisible(enable)
+        self._enable_timer(enable)
+        self.exchange_enable_signal.emit(enable)
 
         market_item = self.exchange_item.child(0, self.exchange_item.MARKETS)
-        enable_item = market_item.child(self.row,
+        enable_item = market_item.child(self.market_row,
                                         self.exchange_item.MARKET_ENABLE)
         if enable:
             enable_item.setText("true")
         else:
             enable_item.setText("false")
 
-        if enable and self.parent().isEnabled():
-            self._enable_timer(True)
-        else:
-            self._enable_timer(False)
 
     def _enable_timer(self, enable):
         # TODO test if this works

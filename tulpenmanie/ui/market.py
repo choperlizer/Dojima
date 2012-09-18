@@ -34,7 +34,6 @@ class EditWidget(QtGui.QWidget):
         self.list_view = QtGui.QListView()
         self.base_combo = UuidComboBox()
         self.counter_combo = UuidComboBox()
-        enable_check = QtGui.QCheckBox()
         new_button = QtGui.QPushButton(tulpenmanie.translate.new)
         delete_button = QtGui.QPushButton(tulpenmanie.translate.remove)
 
@@ -44,7 +43,6 @@ class EditWidget(QtGui.QWidget):
         combo_layout = QtGui.QFormLayout()
         combo_layout.addRow(tulpenmanie.translate.base, self.base_combo)
         combo_layout.addRow(tulpenmanie.translate.counter, self.counter_combo)
-        combo_layout.addRow(tulpenmanie.translate.enable, enable_check)
 
         layout.addLayout(combo_layout, 0,1, 1,2)
         layout.addWidget(new_button, 1,1)
@@ -65,7 +63,6 @@ class EditWidget(QtGui.QWidget):
         self.mapper.setSubmitPolicy(QtGui.QDataWidgetMapper.AutoSubmit)
         self.mapper.addMapping(self.base_combo, tulpenmanie.market.model.BASE, 'currentUuid')
         self.mapper.addMapping(self.counter_combo, tulpenmanie.market.model.COUNTER, 'currentUuid')
-        self.mapper.addMapping(enable_check, tulpenmanie.market.model.ENABLE)
 
         # Connections
         self.list_view.clicked.connect(self._market_changed)
@@ -100,75 +97,3 @@ class EditWidget(QtGui.QWidget):
         self.list_view.setCurrentIndex(tulpenmanie.market.model.index(
             row, tulpenmanie.market.model.NAME))
         self.mapper.setCurrentIndex(row)
-
-
-class DockWidget(QtGui.QDockWidget):
-
-    enable_market_changed = QtCore.pyqtSignal(bool)
-
-    def __init__(self, model_row, parent=None):
-        self.row = model_row
-        name = tulpenmanie.market.model.item(self.row, tulpenmanie.market.model.NAME).text()
-        super(DockWidget, self).__init__(name, parent)
-        self.exchanges = dict()
-
-        base_uuid = tulpenmanie.market.model.item(
-            self.row, tulpenmanie.market.model.BASE).text()
-        try:
-            base_item = tulpenmanie.commodity.model.findItems(base_uuid)[0]
-
-            counter_uuid = tulpenmanie.market.model.item(
-                self.row, tulpenmanie.market.model.COUNTER).text()
-
-            counter_item = tulpenmanie.commodity.model.findItems(counter_uuid)[0]
-
-        except IndexError:
-            msg = "settings error, invalid commodity mapping in market " + name
-            print msg
-            logger.critical(msg)
-            return None
-
-        self.base_row = base_item.row()
-        self.counter_row = counter_item.row()
-
-        widget = QtGui.QWidget(self)
-        self.setWidget(widget)
-        self.layout = QtGui.QVBoxLayout()
-        widget.setLayout(self.layout)
-
-        # Create action
-        # the action belongs to parent
-        # so self can be disabled without disabling
-        # menu and action
-        self.enable_market_action = QtGui.QAction(
-            tulpenmanie.translate.enable, parent)
-        self.enable_market_action.setCheckable(True)
-        #changed from toggle
-        self.enable_market_action.triggered.connect(self.enable_market)
-
-    def add_exchange_widget(self, exchange_widget, exchange_name):
-        self.layout.addWidget(exchange_widget)
-        self.addAction(exchange_widget.enable_exchange_action)
-        exchange_widget.enable_exchange_action.setEnabled(self.isEnabled())
-        self.exchanges[exchange_name] = exchange_widget
-
-    def enable_market(self, enable):
-        self.setEnabled(enable)
-        self.setVisible(enable)
-        self.enable_market_changed.emit(enable)
-        for action in self.actions():
-            action.setEnabled(enable)
-
-        enable_item = tulpenmanie.market.model.item(
-            self.row, tulpenmanie.market.model.ENABLE)
-        if enable_item:
-            if enable:
-                enable_item.setText("true")
-            else:
-                enable_item.setText("false")
-
-    def closeEvent(self, event):
-        # TODO is close event ever called?
-        self.enable_market_action.setChecked(False)
-        self.enable_market(False)
-        event.accept()

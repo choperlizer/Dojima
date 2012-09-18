@@ -129,8 +129,7 @@ class BitstampExchangeMarket(_Bitstamp):
             network_manager = self.manager.network_manager
         super(BitstampExchangeMarket, self).__init__(parent)
         # These must be the same length
-        self.stats = ('ask', 'last', 'bid', 'high', 'low')
-        self.is_counter = (True, True, True, True, True)
+        self.stats = ('ask', 'last', 'bid')
         self.signals = dict()
         for i in range(len(self.stats)):
             signal = getattr(self, self.stats[i])
