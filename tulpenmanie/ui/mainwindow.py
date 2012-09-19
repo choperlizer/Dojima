@@ -82,7 +82,7 @@ class MainWindow(QtGui.QMainWindow):
                 self.markets_menu.addMenu(menu)
 
                 market_dict['menu'] = menu
-                market_dict['widget'] = dict()
+                market_dict['dock'] = dict()
                 self.markets[market_uuid] = market_dict
 
     def parse_exchanges(self):
@@ -134,21 +134,18 @@ class MainWindow(QtGui.QMainWindow):
                                     exchange_name, remote_pair, local_market)
                     continue
 
-                exchange_widgets_dict = self.markets[local_market]['widget']
-                if exchange_name in exchange_widgets_dict:
-                    exchange_widget = exchange_widgets_dict[exchange_name]
+                exchange_docks_dict = self.markets[local_market]['dock']
+                if exchange_name in exchange_docks_dict:
+                    exchange_dock = exchange_docks_dict[exchange_name]
                 else:
-                    dock = QtGui.QDockWidget(exchange_name +' '+ remote_pair,
-                                             self)
-                    exchange_widget = tulpenmanie.ui.exchange.ExchangeWidget(
-                        exchange_item, market_row, dock)
-                    #TODO setTitleBarWidget() with a QLabel with icon
-                    dock.setWidget(exchange_widget)
-                    exchange_widget.exchange_enable_signal.connect(
-                        dock.setVisible)
+                    exchange_dock = tulpenmanie.ui.exchange.ExchangeDockWidget(
+                        exchange_item, market_row, self)
                     self.addDockWidget(QtCore.Qt.LeftDockWidgetArea,
-                                       dock)
-                    exchange_widgets_dict[exchange_name] = exchange_widget
+                                       exchange_dock)
+                    self.markets[local_market]['menu'].addAction(
+                        exchange_dock.enable_exchange_action)
+                    
+                    exchange_docks_dict[exchange_name] = exchange_dock
 
                 enable = markets_item.child(
                     market_row, exchange_item.MARKET_ENABLE).text()
@@ -156,19 +153,16 @@ class MainWindow(QtGui.QMainWindow):
                     enable = True
                 else:
                     enable = False
+                exchange_dock.enable_exchange(enable)
+                exchange_dock.enable_exchange_action.setChecked(enable)
 
-                exchange_widget.enable_exchange(enable)
-                exchange_widget.enable_exchange_action.setChecked(enable)
-                self.markets[local_market]['menu'].addAction(
-                    exchange_widget.enable_exchange_action)
-
-                account_widget = exchange_widget.account_widget
+                account_widget = exchange_dock.account_widget
                 if not account_widget and account_object:
                     account_widget = tulpenmanie.ui.exchange.AccountWidget(
-                        account_object, remote_pair, exchange_widget)
-                    account_widget.enable_account(exchange_widget.isEnabled())
+                        account_object, remote_pair, exchange_dock)
+                    account_widget.enable_account(enable)
                 if account_widget and not account_object:
-                    exchange_widget.account_widget = None
+                    exchange_dock.account_widget = None
                     account_widget.deleteLater()
 
     def _edit_definitions(self):

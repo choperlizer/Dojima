@@ -127,22 +127,21 @@ class ErrorHandling(object):
         message_box.exec_()
 
 
-class ExchangeWidget(QtGui.QWidget, ErrorHandling):
-
-    exchange_enable_signal = QtCore.pyqtSignal(bool)
+class ExchangeDockWidget(QtGui.QDockWidget, ErrorHandling):
 
     def __init__(self, exchange_item, exchange_market_row, parent=None):
-        super(ExchangeWidget, self).__init__(parent)
+        exchange_name = exchange_item.text()
+        remote_pair = exchange_item.markets_item.child(
+            exchange_market_row, exchange_item.MARKET_REMOTE).text()
+        title = exchange_name + ' ' + remote_pair
+        super(ExchangeDockWidget, self).__init__(title, parent)
+
         self.account_widget = None
         self.exchange_item = exchange_item
         self.market_row = exchange_market_row
 
-        exchange_name = exchange_item.text()
-        self.remote_pair = exchange_item.markets_item.child(
-            exchange_market_row, exchange_item.MARKET_REMOTE).text()
-
         ExchangeClass = tulpenmanie.providers.exchanges[str(exchange_name)]
-        self.exchange = ExchangeClass(self.remote_pair, parent=self)
+        self.exchange = ExchangeClass(remote_pair, parent=self)
 
         try:
             market_uuid = exchange_item.markets_item.child(
@@ -167,6 +166,7 @@ class ExchangeWidget(QtGui.QWidget, ErrorHandling):
         self.counter_row = counter_item.row()
 
         #Widgets
+        self.widget = QtGui.QWidget(self)
         side_layout = QtGui.QGridLayout()
         side_layout.setColumnStretch(1,1)
         label_font = QtGui.QFont()
@@ -185,31 +185,35 @@ class ExchangeWidget(QtGui.QWidget, ErrorHandling):
         layout = QtGui.QHBoxLayout()
         layout.addLayout(side_layout)
         layout.addLayout(self.account_layout)
-        self.setLayout(layout)
-
-        title = exchange_name + ' ' + self.remote_pair
-        self.enable_exchange_action = QtGui.QAction(title, parent)
-        self.enable_exchange_action.setCheckable(True)
-        self.enable_exchange_action.triggered.connect(self.enable_exchange)
+        self.widget.setLayout(layout)
+        self.setWidget(self.widget)
 
         self.refresh_timer = QtCore.QTimer(self)
         self.refresh_timer.timeout.connect(self.exchange.refresh)
 
         self.exchange.exchange_error_signal.connect(self.exchange_error_handler)
 
-    def add_account_widget(self, widget):
-        self.account_widget = widget
-        self.account_layout.addWidget(widget)
+        self.enable_exchange_action = QtGui.QAction(title, parent)
+        self.enable_exchange_action.setCheckable(True)
+        self.enable_exchange_action.triggered.connect(self.enable_exchange)
+
+    def closeEvent(self, event):
+        # TODO is close event ever called?
+        self.enable_exchange(False)
+        self.enable_exchange_action.setChecked(False)
+        event.accept()
 
     def enable_exchange(self, enable):
         self.setEnabled(enable)
-        #self.setVisible(enable)
+        self.setVisible(enable)
         self._enable_timer(enable)
-        self.exchange_enable_signal.emit(enable)
+        #self.enable_exchange_action.setChecked(enable)
+
 
         market_item = self.exchange_item.child(0, self.exchange_item.MARKETS)
         enable_item = market_item.child(self.market_row,
                                         self.exchange_item.MARKET_ENABLE)
+        #TODO try str(enable)
         if enable:
             enable_item.setText("true")
         else:
@@ -231,6 +235,10 @@ class ExchangeWidget(QtGui.QWidget, ErrorHandling):
             self.refresh_timer.start(refresh_rate)
         else:
             self.refresh_timer.stop()
+        
+    def add_account_widget(self, widget):
+        self.account_widget = widget
+        self.account_layout.addWidget(widget)
 
 
 class AccountWidget(QtGui.QWidget, ErrorHandling):
