@@ -62,3 +62,6 @@ market_order_type = QtCore.QCoreApplication.translate(
 
 bitcoin = QtCore.QCoreApplication.translate(
     "the bitcoin currency system", "bitcoin")
+
+chart = QtCore.QCoreApplication.translate(
+    "chart or graph for price, volume, et cetera", "chart")

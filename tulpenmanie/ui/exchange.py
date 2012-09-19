@@ -138,11 +138,11 @@ class ExchangeWidget(QtGui.QWidget, ErrorHandling):
         self.market_row = exchange_market_row
 
         exchange_name = exchange_item.text()
-        remote_market = exchange_item.markets_item.child(
+        self.remote_pair = exchange_item.markets_item.child(
             exchange_market_row, exchange_item.MARKET_REMOTE).text()
 
         ExchangeClass = tulpenmanie.providers.exchanges[str(exchange_name)]
-        self.exchange = ExchangeClass(remote_market, parent=self)
+        self.exchange = ExchangeClass(self.remote_pair, parent=self)
 
         try:
             market_uuid = exchange_item.markets_item.child(
@@ -187,7 +187,7 @@ class ExchangeWidget(QtGui.QWidget, ErrorHandling):
         layout.addLayout(self.account_layout)
         self.setLayout(layout)
 
-        title = exchange_name + '-' + remote_market
+        title = exchange_name + ' ' + self.remote_pair
         self.enable_exchange_action = QtGui.QAction(title, parent)
         self.enable_exchange_action.setCheckable(True)
         self.enable_exchange_action.triggered.connect(self.enable_exchange)
@@ -238,10 +238,10 @@ class AccountWidget(QtGui.QWidget, ErrorHandling):
     #TODO balance signals should connect to multiple account widgets,
     # where accounts and commodities are the same
 
-    def __init__(self, account_object, remote_market, parent):
+    def __init__(self, account_object, remote_pair, parent):
         super(AccountWidget, self).__init__(parent)
 
-        self.remote_pair = str(remote_market)
+        self.remote_pair = str(remote_pair)
         #TODO this will break if pair does not have 3 character codes
         base = self.remote_pair[:3]
         counter = self.remote_pair[-3:]

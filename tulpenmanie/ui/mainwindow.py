@@ -23,10 +23,9 @@ import tulpenmanie.providers
 import tulpenmanie.exchange
 #This next import registers providers with the former module
 from tulpenmanie.provider_modules import *
-#import tulpenmanie.ui.chart
+import tulpenmanie.translate
 import tulpenmanie.ui.exchange
 import tulpenmanie.ui.edit
-
 
 logger = logging.getLogger(__name__)
 
@@ -39,13 +38,15 @@ class MainWindow(QtGui.QMainWindow):
         tulpenmanie.market.create_model(self)
         tulpenmanie.exchange.create_exchanges_model(self)
 
-        edit_definitions_action = QtGui.QAction("&definitions", self,
-                                            shortcut="Ctrl+E",
-                                            triggered=self._edit_definitions)
+        edit_definitions_action = QtGui.QAction(
+            QtCore.QCoreApplication.translate("main window options menu",
+                                              "markets and exchanges"),
+            self, triggered=self._edit_definitions)
 
-        self.markets_menu = QtGui.QMenu(tulpenmanie.translate.markets,
-                                        self)
+        self.markets_menu = QtGui.QMenu(tulpenmanie.translate.markets, self)
         self.menuBar().addMenu(self.markets_menu)
+
+
         options_menu = QtGui.QMenu(QtCore.QCoreApplication.translate(
             "options menu title", "options"), self)
         options_menu.addAction(edit_definitions_action)
@@ -55,7 +56,6 @@ class MainWindow(QtGui.QMainWindow):
 
         self.markets = dict()
         self.exchanges = dict()
-        self.accounts = dict()
         self.parse_models()
 
     def parse_models(self):
@@ -80,14 +80,9 @@ class MainWindow(QtGui.QMainWindow):
                     market_row, tulpenmanie.market.model.NAME).text()
                 menu = QtGui.QMenu(market_name, self)
                 self.markets_menu.addMenu(menu)
-                #chart_action = ChartAction(market_uuid, self)
-                #chart_action.setEnabled(False)
-                #menu.addAction(chart_action)
-
-                menu.addSeparator()
 
                 market_dict['menu'] = menu
-                #market_dict['chart_action'] = chart_action
+                market_dict['widget'] = dict()
                 self.markets[market_uuid] = market_dict
 
     def parse_exchanges(self):
@@ -116,7 +111,7 @@ class MainWindow(QtGui.QMainWindow):
                 else:
                     AccountClass = tulpenmanie.providers.accounts[exchange_name]
                     account_object = AccountClass(credentials)
-                    self.accounts[exchange_name] = account_object
+                    self.exchanges[exchange_name]['account'] = account_object
             else:
                 if 'account' in self.exchanges[exchange_name]:
                     self.exchanges[exchange_name].pop('account')
@@ -130,29 +125,30 @@ class MainWindow(QtGui.QMainWindow):
                 if not local_market:
                     continue
 
-                remote_market = markets_item.child(
+                remote_pair = markets_item.child(
                     market_row, exchange_item.MARKET_REMOTE).text()
 
                 if local_market not in self.markets:
                     logger.critical("%s has a remote market %s mapped to "
                                     "unknown local market %s",
-                                    exchange_name, remote_market, local_market)
+                                    exchange_name, remote_pair, local_market)
                     continue
 
-                if 'widget' in self.exchanges[exchange_name]:
-                    exchange_widget = self.exchanges[exchange_name]['widget']
+                exchange_widgets_dict = self.markets[local_market]['widget']
+                if exchange_name in exchange_widgets_dict:
+                    exchange_widget = exchange_widgets_dict[exchange_name]
                 else:
-                    dock = QtGui.QDockWidget(exchange_name +'-'+ remote_market,
+                    dock = QtGui.QDockWidget(exchange_name +' '+ remote_pair,
                                              self)
                     exchange_widget = tulpenmanie.ui.exchange.ExchangeWidget(
                         exchange_item, market_row, dock)
-                    self.exchanges[exchange_name]['widget'] = exchange_widget
                     #TODO setTitleBarWidget() with a QLabel with icon
                     dock.setWidget(exchange_widget)
                     exchange_widget.exchange_enable_signal.connect(
                         dock.setVisible)
                     self.addDockWidget(QtCore.Qt.LeftDockWidgetArea,
                                        dock)
+                    exchange_widgets_dict[exchange_name] = exchange_widget
 
                 enable = markets_item.child(
                     market_row, exchange_item.MARKET_ENABLE).text()
@@ -169,7 +165,7 @@ class MainWindow(QtGui.QMainWindow):
                 account_widget = exchange_widget.account_widget
                 if not account_widget and account_object:
                     account_widget = tulpenmanie.ui.exchange.AccountWidget(
-                        account_object, remote_market, exchange_widget)
+                        account_object, remote_pair, exchange_widget)
                     account_widget.enable_account(exchange_widget.isEnabled())
                 if account_widget and not account_object:
                     exchange_widget.account_widget = None
@@ -188,16 +184,3 @@ class MainWindow(QtGui.QMainWindow):
         tulpenmanie.exchange.model.save()
 
         event.accept()
-
-#class ChartAction(QtGui.QAction):
-#
-#    title = QtCore.QCoreApplication.translate(
-#        "ChartAction, to chart", "chart")
-#    def __init__(self, market_uuid, parent):
-#        super(ChartAction, self).__init__(self.title, parent)
-#        self.market_uuid = market_uuid
-#        self.triggered.connect(self._show_chart)
-#
-#    def _show_chart(self):
-#        dialog = tulpenmanie.ui.chart.Dialog(self.market_uuid, self.parent())
-#        dialog.show()
