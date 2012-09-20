@@ -21,9 +21,10 @@ import logging
 from PyQt4 import QtCore, QtGui, QtNetwork
 
 import tulpenmanie.exchange
+import tulpenmanie.network
+import tulpenmanie.orders
 import tulpenmanie.providers
 import tulpenmanie.translate
-import tulpenmanie.orders
 
 
 logger = logging.getLogger(__name__)
@@ -126,7 +127,7 @@ class BitstampExchangeMarket(_Bitstamp):
 
     def __init__(self, remote_market, network_manager=None, parent=None):
         if network_manager is None:
-            network_manager = self.manager.network_manager
+            network_manager = tulpenmanie.network.get_network_manager()
         super(BitstampExchangeMarket, self).__init__(parent)
         # These must be the same length
         self.stats = ('ask', 'last', 'bid')
@@ -141,7 +142,7 @@ class BitstampExchangeMarket(_Bitstamp):
         self._requests = list()
         self._replies = set()
 
-    def refresh(self):
+    def refresh_ticker(self):
         request = BitstampGETRequest(self._ticker_url,
                                      self._ticker_handler, self)
         self._requests.append(request)
@@ -160,6 +161,9 @@ class BitstampAccount(_Bitstamp, tulpenmanie.exchange.ExchangeAccount):
     _cancel_order_url = QtCore.QUrl(_BASE_URL + 'cancel_order/')
     _buy_limit_url = QtCore.QUrl(_BASE_URL + 'buy/')
     _sell_limit_url = QtCore.QUrl(_BASE_URL + 'sell/')
+    _bitcoin_deposit_address_url = QtCore.QUrl(
+        _BASE_URL + "bitcoin_deposit_address/")
+    _bitcoin_withdrawal_url = QtCore.QUrl(_BASE_URL + "bitcoin_withdrawal/")
 
     BTC_balance_signal = QtCore.pyqtSignal(decimal.Decimal)
     USD_balance_signal = QtCore.pyqtSignal(decimal.Decimal)
@@ -167,11 +171,14 @@ class BitstampAccount(_Bitstamp, tulpenmanie.exchange.ExchangeAccount):
     BTC_balance_changed_signal = QtCore.pyqtSignal(decimal.Decimal)
     USD_balance_changed_signal = QtCore.pyqtSignal(decimal.Decimal)
 
-    BTC_USD_limit_ready_signal = QtCore.pyqtSignal(bool)
+    BTC_USD_ready_signal = QtCore.pyqtSignal(bool)
+
+    bitcoin_deposit_address_signal = QtCore.pyqtSignal(str)
+    withdraw_bitcoin_reply_signal = QtCore.pyqtSignal(str)
 
     def __init__(self, credentials, network_manager=None, parent=None):
         if network_manager is None:
-            network_manager = self.manager.network_manager
+            network_manager = tulpenmanie.network.get_network_manager()
         super(BitstampAccount, self).__init__(parent)
         self.base_query = QtCore.QUrl()
         self.set_credentials(credentials)
@@ -183,13 +190,14 @@ class BitstampAccount(_Bitstamp, tulpenmanie.exchange.ExchangeAccount):
 
         self.ask_orders_model = tulpenmanie.orders.OrdersModel()
         self.bid_orders_model = tulpenmanie.orders.OrdersModel()
+        self._bitcoin_deposit_address = None
 
     def set_credentials(self, credentials):
         self.base_query.addQueryItem('user', credentials[0])
         self.base_query.addQueryItem('password', credentials[1])
 
     def check_order_status(self, remote_pair):
-        self.BTC_USD_limit_ready_signal.emit(True)
+        self.BTC_USD_ready_signal.emit(True)
 
     def get_ask_orders_model(self, remote_pair):
         return self.ask_orders_model
@@ -197,10 +205,7 @@ class BitstampAccount(_Bitstamp, tulpenmanie.exchange.ExchangeAccount):
     def get_bid_orders_model(self, remote_pair):
         return self.bid_orders_model
 
-    def refresh(self):
-        self._refresh_funds()
-
-    def _refresh_funds(self):
+    def refresh_funds(self):
         request = BitstampPOSTRequest(self._balance_url,
                                       self._balance_handler, self)
         self._requests.append(request)
@@ -302,6 +307,35 @@ class BitstampAccount(_Bitstamp, tulpenmanie.exchange.ExchangeAccount):
                 row = items[0].row()
                 self.bid_orders_model.removeRow(row)
             logger.info("order %s canceled", order_id)
+
+    def get_bitcoin_deposit_address(self):
+        if self._bitcoin_deposit_address:
+            self.bitcoin_deposit_address_signal.emit(
+                self._bitcoin_deposit_address)
+        else:
+            request = BitstampRequest(self._bitcoin_deposit_address_url,
+                                      self._bitcoin_deposit_address_handler,
+                                      self)
+            self._requests.append(request)
+            self._request_queue.enqueue(self, 2)
+
+    def _bitcoin_deposit_address_handler(self, data):
+        address = data['return']
+        self.bitcoin_deposit_address_signal.emit(address)
+
+    def withdraw_bitcoin(self, address, amount):
+        data = {'query':
+                {'address': address,
+                 'amount': amount}}
+
+        request = BitstampRequest(self._bitcoin_withdrawal_url,
+                                  self._bitcoin_withdrawal_handler,
+                                  self)
+        self._requests.append(request)
+        self._request_queue.enqueue(self, 2)
+
+    def _bitcoin_withdrawal_handler(self, data):
+        self.withdraw_bitcoin_reply_signal.emit(data['return'])
 
 
 class BitstampExchangeItem(tulpenmanie.exchange.ExchangeItem):

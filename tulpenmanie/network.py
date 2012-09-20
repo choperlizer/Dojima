@@ -23,6 +23,14 @@ from PyQt4 import QtCore, QtNetwork
 
 logger = logging.getLogger(__name__)
 
+network_manager = None
+
+def get_network_manager(parent=None):
+    if not network_manager:
+        global network_manager
+        network_manager = NetworkAccessManager(parent)
+    return network_manager
+
 
 class HostRequestQueue(QtCore.QObject):
     """Queues requests for a host."""

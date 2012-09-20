@@ -120,7 +120,7 @@ class _Campbx(QtCore.QObject):
         self._replies.add(request)
 
 
-class CampbxExchangeMarket(_Campbx):
+class CampbxExchangeMarket(_Campbx, tulpenmanie.exchange.Exchange):
 
 
     _xticker_url = QtCore.QUrl(_BASE_URL + "xticker.php")
@@ -131,7 +131,7 @@ class CampbxExchangeMarket(_Campbx):
 
     def __init__(self, remote_market, network_manager=None, parent=None):
         if network_manager is None:
-            network_manager = self.manager.network_manager
+            network_manager = tulpenmanie.network.get_network_manager()
         super(CampbxExchangeMarket, self).__init__(parent)
         # These must be the same length
         remote_stats = ('Best Ask', 'Last Trade', 'Best Bid')
@@ -151,7 +151,7 @@ class CampbxExchangeMarket(_Campbx):
         self._requests = list()
         self._replies = set()
 
-    def refresh(self):
+    def refresh_ticker(self):
         request = CampbxRequest(self._xticker_url, self._xticker_handler, self)
         self._requests.append(request)
         self._request_queue.enqueue(self)
@@ -168,6 +168,8 @@ class CampbxAccount(_Campbx, tulpenmanie.exchange.ExchangeAccount):
     _tradeenter_url = QtCore.QUrl(_BASE_URL + "tradeenter.php")
     _tradeadv_url = QtCore.QUrl(_BASE_URL + "tradeadv.php")
     _tradecancel_url = QtCore.QUrl(_BASE_URL + "tradecancel.php")
+    _getbtcaddr_url = QtCore.QUrl(_BASE_URL + "getbtcaddr.php")
+    _sendbtc_url = QtCore.QUrl(_BASE_URL + "sendbtc.php")
 
     BTC_balance_signal = QtCore.pyqtSignal(decimal.Decimal)
     USD_balance_signal = QtCore.pyqtSignal(decimal.Decimal)
@@ -175,12 +177,14 @@ class CampbxAccount(_Campbx, tulpenmanie.exchange.ExchangeAccount):
     BTC_balance_changed_signal = QtCore.pyqtSignal(decimal.Decimal)
     USD_balance_changed_signal = QtCore.pyqtSignal(decimal.Decimal)
 
-    BTC_USD_limit_ready_signal = QtCore.pyqtSignal(bool)
-    BTC_USD_market_ready_signal = QtCore.pyqtSignal(bool)
+    BTC_USD_ready_signal = QtCore.pyqtSignal(bool)
+
+    bitcoin_deposit_address_signal = QtCore.pyqtSignal(str)
+    withdraw_bitcoin_reply_signal = QtCore.pyqtSignal(str)
 
     def __init__(self, credentials, network_manager=None, parent=None):
         if network_manager is None:
-            network_manager = self.manager.network_manager
+            network_manager = tulpenmanie.network.get_network_manager()
         super(CampbxAccount, self).__init__(parent)
         self.base_query = QtCore.QUrl()
         self.set_credentials(credentials)
@@ -193,13 +197,14 @@ class CampbxAccount(_Campbx, tulpenmanie.exchange.ExchangeAccount):
         self.ask_orders_model = tulpenmanie.orders.OrdersModel()
         self.bid_orders_model = tulpenmanie.orders.OrdersModel()
 
+        self._bitcoin_deposit_address = None
+
     def set_credentials(self, credentials):
         self.base_query.addQueryItem('user', credentials[0])
         self.base_query.addQueryItem('pass', credentials[1])
 
     def check_order_status(self, remote_pair):
-        self.BTC_USD_limit_ready_signal.emit(True)
-        self.BTC_USD_market_ready_signal.emit(True)
+        self.BTC_USD_ready_signal.emit(True)
 
     def get_ask_orders_model(self, remote_pair):
         return self.ask_orders_model
@@ -207,10 +212,10 @@ class CampbxAccount(_Campbx, tulpenmanie.exchange.ExchangeAccount):
     def get_bid_orders_model(self, remote_pair):
         return self.bid_orders_model
 
-    def refresh(self):
+    def refresh_ticker(self):
         self._refresh_funds()
 
-    def _refresh_funds(self):
+    def refresh_funds(self):
         request = CampbxRequest(self._myfunds_url, self._myfunds_handler, self)
         self._requests.append(request)
         self._request_queue.enqueue(self, 2)
@@ -325,6 +330,38 @@ class CampbxAccount(_Campbx, tulpenmanie.exchange.ExchangeAccount):
             row = items[0].row()
             self.bid_orders_model.removeRow(row)
         logger.debug("Trimmed order %s from a model", order_id)
+
+    def get_bitcoin_deposit_address(self):
+        if self._bitcoin_deposit_address:
+            self.bitcoin_deposit_address_signal.emit(
+                self._bitcoin_deposit_address)
+        else:
+            request = CampbxRequest(
+                self._getbtcaddr_url,
+                self._getbtcaddr_handler, self)
+            self._requests.append(request)
+            self._request_queue.enqueue(self, 2)
+
+    def _getbtcaddr_handler(self, data):
+        address = data['Success']
+        self._bitcoin_deposit_address = address
+        self.bitcoin_deposit_address_signal.emit(address)
+
+    def withdraw_bitcoin(self, address, amount):
+        data = {'query':
+                {'BTCTo': address,
+                 'BTCAmt': amount}}
+        request = CampbxRequest(self._sendbtc_url,
+                                self._sendbtc_handler,
+                                self, data)
+        self._requests.append(request)
+        self._request_queue.enqueue(self, 2)
+
+    def _sendbtc_handler(self, data):
+        # TODO check this return code,
+        # documentation just says returns 'true'
+        transaction = data['Success']
+        self.withdraw_bitcoin_reply_signal.emit(transaction)
 
 
 class CampbxExchangeItem(tulpenmanie.exchange.ExchangeItem):

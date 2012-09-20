@@ -26,6 +26,7 @@ from tulpenmanie.provider_modules import *
 import tulpenmanie.translate
 import tulpenmanie.ui.exchange
 import tulpenmanie.ui.edit
+#import tulpenmanie.ui.transfer
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +47,11 @@ class MainWindow(QtGui.QMainWindow):
         self.markets_menu = QtGui.QMenu(tulpenmanie.translate.markets, self)
         self.menuBar().addMenu(self.markets_menu)
 
+        #transfer_menu = QtGui.QMenu(QtCore.QCoreApplication.translate(
+        #    "transfer menu title", "transfer"), self)
+        #bitcoin_transfer_action = tulpenmanie.ui.transfer.BitcoinAction(self)
+        #transfer_menu.addAction(bitcoin_transfer_action)
+        #self.menuBar().addMenu(transfer_menu)
 
         options_menu = QtGui.QMenu(QtCore.QCoreApplication.translate(
             "options menu title", "options"), self)
@@ -144,7 +150,7 @@ class MainWindow(QtGui.QMainWindow):
                                        exchange_dock)
                     self.markets[local_market]['menu'].addAction(
                         exchange_dock.enable_exchange_action)
-                    
+
                     exchange_docks_dict[exchange_name] = exchange_dock
 
                 enable = markets_item.child(

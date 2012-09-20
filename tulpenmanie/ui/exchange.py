@@ -47,9 +47,9 @@ class EditWidget(QtGui.QWidget):
                 # TODO get required length if any and set that to
                 # the edit length, or make a validator
                 label = QtGui.QLabel(setting)
-                if setting in exchange_item.numeric_settings:
+                if column in exchange_item.numeric_settings:
                     edit = QtGui.QDoubleSpinBox()
-                elif setting in exchange_item.boolean_settings:
+                elif column in exchange_item.boolean_settings:
                     edit = QtGui.QCheckBox()
                 else:
                     edit = QtGui.QLineEdit()
@@ -189,7 +189,7 @@ class ExchangeDockWidget(QtGui.QDockWidget, ErrorHandling):
         self.setWidget(self.widget)
 
         self.refresh_timer = QtCore.QTimer(self)
-        self.refresh_timer.timeout.connect(self.exchange.refresh)
+        self.refresh_timer.timeout.connect(self.exchange.refresh_ticker)
 
         self.exchange.exchange_error_signal.connect(self.exchange_error_handler)
 
@@ -225,7 +225,7 @@ class ExchangeDockWidget(QtGui.QDockWidget, ErrorHandling):
         self.setVisible(enable)
         self.setEnabled(enable)
         if enable and self.isEnabled():
-            self.exchange.refresh()
+            self.exchange.refresh_ticker()
             refresh_rate = self.exchange_item.child(
                 0, self.exchange_item.REFRESH_RATE).text()
             if not refresh_rate:
@@ -235,7 +235,7 @@ class ExchangeDockWidget(QtGui.QDockWidget, ErrorHandling):
             self.refresh_timer.start(refresh_rate)
         else:
             self.refresh_timer.stop()
-        
+
     def add_account_widget(self, widget):
         self.account_widget = widget
         self.account_layout.addWidget(widget)
@@ -405,25 +405,20 @@ class AccountWidget(QtGui.QWidget, ErrorHandling):
 
         self.account.exchange_error_signal.connect(self.exchange_error_handler)
 
-        # Check market orders
-        signal = getattr(self.account, self.remote_pair + '_market_ready_signal',
-                         None)
-        if signal:
+        # Check if ready to order
+        signal = getattr(self.account, self.remote_pair + '_ready_signal')
+        if hasattr(self.account, 'place_ask_limit_order'):
+            signal.connect(ask_limit_action.setEnabled)
+            signal.connect(bid_limit_action.setEnabled)
+            ask_limit_action.triggered.connect(self._ask_limit)
+            bid_limit_action.triggered.connect(self._bid_limit)
+        if hasattr(self.account, 'place_ask_market_order'):
             signal.connect(ask_market_action.setEnabled)
             signal.connect(bid_market_action.setEnabled)
             ask_market_action.triggered.connect(self._ask_market)
             bid_market_action.triggered.connect(self._bid_market)
 
-        # Check limit orders
-        signal = getattr(self.account, self.remote_pair + '_limit_ready_signal',
-                         None)
-        if signal:
-            signal.connect(ask_limit_action.setEnabled)
-            signal.connect(bid_limit_action.setEnabled)
-            ask_limit_action.triggered.connect(self._ask_limit)
-            bid_limit_action.triggered.connect(self._bid_limit)
-
-        refresh_balance_button.clicked.connect(self.account.refresh)
+        refresh_balance_button.clicked.connect(self.account.refresh_funds)
         #self.account.pending_requests_signal.connect(pending_requests_view.setNum)
         #self.account.pending_replies_signal.connect(pending_replies_view.setNum)
 
@@ -439,7 +434,7 @@ class AccountWidget(QtGui.QWidget, ErrorHandling):
         if enable:
             # TODO sometimes redundant to refresh() and refresh_orders()
             self.account.check_order_status(self.remote_pair)
-            self.account.refresh()
+            self.account.refresh_funds()
             self.account.refresh_orders()
 
     def _ask_limit(self):

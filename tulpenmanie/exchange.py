@@ -14,6 +14,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+import abc
 import logging
 from PyQt4 import QtCore, QtGui
 
@@ -60,8 +61,7 @@ class ExchangeItem(QtGui.QStandardItem):
         logger.debug("loading %s settings", self.provider_name)
         if self.mappings:
             for setting, column in self.mappings:
-                item = QtGui.QStandardItem(
-                    self.settings.value(setting).toString())
+                item = QtGui.QStandardItem(self.settings.value(setting))
                 self.setChild(0, column, item)
 
         if self.markets:
@@ -73,7 +73,7 @@ class ExchangeItem(QtGui.QStandardItem):
                 items = [ QtGui.QStandardItem(remote_market) ]
                 self.settings.beginGroup(remote_market)
                 for setting, column in self.market_mappings:
-                    value = self.settings.value(setting).toString()
+                    value = self.settings.value(setting)
                     items.append(QtGui.QStandardItem(value))
                 self.markets_item.appendRow(items)
                 self.settings.endGroup()
@@ -109,12 +109,21 @@ class ExchangeItem(QtGui.QStandardItem):
         self.accounts_item.appendRow(items)
         return items[0].index()
 
+#TODO decorate the functions below with @required_function
 
-class ExchangeAccount(object):
+class Exchange:
 
-    def check_order_status(self):
-        self.ask_enable_signal.emit(True)
-        self.bid_enable_signal.emit(True)
+    def pop_request(self):
+        request = heapq.heappop(self._requests)
+        request.send()
+        self._replies.add(request)
+
+class ExchangeAccount:
+
+    def pop_request(self):
+        request = heapq.heappop(self._requests)
+        request.send()
+        self._replies.add(request)
 
     def get_ask_orders_model(self, remote_pair):
         if remote_pair in self.ask_orders.keys():

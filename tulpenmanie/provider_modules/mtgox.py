@@ -160,20 +160,13 @@ class _Mtgox(QtCore.QObject):
 
 class MtgoxExchange(_Mtgox):
 
-    register_url = None
-
     ask = QtCore.pyqtSignal(decimal.Decimal)
     last = QtCore.pyqtSignal(decimal.Decimal)
     bid = QtCore.pyqtSignal(decimal.Decimal)
-    high = QtCore.pyqtSignal(decimal.Decimal)
-    high = QtCore.pyqtSignal(decimal.Decimal)
-    low = QtCore.pyqtSignal(decimal.Decimal)
-    average = QtCore.pyqtSignal(decimal.Decimal)
-    VWAP = QtCore.pyqtSignal(decimal.Decimal)
 
     def __init__(self, remote_market, network_manager=None, parent=None):
         if not network_manager:
-            network_manager = self.manager.network_manager
+            network_manager = tulpenmanie.network.get_network_manager()
         super(MtgoxExchange, self).__init__(parent)
         self._ticker_url = QtCore.QUrl(_BASE_URL +
                                         remote_market + "/ticker")
@@ -194,7 +187,7 @@ class MtgoxExchange(_Mtgox):
         self._requests = list()
         self._replies = set()
 
-    def refresh(self):
+    def refresh_ticker(self):
         request = MtgoxRequest(self._ticker_url, self._ticker_handler, self)
         self._requests.append((1, request))
         self._host_queue.enqueue(self)
@@ -251,52 +244,38 @@ class MtgoxAccount(_Mtgox, tulpenmanie.exchange.ExchangeAccount):
     THB_balance_changed_signal = QtCore.pyqtSignal(decimal.Decimal)
     USD_balance_changed_signal = QtCore.pyqtSignal(decimal.Decimal)
 
-    BTCAUD_limit_ready_signal = QtCore.pyqtSignal(bool)
-    BTCCAD_limit_ready_signal = QtCore.pyqtSignal(bool)
-    BTCCHF_limit_ready_signal = QtCore.pyqtSignal(bool)
-    BTCCNY_limit_ready_signal = QtCore.pyqtSignal(bool)
-    BTCDKK_limit_ready_signal = QtCore.pyqtSignal(bool)
-    BTCEUR_limit_ready_signal = QtCore.pyqtSignal(bool)
-    BTCGBP_limit_ready_signal = QtCore.pyqtSignal(bool)
-    BTCHKD_limit_ready_signal = QtCore.pyqtSignal(bool)
-    BTCJPY_limit_ready_signal = QtCore.pyqtSignal(bool)
-    BTCNZD_limit_ready_signal = QtCore.pyqtSignal(bool)
-    BTCPLN_limit_ready_signal = QtCore.pyqtSignal(bool)
-    BTCRUB_limit_ready_signal = QtCore.pyqtSignal(bool)
-    BTCSEK_limit_ready_signal = QtCore.pyqtSignal(bool)
-    BTCSGD_limit_ready_signal = QtCore.pyqtSignal(bool)
-    BTCTHB_limit_ready_signal = QtCore.pyqtSignal(bool)
-    BTCUSD_limit_ready_signal = QtCore.pyqtSignal(bool)
+    BTCAUD_ready_signal = QtCore.pyqtSignal(bool)
+    BTCCAD_ready_signal = QtCore.pyqtSignal(bool)
+    BTCCHF_ready_signal = QtCore.pyqtSignal(bool)
+    BTCCNY_ready_signal = QtCore.pyqtSignal(bool)
+    BTCDKK_ready_signal = QtCore.pyqtSignal(bool)
+    BTCEUR_ready_signal = QtCore.pyqtSignal(bool)
+    BTCGBP_ready_signal = QtCore.pyqtSignal(bool)
+    BTCHKD_ready_signal = QtCore.pyqtSignal(bool)
+    BTCJPY_ready_signal = QtCore.pyqtSignal(bool)
+    BTCNZD_ready_signal = QtCore.pyqtSignal(bool)
+    BTCPLN_ready_signal = QtCore.pyqtSignal(bool)
+    BTCRUB_ready_signal = QtCore.pyqtSignal(bool)
+    BTCSEK_ready_signal = QtCore.pyqtSignal(bool)
+    BTCSGD_ready_signal = QtCore.pyqtSignal(bool)
+    BTCTHB_ready_signal = QtCore.pyqtSignal(bool)
+    BTCUSD_ready_signal = QtCore.pyqtSignal(bool)
 
-    BTCAUD_market_ready_signal = QtCore.pyqtSignal(bool)
-    BTCCAD_market_ready_signal = QtCore.pyqtSignal(bool)
-    BTCCHF_market_ready_signal = QtCore.pyqtSignal(bool)
-    BTCCNY_market_ready_signal = QtCore.pyqtSignal(bool)
-    BTCDKK_market_ready_signal = QtCore.pyqtSignal(bool)
-    BTCEUR_market_ready_signal = QtCore.pyqtSignal(bool)
-    BTCGBP_market_ready_signal = QtCore.pyqtSignal(bool)
-    BTCHKD_market_ready_signal = QtCore.pyqtSignal(bool)
-    BTCJPY_market_ready_signal = QtCore.pyqtSignal(bool)
-    BTCNZD_market_ready_signal = QtCore.pyqtSignal(bool)
-    BTCPLN_market_ready_signal = QtCore.pyqtSignal(bool)
-    BTCRUB_market_ready_signal = QtCore.pyqtSignal(bool)
-    BTCSEK_market_ready_signal = QtCore.pyqtSignal(bool)
-    BTCSGD_market_ready_signal = QtCore.pyqtSignal(bool)
-    BTCTHB_market_ready_signal = QtCore.pyqtSignal(bool)
-    BTCUSD_market_ready_signal = QtCore.pyqtSignal(bool)
-
+    bitcoin_deposit_address_signal = QtCore.pyqtSignal(str)
+    withdraw_bitcoin_reply_signal = QtCore.pyqtSignal(str)
 
     _info_url = QtCore.QUrl(_BASE_URL + "generic/private/info")
     _currency_url = QtCore.QUrl(_BASE_URL + "generic/currency")
     _orders_url = QtCore.QUrl(_BASE_URL + "generic/private/orders")
     _cancelorder_url = QtCore.QUrl("https://" + HOSTNAME +
                                    "/api/0/cancelOrder.php")
+    _bitcoin_address_url = QtCore.QUrl(_BASE_URL + "generic/bitcoin/address")
 
     multipliers = dict()
 
     def __init__(self, credentials, network_manager=None, parent=None):
         if network_manager is None:
-            network_manager = self.manager.network_manager
+            network_manager = tulpenmanie.network.get_network_manager()
         super(MtgoxAccount, self).__init__(parent)
         self.set_credentials(credentials)
         # These must be the same length
@@ -317,6 +296,7 @@ class MtgoxAccount(_Mtgox, tulpenmanie.exchange.ExchangeAccount):
 
         self.ask_orders = dict()
         self.bid_orders = dict()
+        self._bitcoin_deposit_address = None
 
         # TODO maybe divide smaller
         self.nonce = int(time.time() / 2)
@@ -349,9 +329,7 @@ class MtgoxAccount(_Mtgox, tulpenmanie.exchange.ExchangeAccount):
             self._host_queue.enqueue(self, 1)
             return
 
-        signal = getattr(self, remote_pair + "_limit_ready_signal")
-        signal.emit(True)
-        signal = getattr(self, remote_pair + "_market_ready_signal")
+        signal = getattr(self, remote_pair + "_ready_signal")
         signal.emit(True)
 
     def _currency_handler(self, data):
@@ -362,7 +340,7 @@ class MtgoxAccount(_Mtgox, tulpenmanie.exchange.ExchangeAccount):
         self.multipliers[symbol] = pow(10, places)
         self.check_order_status(pair)
 
-    def refresh(self):
+    def refresh_funds(self):
         request = MtgoxPrivateRequest(self._info_url,
                                       self._info_handler,
                                       self)
@@ -487,6 +465,21 @@ class MtgoxAccount(_Mtgox, tulpenmanie.exchange.ExchangeAccount):
         elif order_type == 2:
             self.bid_orders[pair].remove_order(order_id)
 
+
+    def get_bitcoin_deposit_address(self):
+        if self._bitcoin_deposit_address:
+            return self._bitcoin_deposit_address
+        else:
+            request = MtgoxRequest(
+                self._bitcoin_address_url,
+                self._bitcoin_address_handler, self)
+            self._requests.append(request)
+            self._request_queue.enqueue(self, 2)
+
+    def _bitcoin_address_handler(self, data):
+        address = data['return']['addr']
+        self._bitcoin_deposit_address = address
+        self.bitcoin_deposit_address_signal.emit(address)
 
 class MtgoxExchangeItem(tulpenmanie.exchange.ExchangeItem):
 

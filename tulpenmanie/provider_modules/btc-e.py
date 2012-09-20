@@ -24,8 +24,9 @@ import time
 
 from PyQt4 import QtCore, QtGui, QtNetwork
 
-import tulpenmanie.providers
 import tulpenmanie.exchange
+import tulpenmanie.providers
+import tulpenmanie.network
 
 
 logger = logging.getLogger(__name__)
@@ -58,7 +59,7 @@ class BtceRequest(QtCore.QObject):
         self.reply = None
 
     def _prepare_request(self):
-        self.request = QtNetwork.QNetworkRequest(self.url)
+        self.request = tulpenmanie.network.NetworkRequest(self.url)
         self.request.setHeader(QtNetwork.QNetworkRequest.ContentTypeHeader,
                                "application/x-www-form-urlencoded")
         query = QtCore.QUrl()
@@ -172,7 +173,7 @@ class BtceExchange(_Btce):
 
     def __init__(self, remote_market, network_manager=None, parent=None):
         if not network_manager:
-            network_manager = self.manager.network_manager
+            network_manager = tulpenmanie.network.get_network_manager()
         super(BtceExchange, self).__init__(parent)
         remote_market = str(remote_market.replace("/", "_")).lower()
         self._ticker_url = QtCore.QUrl(_PUBLIC_BASE_URL +
@@ -196,7 +197,7 @@ class BtceExchange(_Btce):
         self._requests = list()
         self._replies = set()
 
-    def refresh(self):
+    def refresh_ticker(self):
         request = BtceRequest(self._ticker_url, self._ticker_handler, self)
         self._requests.append((2, request))
         self._host_queue.enqueue(self)
@@ -219,15 +220,15 @@ class BtceAccount(_Btce, tulpenmanie.exchange.ExchangeAccount):
     rur_balance_signal = QtCore.pyqtSignal(decimal.Decimal)
     usd_balance_signal = QtCore.pyqtSignal(decimal.Decimal)
 
-    btc_usd_limit_ready_signal = QtCore.pyqtSignal(bool)
-    btc_rur_limit_ready_signal = QtCore.pyqtSignal(bool)
-    ltc_btc_limit_ready_signal = QtCore.pyqtSignal(bool)
-    nmc_btc_limit_ready_signal = QtCore.pyqtSignal(bool)
-    usd_rur_limit_ready_signal = QtCore.pyqtSignal(bool)
+    btc_usd_ready_signal = QtCore.pyqtSignal(bool)
+    btc_rur_ready_signal = QtCore.pyqtSignal(bool)
+    ltc_btc_ready_signal = QtCore.pyqtSignal(bool)
+    nmc_btc_ready_signal = QtCore.pyqtSignal(bool)
+    usd_rur_ready_signal = QtCore.pyqtSignal(bool)
 
     def __init__(self, credentials, network_manager=None, parent=None):
         if network_manager is None:
-            network_manager = self.manager.network_manager
+            network_manager = tulpenmanie.network.get_network_manager()
         super(BtceAccount, self).__init__(parent)
         self.set_credentials(credentials)
 
@@ -247,10 +248,10 @@ class BtceAccount(_Btce, tulpenmanie.exchange.ExchangeAccount):
         self._secret = str(credentials[1])
 
     def check_order_status(self, remote_pair):
-        signal = getattr(self, remote_pair + "_limit_ready_signal")
+        signal = getattr(self, remote_pair + "_ready_signal")
         signal.emit(True)
 
-    def refresh(self):
+    def refresh_funds(self):
         request = BtcePrivateRequest('getInfo', self._getinfo_handler, self)
         self._requests.append((2, request))
         self._host_queue.enqueue(self, 2)
