@@ -23,7 +23,6 @@ from PyQt4 import QtCore, QtGui, QtNetwork
 import tulpenmanie.exchange
 import tulpenmanie.network
 import tulpenmanie.orders
-import tulpenmanie.providers
 import tulpenmanie.translate
 
 
@@ -34,15 +33,21 @@ HOSTNAME = "www.bitstamp.net"
 _BASE_URL = "https://" + HOSTNAME + "/api/"
 
 
-class BitstampError(Exception):
+class BitstampExchangeItem(tulpenmanie.exchange.ExchangeItem):
 
-    def __init__(self, value):
-        self.value = value
+    provider_name = EXCHANGE_NAME
 
-    def __str__(self):
-        error_msg= repr(self.value)
-        logger.error(error_msg)
-        return error_msg
+    COLUMNS = 4
+    MARKETS, REFRESH_RATE, ACCOUNT_USERNAME, ACCOUNT_PASSWORD = range(COLUMNS)
+    mappings = (("refresh rate", REFRESH_RATE),
+                ("customer ID", ACCOUNT_USERNAME),
+                ("password", ACCOUNT_PASSWORD),)
+    markets = ('BTC_USD',)
+
+    numeric_settings = (REFRESH_RATE,)
+    boolean_settings = ()
+    required_account_settings = (ACCOUNT_USERNAME, ACCOUNT_PASSWORD,)
+    hidden_settings = (ACCOUNT_PASSWORD,)
 
 
 class BitstampRequest(object):
@@ -119,22 +124,14 @@ class BitstampExchangeMarket(_Bitstamp):
     base_query = QtCore.QUrl()
     _ticker_url = QtCore.QUrl(_BASE_URL + "ticker/")
 
-    ask = QtCore.pyqtSignal(decimal.Decimal)
-    last = QtCore.pyqtSignal(decimal.Decimal)
-    bid = QtCore.pyqtSignal(decimal.Decimal)
-    high = QtCore.pyqtSignal(decimal.Decimal)
-    low = QtCore.pyqtSignal(decimal.Decimal)
+    ask_signal = QtCore.pyqtSignal(decimal.Decimal)
+    last_signal = QtCore.pyqtSignal(decimal.Decimal)
+    bid_signal = QtCore.pyqtSignal(decimal.Decimal)
 
     def __init__(self, remote_market, network_manager=None, parent=None):
         if network_manager is None:
             network_manager = tulpenmanie.network.get_network_manager()
         super(BitstampExchangeMarket, self).__init__(parent)
-        # These must be the same length
-        self.stats = ('ask', 'last', 'bid')
-        self.signals = dict()
-        for i in range(len(self.stats)):
-            signal = getattr(self, self.stats[i])
-            self.signals[self.stats[i]] = signal
 
         self.network_manager = network_manager
         self._request_queue = self.network_manager.get_host_request_queue(
@@ -149,10 +146,10 @@ class BitstampExchangeMarket(_Bitstamp):
         self._request_queue.enqueue(self)
 
     def _ticker_handler(self, data):
-        for key, value in data['return'].items():
-            if self.signals.has_key(key):
-                signal =  self.signals[key]
-                signal.emit(decimal.Decimal(value))
+        data =  data['return']
+        self.ask_signal.emit(decimal.Decimal(data['ask']))
+        self.last_signal.emit(decimal.Decimal(data['last']))
+        self.bid_signal.emit(decimal.Decimal(data['bid']))
 
 
 class BitstampAccount(_Bitstamp, tulpenmanie.exchange.ExchangeAccount):
@@ -338,23 +335,6 @@ class BitstampAccount(_Bitstamp, tulpenmanie.exchange.ExchangeAccount):
         self.withdraw_bitcoin_reply_signal.emit(data['return'])
 
 
-class BitstampExchangeItem(tulpenmanie.exchange.ExchangeItem):
-
-    provider_name = EXCHANGE_NAME
-
-    COLUMNS = 4
-    MARKETS, REFRESH_RATE, ACCOUNT_USERNAME, ACCOUNT_PASSWORD = range(COLUMNS)
-    mappings = (("refresh rate", REFRESH_RATE),
-                ("customer ID", ACCOUNT_USERNAME),
-                ("password", ACCOUNT_PASSWORD),)
-    markets = ('BTC_USD',)
-
-    numeric_settings = (REFRESH_RATE,)
-    boolean_settings = ()
-    required_account_settings = (ACCOUNT_USERNAME, ACCOUNT_PASSWORD,)
-    hidden_settings = (ACCOUNT_PASSWORD,)
-
-
-tulpenmanie.providers.register_exchange(BitstampExchangeMarket)
-tulpenmanie.providers.register_account(BitstampAccount)
-tulpenmanie.providers.register_exchange_model_item(BitstampExchangeItem)
+tulpenmanie.exchange.register_exchange(BitstampExchangeMarket)
+tulpenmanie.exchange.register_account(BitstampAccount)
+tulpenmanie.exchange.register_exchange_model_item(BitstampExchangeItem)

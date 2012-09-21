@@ -131,6 +131,8 @@ class ExchangeDockWidget(QtGui.QDockWidget, ErrorHandling):
 
     def __init__(self, exchange_item, exchange_market_row, parent=None):
         exchange_name = exchange_item.text()
+        market_uuid = exchange_item.markets_item.child(
+            exchange_market_row, exchange_item.MARKET_LOCAL).text()
         remote_pair = exchange_item.markets_item.child(
             exchange_market_row, exchange_item.MARKET_REMOTE).text()
         title = exchange_name + ' ' + remote_pair
@@ -140,8 +142,9 @@ class ExchangeDockWidget(QtGui.QDockWidget, ErrorHandling):
         self.exchange_item = exchange_item
         self.market_row = exchange_market_row
 
-        ExchangeClass = tulpenmanie.providers.exchanges[str(exchange_name)]
-        self.exchange = ExchangeClass(remote_pair, parent=self)
+
+        self.exchange = tulpenmanie.exchange.get_exchange_object(
+            str(exchange_name), market_uuid)
 
         try:
             market_uuid = exchange_item.markets_item.child(
@@ -171,15 +174,20 @@ class ExchangeDockWidget(QtGui.QDockWidget, ErrorHandling):
         side_layout.setColumnStretch(1,1)
         label_font = QtGui.QFont()
         label_font.setPointSize(7)
-        for i, stat in enumerate(self.exchange.stats):
-            label = QtGui.QLabel(stat)
+
+        row = 0
+        for translation, stat in ((tulpenmanie.translate.best_ask, 'ask'),
+                                  (tulpenmanie.translate.last_price, 'last'),
+                                  (tulpenmanie.translate.best_bid, 'bid')):
+            label = QtGui.QLabel(translation)
             label.setAlignment(QtCore.Qt.AlignRight)
             label.setFont(label_font)
             widget = tulpenmanie.widget.CommodityLcdWidget(self.counter_row)
-            side_layout.addWidget(label, i,0)
-            side_layout.addWidget(widget, i,1)
-
-            self.exchange.signals[stat].connect(widget.setValue)
+            signal = getattr(self.exchange, stat + '_signal')
+            signal.connect(widget.setValue)
+            side_layout.addWidget(label, row,0)
+            side_layout.addWidget(widget, row,1)
+            row += 1
 
         self.account_layout = QtGui.QVBoxLayout()
         layout = QtGui.QHBoxLayout()
@@ -239,6 +247,9 @@ class ExchangeDockWidget(QtGui.QDockWidget, ErrorHandling):
     def add_account_widget(self, widget):
         self.account_widget = widget
         self.account_layout.addWidget(widget)
+
+    def set_refresh_rate(self, rate):
+        self.refresh_timer.start(rate * 1000)
 
 
 class AccountWidget(QtGui.QWidget, ErrorHandling):

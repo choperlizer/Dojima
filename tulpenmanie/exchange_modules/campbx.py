@@ -20,8 +20,9 @@ import json
 import logging
 from PyQt4 import QtCore, QtGui, QtNetwork
 
+import numpy as np
+
 import tulpenmanie.exchange
-import tulpenmanie.providers
 import tulpenmanie.translate
 import tulpenmanie.orders
 
@@ -125,24 +126,17 @@ class CampbxExchangeMarket(_Campbx, tulpenmanie.exchange.Exchange):
 
     _xticker_url = QtCore.QUrl(_BASE_URL + "xticker.php")
 
-    ask = QtCore.pyqtSignal(decimal.Decimal)
-    last = QtCore.pyqtSignal(decimal.Decimal)
-    bid = QtCore.pyqtSignal(decimal.Decimal)
+    ask_signal = QtCore.pyqtSignal(decimal.Decimal)
+    last_signal = QtCore.pyqtSignal(decimal.Decimal)
+    bid_signal = QtCore.pyqtSignal(decimal.Decimal)
+
+    trades_signal = QtCore.pyqtSignal(np.ndarray)
+    depth_signal = QtCore.pyqtSignal(np.ndarray)
 
     def __init__(self, remote_market, network_manager=None, parent=None):
         if network_manager is None:
             network_manager = tulpenmanie.network.get_network_manager()
         super(CampbxExchangeMarket, self).__init__(parent)
-        # These must be the same length
-        remote_stats = ('Best Ask', 'Last Trade', 'Best Bid')
-        self.stats = ('ask', 'last', 'bid')
-        self.is_counter = (True, True, True)
-        self._signals = dict()
-        self.signals = dict()
-        for i in range(len(remote_stats)):
-            signal = getattr(self, self.stats[i])
-            self._signals[remote_stats[i]] = signal
-            self.signals[self.stats[i]] = signal
 
         self.base_query = QtCore.QUrl()
         self.network_manager = network_manager
@@ -157,9 +151,9 @@ class CampbxExchangeMarket(_Campbx, tulpenmanie.exchange.Exchange):
         self._request_queue.enqueue(self)
 
     def _xticker_handler(self, data):
-        for key, value in data.items():
-            signal =  self._signals[key]
-            signal.emit(decimal.Decimal(value))
+        self.ask_signal.emit(decimal.Decimal(data['Best Ask']))
+        self.last_signal.emit(decimal.Decimal(data['Last Trade']))
+        self.bid_signal.emit(decimal.Decimal(data['Best Bid']))
 
 
 class CampbxAccount(_Campbx, tulpenmanie.exchange.ExchangeAccount):
@@ -381,6 +375,6 @@ class CampbxExchangeItem(tulpenmanie.exchange.ExchangeItem):
     hidden_settings = (ACCOUNT_PASSWORD,)
 
 
-tulpenmanie.providers.register_exchange(CampbxExchangeMarket)
-tulpenmanie.providers.register_account(CampbxAccount)
-tulpenmanie.providers.register_exchange_model_item(CampbxExchangeItem)
+tulpenmanie.exchange.register_exchange(CampbxExchangeMarket)
+tulpenmanie.exchange.register_account(CampbxAccount)
+tulpenmanie.exchange.register_exchange_model_item(CampbxExchangeItem)

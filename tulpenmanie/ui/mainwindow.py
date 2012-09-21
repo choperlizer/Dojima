@@ -19,11 +19,11 @@ from PyQt4 import QtCore, QtGui
 
 import tulpenmanie.commodity
 import tulpenmanie.market
-import tulpenmanie.providers
 import tulpenmanie.exchange
 #This next import registers providers with the former module
-from tulpenmanie.provider_modules import *
+from tulpenmanie.exchange_modules import *
 import tulpenmanie.translate
+#import tulpenmanie.ui.chart
 import tulpenmanie.ui.exchange
 import tulpenmanie.ui.edit
 #import tulpenmanie.ui.transfer
@@ -46,6 +46,10 @@ class MainWindow(QtGui.QMainWindow):
 
         self.markets_menu = QtGui.QMenu(tulpenmanie.translate.markets, self)
         self.menuBar().addMenu(self.markets_menu)
+
+        self.chart_menu = QtGui.QMenu(tulpenmanie.translate.chart, self)
+        self.menuBar().addMenu(self.chart_menu)
+        self.chart_menu.setEnabled(False)
 
         #transfer_menu = QtGui.QMenu(QtCore.QCoreApplication.translate(
         #    "transfer menu title", "transfer"), self)
@@ -87,7 +91,12 @@ class MainWindow(QtGui.QMainWindow):
                 menu = QtGui.QMenu(market_name, self)
                 self.markets_menu.addMenu(menu)
 
+                chart_action = ChartAction(market_name, market_uuid,
+                                           self.chart_menu)
+                self.chart_menu.addAction(chart_action)
+
                 market_dict['menu'] = menu
+                market_dict['chart_action'] = chart_action
                 market_dict['dock'] = dict()
                 self.markets[market_uuid] = market_dict
 
@@ -115,7 +124,7 @@ class MainWindow(QtGui.QMainWindow):
                     if account_object:
                         account_object.set_credentials(credentials)
                 else:
-                    AccountClass = tulpenmanie.providers.accounts[exchange_name]
+                    AccountClass = tulpenmanie.exchange.accounts[exchange_name]
                     account_object = AccountClass(credentials)
                     self.exchanges[exchange_name]['account'] = account_object
             else:
@@ -161,6 +170,10 @@ class MainWindow(QtGui.QMainWindow):
                     enable = False
                 exchange_dock.enable_exchange(enable)
                 exchange_dock.enable_exchange_action.setChecked(enable)
+                refresh_rate = exchange_item.child(
+                    0, exchange_item.REFRESH_RATE).text()
+                if refresh_rate and enable:
+                    exchange_dock.set_refresh_rate(float(refresh_rate))
 
                 account_widget = exchange_dock.account_widget
                 if not account_widget and account_object:
@@ -184,3 +197,15 @@ class MainWindow(QtGui.QMainWindow):
         tulpenmanie.exchange.model.save()
 
         event.accept()
+
+
+class ChartAction(QtGui.QAction):
+
+    def __init__(self, market_name, market_uuid, parent):
+        super(ChartAction, self).__init__(market_name, parent)
+        self.market_uuid = market_uuid
+        self.triggered.connect(self._show_chart)
+
+    def _show_chart(self):
+        dialog = tulpenmanie.ui.chart.Dialog(self.market_uuid, self.parent())
+        dialog.show()

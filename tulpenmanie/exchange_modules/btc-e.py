@@ -25,7 +25,6 @@ import time
 from PyQt4 import QtCore, QtGui, QtNetwork
 
 import tulpenmanie.exchange
-import tulpenmanie.providers
 import tulpenmanie.network
 
 
@@ -164,12 +163,9 @@ class _Btce(QtCore.QObject):
 
 class BtceExchange(_Btce):
 
-    ask = QtCore.pyqtSignal(decimal.Decimal)
-    last = QtCore.pyqtSignal(decimal.Decimal)
-    bid = QtCore.pyqtSignal(decimal.Decimal)
-    high = QtCore.pyqtSignal(decimal.Decimal)
-    low = QtCore.pyqtSignal(decimal.Decimal)
-    average = QtCore.pyqtSignal(decimal.Decimal)
+    ask_signal = QtCore.pyqtSignal(decimal.Decimal)
+    last_signal = QtCore.pyqtSignal(decimal.Decimal)
+    bid_signal = QtCore.pyqtSignal(decimal.Decimal)
 
     def __init__(self, remote_market, network_manager=None, parent=None):
         if not network_manager:
@@ -178,17 +174,6 @@ class BtceExchange(_Btce):
         remote_market = str(remote_market.replace("/", "_")).lower()
         self._ticker_url = QtCore.QUrl(_PUBLIC_BASE_URL +
                                         remote_market + "/ticker")
-
-        # These must be the same length
-        remote_stats = ('buy', 'last', 'sell')
-        self.stats = ('ask', 'last', 'bid')
-
-        self._signals = dict()
-        self.signals = dict()
-        for i in range(len(remote_stats)):
-            signal = getattr(self, self.stats[i])
-            self._signals[remote_stats[i]] = signal
-            self.signals[self.stats[i]] = signal
 
         # TODO make this wait time a user option
         self.network_manager = network_manager
@@ -203,10 +188,9 @@ class BtceExchange(_Btce):
         self._host_queue.enqueue(self)
 
     def _ticker_handler(self, data):
-        for key, value in data.items():
-            if self._signals.has_key(key):
-                signal = self._signals[key]
-                signal.emit(value)
+        self.ask_signal.emit(decimal.Decimal(data['sell']))
+        self.last_signal.emit(decimal.Decimal(data['last']))
+        self.bid_signal.emit(decimal.Decimal(data['buy']))
 
 
 class BtceAccount(_Btce, tulpenmanie.exchange.ExchangeAccount):
@@ -367,6 +351,6 @@ class BtceProviderItem(tulpenmanie.exchange.ExchangeItem):
     hidden_settings = ()
 
 
-tulpenmanie.providers.register_exchange(BtceExchange)
-tulpenmanie.providers.register_account(BtceAccount)
-tulpenmanie.providers.register_exchange_model_item(BtceProviderItem)
+tulpenmanie.exchange.register_exchange(BtceExchange)
+tulpenmanie.exchange.register_account(BtceAccount)
+tulpenmanie.exchange.register_exchange_model_item(BtceProviderItem)

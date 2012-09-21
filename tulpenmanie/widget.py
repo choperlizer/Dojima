@@ -83,6 +83,9 @@ class CommodityLcdWidget(QtGui.QLCDNumber, CommodityWidgetBase):
         elif self.value and value < self.value:
             self.setPalette(self.red_palette)
             self.steady_palette = self.light_red_palette
+        else:
+            self.setPalette(self.steady_palette)
+
 
         self.value = value
         if self.precision:

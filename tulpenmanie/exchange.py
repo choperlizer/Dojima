@@ -19,22 +19,61 @@ import logging
 from PyQt4 import QtCore, QtGui
 
 import tulpenmanie.market
-import tulpenmanie.providers
-import tulpenmanie.widget
+import tulpenmanie.model.order
 
 
 logger = logging.getLogger(__name__)
 
 model = None
-menus = dict()
-widgets = dict()
+
+exchange_model_items = list()
+def register_exchange_model_item(item_class):
+    exchange_model_items.append(item_class)
 
 def create_exchanges_model(parent):
     global model
     model = _ExchangesModel(parent)
-    for Item in tulpenmanie.providers.exchange_model_items:
+    for Item in exchange_model_items:
         item = Item()
         model.appendRow(item)
+
+_exchange_classes = dict()
+def register_exchange(exchange_class):
+	_exchange_classes[exchange_class.provider_name] = exchange_class
+
+accounts = dict()
+def register_account(account_class):
+    accounts[account_class.provider_name] = account_class
+
+
+_exchange_objects = dict()
+def get_exchange_object(exchange_name, market_uuid):
+    if exchange_name in _exchange_objects:
+        dict_ = _exchange_objects[exchange_name]
+    else:
+        dict_ = dict()
+        _exchange_objects[exchange_name] = dict_
+
+    if market_uuid in dict_:
+        exchange_object = dict_[market_uuid]
+    else:
+        remote_pair = None
+        search = tulpenmanie.exchange.model.findItems(exchange_name)
+        exchange_item = search[0]
+        markets_item = exchange_item.markets_item
+        for market_row in range(markets_item.rowCount()):
+            local_market_item = markets_item.child(
+                market_row, exchange_item.MARKET_LOCAL)
+            if str(local_market_item.text()) == market_uuid:
+                remote_pair_item = markets_item.child(
+                    market_row, exchange_item.MARKET_REMOTE)
+                remote_pair = remote_pair_item.text()
+        if remote_pair:
+            ExchangeClass = _exchange_classes[str(exchange_name)]
+            exchange_object = ExchangeClass(remote_pair)
+        else:
+            exchange_object = None
+    return exchange_object
 
 
 class _ExchangesModel(QtGui.QStandardItemModel):
@@ -61,7 +100,11 @@ class ExchangeItem(QtGui.QStandardItem):
         logger.debug("loading %s settings", self.provider_name)
         if self.mappings:
             for setting, column in self.mappings:
-                item = QtGui.QStandardItem(self.settings.value(setting))
+                value = self.settings.value(setting)
+                if value:
+                    item = QtGui.QStandardItem(value)
+                else:
+                    item = QtGui.QStandardItem()
                 self.setChild(0, column, item)
 
         if self.markets:
@@ -69,12 +112,15 @@ class ExchangeItem(QtGui.QStandardItem):
             self.markets_item = QtGui.QStandardItem()
             self.setChild(0, self.MARKETS, self.markets_item)
             self.settings.beginGroup('markets')
-            for remote_market in self.markets:
-                items = [ QtGui.QStandardItem(remote_market) ]
-                self.settings.beginGroup(remote_market)
+            for remote_pair in self.markets:
+                items = [ QtGui.QStandardItem(remote_pair) ]
+                self.settings.beginGroup(remote_pair)
                 for setting, column in self.market_mappings:
                     value = self.settings.value(setting)
-                    items.append(QtGui.QStandardItem(value))
+                    if value:
+                        items.append(QtGui.QStandardItem(value))
+                    else:
+                        items.append(QtGui.QStandardItem())
                 self.markets_item.appendRow(items)
                 self.settings.endGroup()
             self.settings.endGroup()
@@ -92,8 +138,8 @@ class ExchangeItem(QtGui.QStandardItem):
         self.settings.remove("accounts")
         self.settings.beginGroup('markets')
         for row in range(self.markets_item.rowCount()):
-            remote_market = self.markets_item.child(row, 0).text()
-            self.settings.beginGroup(remote_market)
+            remote_pair = self.markets_item.child(row, 0).text()
+            self.settings.beginGroup(remote_pair)
             for setting, column in self.market_mappings:
                 value = self.markets_item.child(row, column).text()
                 self.settings.setValue(setting, value)
