@@ -20,8 +20,6 @@ import json
 import logging
 from PyQt4 import QtCore, QtGui, QtNetwork
 
-import numpy as np
-
 import tulpenmanie.exchange
 import tulpenmanie.translate
 import tulpenmanie.orders
@@ -130,8 +128,8 @@ class CampbxExchangeMarket(_Campbx, tulpenmanie.exchange.Exchange):
     last_signal = QtCore.pyqtSignal(decimal.Decimal)
     bid_signal = QtCore.pyqtSignal(decimal.Decimal)
 
-    trades_signal = QtCore.pyqtSignal(np.ndarray)
-    depth_signal = QtCore.pyqtSignal(np.ndarray)
+    #trades_signal = QtCore.pyqtSignal(np.ndarray)
+    #depth_signal = QtCore.pyqtSignal(np.ndarray)
 
     def __init__(self, remote_market, network_manager=None, parent=None):
         if network_manager is None:
