@@ -23,10 +23,9 @@ import tulpenmanie.exchange
 #This next import registers providers with the former module
 from tulpenmanie.exchange_modules import *
 import tulpenmanie.translate
-#import tulpenmanie.ui.chart
 import tulpenmanie.ui.exchange
 import tulpenmanie.ui.edit
-#import tulpenmanie.ui.transfer
+import tulpenmanie.ui.transfer.bitcoin
 
 logger = logging.getLogger(__name__)
 
@@ -44,21 +43,18 @@ class MainWindow(QtGui.QMainWindow):
                                               "markets and exchanges"),
             self, triggered=self._edit_definitions)
 
-        self.markets_menu = QtGui.QMenu(tulpenmanie.translate.markets, self)
+        self.markets_menu = QtGui.QMenu(QtCore.QCoreApplication.translate(
+                                        "MainWindow", "&market"), self)
         self.menuBar().addMenu(self.markets_menu)
 
-        self.chart_menu = QtGui.QMenu(tulpenmanie.translate.chart, self)
-        self.menuBar().addMenu(self.chart_menu)
-        self.chart_menu.setEnabled(False)
-
-        #transfer_menu = QtGui.QMenu(QtCore.QCoreApplication.translate(
-        #    "transfer menu title", "transfer"), self)
-        #bitcoin_transfer_action = tulpenmanie.ui.transfer.BitcoinAction(self)
-        #transfer_menu.addAction(bitcoin_transfer_action)
-        #self.menuBar().addMenu(transfer_menu)
+        transfer_menu = QtGui.QMenu(QtCore.QCoreApplication.translate(
+            "transfer menu title", "&transfer"), self)
+        bitcoin_transfer_action = tulpenmanie.ui.transfer.bitcoin.BitcoinAction(self)
+        transfer_menu.addAction(bitcoin_transfer_action)
+        self.menuBar().addMenu(transfer_menu)
 
         options_menu = QtGui.QMenu(QtCore.QCoreApplication.translate(
-            "options menu title", "options"), self)
+            "options menu title", "&options"), self)
         options_menu.addAction(edit_definitions_action)
         self.menuBar().addMenu(options_menu)
 
@@ -91,12 +87,7 @@ class MainWindow(QtGui.QMainWindow):
                 menu = QtGui.QMenu(market_name, self)
                 self.markets_menu.addMenu(menu)
 
-                chart_action = ChartAction(market_name, market_uuid,
-                                           self.chart_menu)
-                self.chart_menu.addAction(chart_action)
-
                 market_dict['menu'] = menu
-                market_dict['chart_action'] = chart_action
                 market_dict['dock'] = dict()
                 self.markets[market_uuid] = market_dict
 
@@ -128,6 +119,7 @@ class MainWindow(QtGui.QMainWindow):
                     account_object = AccountClass(credentials)
                     self.exchanges[exchange_name]['account'] = account_object
             else:
+                account_object = None
                 if 'account' in self.exchanges[exchange_name]:
                     self.exchanges[exchange_name].pop('account')
 
@@ -197,15 +189,3 @@ class MainWindow(QtGui.QMainWindow):
         tulpenmanie.exchange.model.save()
 
         event.accept()
-
-
-class ChartAction(QtGui.QAction):
-
-    def __init__(self, market_name, market_uuid, parent):
-        super(ChartAction, self).__init__(market_name, parent)
-        self.market_uuid = market_uuid
-        self.triggered.connect(self._show_chart)
-
-    def _show_chart(self):
-        dialog = tulpenmanie.ui.chart.Dialog(self.market_uuid, self.parent())
-        dialog.show()

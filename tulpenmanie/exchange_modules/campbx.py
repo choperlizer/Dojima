@@ -20,8 +20,6 @@ import json
 import logging
 from PyQt4 import QtCore, QtGui, QtNetwork
 
-import numpy as np
-
 import tulpenmanie.exchange
 import tulpenmanie.translate
 import tulpenmanie.orders
@@ -45,93 +43,77 @@ def _object_pairs_hook(pairs):
     return dct
 
 
-class CampbxError(Exception):
+class CampbxExchangeItem(tulpenmanie.exchange.ExchangeItem):
 
-    def __init__(self, value):
-        self.value = value
+    exchange_name = EXCHANGE_NAME
 
-    def __str__(self):
-        error_msg= repr(self.value)
-        logger.error(error_msg)
-        return error_msg
+    COLUMNS = 4
+    MARKETS, REFRESH_RATE, ACCOUNT_USERNAME, ACCOUNT_PASSWORD = range(COLUMNS)
+    mappings = (("refresh rate", REFRESH_RATE),
+                ("username", ACCOUNT_USERNAME),
+                ("password", ACCOUNT_PASSWORD),)
+    markets = ('BTC_USD',)
+
+    numeric_settings = (REFRESH_RATE,)
+    boolean_settings = ()
+    required_account_settings = (ACCOUNT_USERNAME, ACCOUNT_PASSWORD,)
+    hidden_settings = (ACCOUNT_PASSWORD,)
 
 
-class CampbxRequest(object):
+class _Campbx(QtCore.QObject):
+    exchange_name = EXCHANGE_NAME
+    exchange_error_signal = QtCore.pyqtSignal(str)
 
-    def __init__(self, url, handler, parent, data=None):
-        self.url = url
-        self.handler = handler
-        self.parent = parent
-        if data:
-            self.data = data
-        else:
-            self.data = dict()
-        self.reply = None
+    def pop_request(self):
+        request = heapq.heappop(self.requests)[1]
+        request.send()
 
+class _CampbxRequest(tulpenmanie.network.ExchangePOSTRequest):
+
+    def _prepare_request(self):
         self.request = tulpenmanie.network.NetworkRequest(self.url)
         self.request.setHeader(QtNetwork.QNetworkRequest.ContentTypeHeader,
                                "application/x-www-form-urlencoded")
-        query = parent.base_query
-        if data:
-            for key, value in data['query'].items():
+        query = self.parent.base_query
+        if self.data:
+            for key, value in self.data['query'].items():
                 query.addQueryItem(key, str(value))
         self.query = query.encodedQuery()
 
-    def post(self):
-        if logger.isEnabledFor(logging.DEBUG):
-            logger.debug("POST to %s", self.url.toString())
-        self.reply = self.parent.network_manager.post(self.request,
-                                                      self.query)
-        self.reply.finished.connect(self._process_reply)
-        self.reply.error.connect(self._process_reply)
-
-    def _process_reply(self):
+    def _extract_reply(self):
+        self.parent.replies.remove(self)
         if self.reply.error():
             logger.error(self.reply.errorString())
         else:
             if logger.isEnabledFor(logging.INFO):
-                logger.debug("received reply to %s", self.reply.url().toString())
-            data = json.loads(str(self.reply.readAll()))#,
-                #object_pairs_hook=_object_pairs_hook)
+                logger.info("received reply to %s", self.url.toString())
+            raw_reply = str(self.reply.readAll())
+            data = json.loads(raw_reply)
+
             if 'Error' in data:
-                msg = str(self.reply.url().toString()) + " : " + data['Error']
-                self.parent.exchange_error_signal.emit(msg)
-                logger.warning(msg)
-            elif 'Info' in data:
-                msg = str(self.reply.url().toString()) + " : " + data['Error']
-                logger.warning(msg)
+                self._handle_error(data['Error'])
             else:
-                if self.data:
-                    self.data.update(data)
-                    self.handler(self.data)
-                else:
-                    self.handler(data)
-        self.reply.deleteLater()
-        self.parent._replies.remove(self)
+                self._handle_reply(data)
 
-
-class _Campbx(QtCore.QObject):
-
-    provider_name = EXCHANGE_NAME
-    exchange_error_signal = QtCore.pyqtSignal(str)
-
-    def pop_request(self):
-        request = heapq.heappop(self._requests)
-        request.post()
-        self._replies.add(request)
-
+"""
+-            elif 'Info' in data:
+-                msg = str(self.reply.url().toString()) + " : " + data['Error']
+-                logger.warning(msg)
+-            else:
+-                if self.data:
+-                    self.data.update(data)
+-                    self.handler(self.data)
+-                else:
+-                    self.handler(data)
+"""
 
 class CampbxExchangeMarket(_Campbx, tulpenmanie.exchange.Exchange):
-
 
     _xticker_url = QtCore.QUrl(_BASE_URL + "xticker.php")
 
     ask_signal = QtCore.pyqtSignal(decimal.Decimal)
     last_signal = QtCore.pyqtSignal(decimal.Decimal)
     bid_signal = QtCore.pyqtSignal(decimal.Decimal)
-
-    trades_signal = QtCore.pyqtSignal(np.ndarray)
-    depth_signal = QtCore.pyqtSignal(np.ndarray)
 
     def __init__(self, remote_market, network_manager=None, parent=None):
         if network_manager is None:
@@ -140,20 +122,21 @@ class CampbxExchangeMarket(_Campbx, tulpenmanie.exchange.Exchange):
 
         self.base_query = QtCore.QUrl()
         self.network_manager = network_manager
-        self._request_queue = self.network_manager.get_host_request_queue(
+        self.host_queue = self.network_manager.get_host_request_queue(
             HOSTNAME, 500)
-        self._requests = list()
-        self._replies = set()
+        self.requests = list()
+        self.replies = set()
 
     def refresh_ticker(self):
-        request = CampbxRequest(self._xticker_url, self._xticker_handler, self)
-        self._requests.append(request)
-        self._request_queue.enqueue(self)
+        CampbxTickerRequest(self._xticker_url, self)
 
-    def _xticker_handler(self, data):
-        self.ask_signal.emit(decimal.Decimal(data['Best Ask']))
-        self.last_signal.emit(decimal.Decimal(data['Last Trade']))
-        self.bid_signal.emit(decimal.Decimal(data['Best Bid']))
+
+class CampbxTickerRequest(_CampbxRequest):
+    def _handle_reply(self, data):
+        logger.debug(data)
+        self.parent.ask_signal.emit(decimal.Decimal(data['Best Ask']))
+        self.parent.last_signal.emit(decimal.Decimal(data['Last Trade']))
+        self.parent.bid_signal.emit(decimal.Decimal(data['Best Bid']))
 
 
 class CampbxAccount(_Campbx, tulpenmanie.exchange.ExchangeAccount):
@@ -183,10 +166,10 @@ class CampbxAccount(_Campbx, tulpenmanie.exchange.ExchangeAccount):
         self.base_query = QtCore.QUrl()
         self.set_credentials(credentials)
         self.network_manager = network_manager
-        self._request_queue = self.network_manager.get_host_request_queue(
+        self.host_queue = self.network_manager.get_host_request_queue(
             HOSTNAME, 500)
-        self._requests = list()
-        self._replies = set()
+        self.requests = list()
+        self.replies = set()
 
         self.ask_orders_model = tulpenmanie.orders.OrdersModel()
         self.bid_orders_model = tulpenmanie.orders.OrdersModel()
@@ -210,120 +193,39 @@ class CampbxAccount(_Campbx, tulpenmanie.exchange.ExchangeAccount):
         self._refresh_funds()
 
     def refresh_funds(self):
-        request = CampbxRequest(self._myfunds_url, self._myfunds_handler, self)
-        self._requests.append(request)
-        self._request_queue.enqueue(self, 2)
-
-    def _myfunds_handler(self, data):
-        #TODO maybe not emit 'Total' but rather available
-        self.BTC_balance_signal.emit(decimal.Decimal(data['Liquid BTC']))
-        self.USD_balance_signal.emit(decimal.Decimal(data['Liquid USD']))
+        CampbxFundsRequest(self._myfunds_url, self)
 
     def refresh_orders(self):
-        request = CampbxRequest(self._myorders_url, self._myorders_handler, self)
-        self._requests.append(request)
-        self._request_queue.enqueue(self, 2)
-
-    def _myorders_handler(self, data):
-        for model, array, in ((self.ask_orders_model, 'Sell'),
-                              (self.bid_orders_model, 'Buy') ):
-            model.clear_orders()
-            for order in data[array]:
-                if 'Info' in order:
-                    break
-
-                order_id = order['Order ID']
-                price = order['Price']
-                amount = order['Quantity']
-
-                model.append_order(order_id, price, amount)
-            model.sort(1, QtCore.Qt.DescendingOrder)
+        CampbxOrdersRequest(self._myorders_url, self)
 
     def place_ask_limit_order(self, pair, amount, price):
-        self._place_limit_order(amount, price, "QuickSell")
-
+        self._place_order("AdvancedSell", amount, price)
     def place_bid_limit_order(self, pair, amount, price):
-        self._place_limit_order(amount, price, "QuickBuy")
+        self._place_order("AdvancedBuy", amount, price)
 
     def place_ask_market_order(self, pair, amount):
-        self._place_market_order(amount, "AdvancedSell")
-
+        self._place_order("AdvancedSell", amount)
     def place_bid_market_order(self, pair, amount):
-        self._place_market_order(amount, "AdvancedBuy")
+        self._place_order("AdvancedBuy", amount)
 
-    # TODO these could both be advanced
-    def _place_limit_order(self, amount, price, trade_type):
+    def _place_order(self, trade_type, amount, price=None):
+        if price is None:
+            price = 'Market'
         query = {'TradeMode': trade_type,
                  'Quantity': amount,
                  'Price': price}
         data = {'query': query}
-        request = CampbxRequest(self._tradeenter_url, self._tradeenter_handler,
-                                self, data)
-        self._requests.append(request)
-        self._request_queue.enqueue(self, 1)
-
-    def _place_market_order(self, amount, trade_type):
-        query = {'TradeMode': trade_type,
-                 'Quantity': amount,
-                 'Price': 'Market'}
-        data = {'query': query}
-        request = CampbxRequest(self._tradeadv_url, self._tradeenter_handler,
-                                self, data)
-        self._requests.append(request)
-        self._request_queue.enqueue(self, 1)
-
-    def _tradeenter_handler(self, data):
-        order_id = int(data['Success'])
-        data = data['query']
-        amount = data['Quantity']
-        price = data['Price']
-
-        if data['TradeMode'][-4:] == 'Sell':
-            if order_id:
-                logger.info("ask order %s in place", order_id)
-                self.ask_orders_model.append_order(order_id, price, amount)
-            self.BTC_balance_changed_signal.emit(
-                -decimal.Decimal(data['Quantity']))
-        elif data['TradeMode'][-3:] == 'Buy':
-            if order_id:
-                logger.info("bid order %s in place", order_id)
-                self.bid_orders_model.append_order(order_id, price, amount)
-            if price == 'Market':
-                price = tulpenmanie.translate.market_order_type
-            else:
-                self.USD_balance_changed_signal.emit(
-                    -(decimal.Decimal(data['Quantity']) *
-                      decimal.Decimal(data['Price'])))
+        request = CampbxTradeRequest(self._tradeadv_url, self, data)
 
     def cancel_ask_order(self, pair, order_id):
         self._cancel_order(order_id, 'Sell')
-
     def cancel_bid_order(self, pair, order_id):
         self._cancel_order(order_id, 'Buy')
 
     def _cancel_order(self, order_id, order_type):
         data = {'query':{ 'Type' : order_type,
                           'OrderID' : order_id }}
-        request = CampbxRequest(self._tradecancel_url,
-                                self._tradecancel_handler,
-                                self, data)
-        self._requests.append(request)
-        self._request_queue.enqueue(self, 0)
-
-    def _tradecancel_handler(self, data):
-        words = data['Success'].split()
-        order_id = words[2]
-        items = self.ask_orders_model.findItems(order_id,
-                                                QtCore.Qt.MatchExactly, 0)
-        if len(items):
-            row = items[0].row()
-            self.ask_orders_model.removeRow(row)
-        if not len(items):
-            items = self.bid_orders_model.findItems(order_id,
-                                              QtCore.Qt.MatchExactly, 0)
-            row = items[0].row()
-            self.bid_orders_model.removeRow(row)
-        logger.debug("Trimmed order %s from a model", order_id)
+        CampbxCancelOrderRequest(self._tradecancel_url, self, data)
 
     def get_bitcoin_deposit_address(self):
         if self._bitcoin_deposit_address:
@@ -336,43 +238,99 @@ class CampbxAccount(_Campbx, tulpenmanie.exchange.ExchangeAccount):
             self._requests.append(request)
             self._request_queue.enqueue(self, 2)
 
-    def _getbtcaddr_handler(self, data):
-        address = data['Success']
-        self._bitcoin_deposit_address = address
-        self.bitcoin_deposit_address_signal.emit(address)
-
     def withdraw_bitcoin(self, address, amount):
         data = {'query':
                 {'BTCTo': address,
                  'BTCAmt': amount}}
-        request = CampbxRequest(self._sendbtc_url,
-                                self._sendbtc_handler,
-                                self, data)
-        self._requests.append(request)
-        self._request_queue.enqueue(self, 2)
+        CampbxWithdrawBitcoinRequest(self._sendbtc_url, self, data)
 
-    def _sendbtc_handler(self, data):
-        # TODO check this return code,
-        # documentation just says returns 'true'
+
+class CampbxFundsRequest(_CampbxRequest):
+    def _handle_reply(self, data):
+        self.parent.BTC_balance_signal.emit(decimal.Decimal(data['Liquid BTC']))
+        self.parent.USD_balance_signal.emit(decimal.Decimal(data['Liquid USD']))
+
+class CampbxOrdersRequest(_CampbxRequest):
+    def _handle_reply(self, data):
+        for model, array, in ((self.parent.ask_orders_model, 'Sell'),
+                              (self.parent.bid_orders_model, 'Buy') ):
+            model.clear_orders()
+            for order in data[array]:
+                if 'Info' in order:
+                    break
+
+                order_id = order['Order ID']
+                price = order['Price']
+                amount = order['Quantity']
+
+                model.append_order(order_id, price, amount)
+            model.sort(1, QtCore.Qt.DescendingOrder)
+
+class CampbxTradeRequest(_CampbxRequest):
+    priority = 1
+    def _handle_reply(self, data):
+        order_id = int(data['Success'])
+        data = self.data['query']
+        amount = data['Quantity']
+        price = data['Price']
+
+        if data['TradeMode'][-4:] == 'Sell':
+            if order_id:
+                logger.info("ask order %s in place", order_id)
+                self.parent.ask_orders_model.append_order(order_id,
+                                                          price, amount)
+            self.parent.BTC_balance_changed_signal.emit(
+                -decimal.Decimal(data['Quantity']))
+        elif data['TradeMode'][-3:] == 'Buy':
+            if order_id:
+                logger.info("bid order %s in place", order_id)
+                self.parent.bid_orders_model.append_order(order_id,
+                                                          price, amount)
+            if price == 'Market':
+                price = tulpenmanie.translate.market_order_type
+            else:
+                self.parent.USD_balance_changed_signal.emit(
+                    -(decimal.Decimal(data['Quantity']) *
+                      decimal.Decimal(data['Price'])))
+
+
+class CampbxCancelOrderRequest(_CampbxRequest):
+    priority = 0
+    def _handle_reply(self, data):
+
+        words = data['Success'].split()
+        order_id = words[2]
+        order_type = self.data['query']['Type']
+        if order_type == 'Sell':
+            items = self.parent.ask_orders_model.findItems(
+                order_id, QtCore.Qt.MatchExactly, 0)
+            if items:
+                row = items[0].row()
+                self.parent.ask_orders_model.removeRow(row)
+                logger.debug("Trimmed ask order %s from a model", order_id)
+        elif order_type == 'Buy':
+            items = self.parent.bid_orders_model.findItems(
+                order_id, QtCore.Qt.MatchExactly, 0)
+            if items:
+                row = items[0].row()
+                self.parent.bid_orders_model.removeRow(row)
+                logger.debug("Trimmed bid order %s from a model", order_id)
+
+class CampbxBitcoinAddressRequest(_CampbxRequest):
+    priority = 2
+    def _handle_reply(self, data):
+        address = data['Success']
+        self.parent._bitcoin_deposit_address = address
+        self.parent.bitcoin_deposit_address_signal.emit(address)
+
+class CampbxWithdrawBitcoinRequest(_CampbxRequest):
+    priority = 2
+    def _handle_reply(self, data):
         transaction = data['Success']
-        self.withdraw_bitcoin_reply_signal.emit(transaction)
-
-
-class CampbxExchangeItem(tulpenmanie.exchange.ExchangeItem):
-
-    provider_name = EXCHANGE_NAME
-
-    COLUMNS = 4
-    MARKETS, REFRESH_RATE, ACCOUNT_USERNAME, ACCOUNT_PASSWORD = range(COLUMNS)
-    mappings = (("refresh rate", REFRESH_RATE),
-                ("username", ACCOUNT_USERNAME),
-                ("password", ACCOUNT_PASSWORD),)
-    markets = ('BTC_USD',)
-
-    numeric_settings = (REFRESH_RATE,)
-    boolean_settings = ()
-    required_account_settings = (ACCOUNT_USERNAME, ACCOUNT_PASSWORD,)
-    hidden_settings = (ACCOUNT_PASSWORD,)
+        reply = str(QtCore.QCoreApplication.translate(
+            "CampbxWithdrawBitcoinRequest", "transaction id: {}"))
+        self.parent.withdraw_bitcoin_reply_signal.emit(
+            reply.format(transaction))
 
 
 tulpenmanie.exchange.register_exchange(CampbxExchangeMarket)

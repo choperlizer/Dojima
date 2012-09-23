@@ -35,7 +35,7 @@ _BASE_URL = "https://" + HOSTNAME + "/api/"
 
 class BitstampExchangeItem(tulpenmanie.exchange.ExchangeItem):
 
-    provider_name = EXCHANGE_NAME
+    exchange_name = EXCHANGE_NAME
 
     COLUMNS = 4
     MARKETS, REFRESH_RATE, ACCOUNT_USERNAME, ACCOUNT_PASSWORD = range(COLUMNS)
@@ -50,83 +50,25 @@ class BitstampExchangeItem(tulpenmanie.exchange.ExchangeItem):
     hidden_settings = (ACCOUNT_PASSWORD,)
 
 
-class BitstampRequest(object):
-
-    def __init__(self, url, handler, parent, data=None):
-        self.url = url
-        self.handler = handler
-        self.parent = parent
-        if data:
-            self.data = data
-        else:
-            self.data = dict()
-        self.reply = None
-
-        self.request = tulpenmanie.network.NetworkRequest(self.url)
-        self.request.setHeader(QtNetwork.QNetworkRequest.ContentTypeHeader,
-                               "application/x-www-form-urlencoded")
-        query = parent.base_query
-        if data:
-            for key, value in data['query'].items():
-                query.addQueryItem(key, str(value))
-        self.query = query.encodedQuery()
-
-    def _process_reply(self):
-        if self.reply.error():
-            logger.error(self.reply.errorString())
-        else:
-            if logger.isEnabledFor(logging.INFO):
-                logger.debug("received reply to %s", self.reply.url().toString())
-            data = json.loads(str(self.reply.readAll()))
-            if type(data) is dict and 'error' in data:
-                msg = str(self.reply.url().toString()) + " : " + str(data['error'])
-                self.parent.exchange_error_signal.emit(msg)
-                logger.warning(msg)
-            else:
-                self.data['return'] = data
-                self.handler(self.data)
-        self.reply.deleteLater()
-        self.parent._replies.remove(self)
-
-class BitstampGETRequest(BitstampRequest):
-
-    def send(self):
-        if logger.isEnabledFor(logging.DEBUG):
-            logger.debug("GET to %s", self.url.toString())
-        self.reply = self.parent.network_manager.get(self.request)
-        self.reply.finished.connect(self._process_reply)
-        self.reply.error.connect(self._process_reply)
-
-class BitstampPOSTRequest(BitstampRequest):
-
-    def send(self):
-        if logger.isEnabledFor(logging.DEBUG):
-            logger.debug("POST to %s", self.url.toString())
-        self.reply = self.parent.network_manager.post(self.request,
-                                                      self.query)
-        self.reply.finished.connect(self._process_reply)
-        self.reply.error.connect(self._process_reply)
-
-
 class _Bitstamp(QtCore.QObject):
-
-    provider_name = EXCHANGE_NAME
+    exchange_name = EXCHANGE_NAME
     exchange_error_signal = QtCore.pyqtSignal(str)
-
+    
     def pop_request(self):
-        request = heapq.heappop(self._requests)
+        request = heapq.heappop(self.requests)[1]
         request.send()
-        self._replies.add(request)
 
 
 class BitstampExchangeMarket(_Bitstamp):
 
     base_query = QtCore.QUrl()
-    _ticker_url = QtCore.QUrl(_BASE_URL + "ticker/")
+    _ticker_url = QtCore.QUrl(_BASE_URL + 'ticker/')
+    _transactions_url = QtCore.QUrl(_BASE_URL + 'transactions/')
 
     ask_signal = QtCore.pyqtSignal(decimal.Decimal)
     last_signal = QtCore.pyqtSignal(decimal.Decimal)
     bid_signal = QtCore.pyqtSignal(decimal.Decimal)
+    trades_signal = QtCore.pyqtSignal(tuple)
 
     def __init__(self, remote_market, network_manager=None, parent=None):
         if network_manager is None:
@@ -134,22 +76,50 @@ class BitstampExchangeMarket(_Bitstamp):
         super(BitstampExchangeMarket, self).__init__(parent)
 
         self.network_manager = network_manager
-        self._request_queue = self.network_manager.get_host_request_queue(
+        self.host_queue = self.network_manager.get_host_request_queue(
             HOSTNAME, 500)
-        self._requests = list()
-        self._replies = set()
+        self.requests = list()
+        self.replies = set()
 
     def refresh_ticker(self):
-        request = BitstampGETRequest(self._ticker_url,
-                                     self._ticker_handler, self)
-        self._requests.append(request)
-        self._request_queue.enqueue(self)
+        BitstampTickerRequest(self._ticker_url, self)
 
-    def _ticker_handler(self, data):
-        data =  data['return']
-        self.ask_signal.emit(decimal.Decimal(data['ask']))
-        self.last_signal.emit(decimal.Decimal(data['last']))
-        self.bid_signal.emit(decimal.Decimal(data['bid']))
+    def refresh_trade_data(self):
+        BitstampTransactionsRequest(self._transactions_url, self)
+
+
+class BitstampTickerRequest(tulpenmanie.network.ExchangeGETRequest):
+
+    def _handle_reply(self, raw):
+        logger.debug(raw)
+        data = json.loads(raw)
+        self.parent.ask_signal.emit(decimal.Decimal(data['ask']))
+        self.parent.last_signal.emit(decimal.Decimal(data['last']))
+        self.parent.bid_signal.emit(decimal.Decimal(data['bid']))
+
+
+class BitstampTransactionsRequest(tulpenmanie.network.ExchangeGETRequest):
+
+    def _handle_reply(self, raw):
+        trade_list = json.loads(raw, object_hook=self._object_hook)
+        dates = list()
+        prices = list()
+        amounts = list()
+        for date, price, amount in trade_list:
+            dates.append(date)
+            prices.append(price)
+            amounts.append(amount)
+
+        # The trades are FIFO
+        for l in dates, prices, amounts:
+            l.reverse()
+        self.parent.trades_signal.emit( (dates, prices, amounts) )
+
+    def _object_hook(self, dict_):
+        date = int(dict_['date'])
+        price = float(dict_['price'])
+        amount = float(dict_['amount'])
+        return (date, price, amount)
 
 
 class BitstampAccount(_Bitstamp, tulpenmanie.exchange.ExchangeAccount):
@@ -161,6 +131,8 @@ class BitstampAccount(_Bitstamp, tulpenmanie.exchange.ExchangeAccount):
     _bitcoin_deposit_address_url = QtCore.QUrl(
         _BASE_URL + "bitcoin_deposit_address/")
     _bitcoin_withdrawal_url = QtCore.QUrl(_BASE_URL + "bitcoin_withdrawal/")
+
+    exchange_error_signal = QtCore.pyqtSignal(str)
 
     BTC_balance_signal = QtCore.pyqtSignal(decimal.Decimal)
     USD_balance_signal = QtCore.pyqtSignal(decimal.Decimal)
@@ -180,10 +152,10 @@ class BitstampAccount(_Bitstamp, tulpenmanie.exchange.ExchangeAccount):
         self.base_query = QtCore.QUrl()
         self.set_credentials(credentials)
         self.network_manager = network_manager
-        self._request_queue = self.network_manager.get_host_request_queue(
+        self.host_queue = self.network_manager.get_host_request_queue(
             HOSTNAME, 500)
-        self._requests = list()
-        self._replies = set()
+        self.requests = list()
+        self.replies = set()
 
         self.ask_orders_model = tulpenmanie.orders.OrdersModel()
         self.bid_orders_model = tulpenmanie.orders.OrdersModel()
@@ -203,38 +175,27 @@ class BitstampAccount(_Bitstamp, tulpenmanie.exchange.ExchangeAccount):
         return self.bid_orders_model
 
     def refresh_funds(self):
-        request = BitstampPOSTRequest(self._balance_url,
-                                      self._balance_handler, self)
-        self._requests.append(request)
-        self._request_queue.enqueue(self, 2)
-
-    def _balance_handler(self, data):
-        data = data['return']
-        #TODO maybe not emit 'Total' but rather available
-        self.BTC_balance_signal.emit(decimal.Decimal(data['btc_available']))
-        self.USD_balance_signal.emit(decimal.Decimal(data['usd_available']))
+        BitstampBalanceRequest(self._balance_url, self)
 
     def refresh_orders(self):
-        request = BitstampPOSTRequest(self._open_orders_url,
-                                      self._open_orders_handler, self)
-        self._requests.append(request)
-        self._request_queue.enqueue(self, 2)
+        BitstampOpenOrdersRequest(self._open_orders_url, self)
 
-    def _open_orders_handler(self, data):
+    def process_orders(self, orders):
         for model in self.ask_orders_model, self.bid_orders_model:
             model.clear_orders()
-        if data['return']:
-            for order in data['return']:
-                order_id = order['id']
-                price = order['price']
-                amount = order['amount']
-                # type - buy or sell (0 - buy; 1 - sell)
-                if order['type'] == 0:
-                    self.bid_orders_model.append_order(order_id, price, amount)
-                elif order['type'] == 1:
-                    self.ask_orders_model.append_order(order_id, price, amount)
-            for model in self.ask_orders_model, self.bid_orders_model:
-                model.sort(1, QtCore.Qt.DescendingOrder)
+
+        for order in orders:
+            order_id = order['id']
+            price = order['price']
+            amount = order['amount']
+            # type - buy or sell (0 - buy; 1 - sell)
+            if order['type'] == 0:
+                self.bid_orders_model.append_order(order_id, price, amount)
+            elif order['type'] == 1:
+                self.ask_orders_model.append_order(order_id, price, amount)
+
+        for model in self.ask_orders_model, self.bid_orders_model:
+            model.sort(1, QtCore.Qt.DescendingOrder)
 
     def place_ask_limit_order(self, pair, amount, price):
         self._place_limit_order(amount, price, self._sell_limit_url)
@@ -242,97 +203,141 @@ class BitstampAccount(_Bitstamp, tulpenmanie.exchange.ExchangeAccount):
     def place_bid_limit_order(self, pair, amount, price):
         self._place_limit_order(amount, price, self._buy_limit_url)
 
-    def place_ask_market_order(self, pair, amount):
-        pass
-
-    def place_bid_market_order(self, pair, amount):
-        pass
-
     # TODO these could both be advanced
     def _place_limit_order(self, amount, price, url):
         query = {'amount': amount,
                  'price': price}
         data = {'query': query}
-        request = BitstampPOSTRequest(url, self._place_order_handler,
-                                      self, data)
-        self._requests.append(request)
-        self._request_queue.enqueue(self, 1)
 
-    def _place_order_handler(self, data):
-        data = data['return']
-        order_id = int(data['id'])
-        amount = decimal.Decimal(data['amount'])
-        price = decimal.Decimal(data['price'])
-        # type - buy or sell (0 - buy; 1 - sell)
-        if data['type'] == 0:
-            logger.info("bid order %s in place", order_id)
-            self.bid_orders_model.append_order(order_id, price, amount)
-            self.USD_balance_changed_signal.emit( -(amount * price))
-
-        elif data['type'] == 1:
-            logger.info("ask order %s in place", order_id)
-            self.ask_orders_model.append_order(order_id, price, amount)
-            self.BTC_balance_changed_signal.emit( -amount)
+        BitstampPlaceOrderRequest(url, self, data)
 
     def cancel_ask_order(self, pair, order_id):
-        self._cancel_order(order_id)
+        self._cancel_order(order_id, 0)
 
     def cancel_bid_order(self, pair, order_id):
-        self._cancel_order(order_id)
+        self._cancel_order(order_id, 1)
 
-    def _cancel_order(self, order_id):
-        data = {'query':{ 'id': order_id }}
-        request = BitstampPOSTRequest(self._cancel_order_url,
-                                      self._cancel_order_handler,
-                                      self, data)
-        self._requests.append(request)
-        self._request_queue.enqueue(self, 0)
-
-    def _cancel_order_handler(self, data):
-        logger.info('%s', data['return'])
-        if data['return']:
-            order_id = data['query']['id']
-            items = self.ask_orders_model.findItems(order_id,
-                                                    QtCore.Qt.MatchExactly, 0)
-            if items:
-                row = items[0].row()
-                self.ask_orders_model.removeRow(row)
-            else:
-                items = self.bid_orders_model.findItems(order_id,
-                                                        QtCore.Qt.MatchExactly,
-                                                        0)
-                row = items[0].row()
-                self.bid_orders_model.removeRow(row)
-            logger.info("order %s canceled", order_id)
+    def _cancel_order(self, order_id, order_type):
+        data = {'type': order_type,
+                'query':{ 'id': order_id }}
+        BitstampCancelOrderRequest(self._cancel_order_url, self, data)
 
     def get_bitcoin_deposit_address(self):
         if self._bitcoin_deposit_address:
             self.bitcoin_deposit_address_signal.emit(
                 self._bitcoin_deposit_address)
         else:
-            request = BitstampRequest(self._bitcoin_deposit_address_url,
-                                      self._bitcoin_deposit_address_handler,
-                                      self)
-            self._requests.append(request)
-            self._request_queue.enqueue(self, 2)
-
-    def _bitcoin_deposit_address_handler(self, data):
-        address = data['return']
-        self.bitcoin_deposit_address_signal.emit(address)
+            BitstampBitcoinDepositAddressRequest(
+                self._bitcoin_deposit_address_url, self)
 
     def withdraw_bitcoin(self, address, amount):
         data = {'query':
                 {'address': address,
                  'amount': amount}}
 
-        request = BitstampRequest(self._bitcoin_withdrawal_url,
-                                  self._bitcoin_withdrawal_handler,
-                                  self)
-        self._requests.append(request)
-        self._request_queue.enqueue(self, 2)
+        request = BitstampBitcoinWithdrawalRequest(
+            self._bitcoin_withdrawal_url, self, data)
 
-    def _bitcoin_withdrawal_handler(self, data):
-        self.withdraw_bitcoin_reply_signal.emit(data['return'])
+
+class BitstampPrivateRequest(tulpenmanie.network.ExchangePOSTRequest):
+
+    def _prepare_request(self):
+        self.request = tulpenmanie.network.NetworkRequest(self.url)
+        self.request.setHeader(QtNetwork.QNetworkRequest.ContentTypeHeader,
+                               "application/x-www-form-urlencoded")
+        query = self.parent.base_query
+        if self.data:
+            for key, value in self.data['query'].items():
+                query.addQueryItem(key, str(value))
+        self.query = query.encodedQuery()
+
+
+class BitstampBalanceRequest(BitstampPrivateRequest):
+    prority = 1
+
+    def _handle_reply(self, raw):
+        logger.debug(raw)
+        data = json.loads(raw)
+        self.parent.BTC_balance_signal.emit(
+            decimal.Decimal(data['btc_available']))
+        self.parent.USD_balance_signal.emit(
+            decimal.Decimal(data['usd_available']))
+
+
+class BitstampOpenOrdersRequest(BitstampPrivateRequest):
+    priority = 2
+
+    def _handle_reply(self, raw):
+        logger.debug(raw)
+        data = json.loads(raw)
+        if data:
+            self.parent.process_orders(data)
+
+
+class BitstampPlaceOrderRequest(BitstampPrivateRequest):
+    priority = 1
+
+    def _handle_reply(self, raw):
+        logger.debug(raw)
+        data = json.loads(raw)
+
+        order_id = int(data['id'])
+        amount = decimal.Decimal(data['amount'])
+        price = decimal.Decimal(data['price'])
+        # type - buy or sell (0 - buy; 1 - sell)
+        if data['type'] == 0:
+            logger.info("bid order %s in place", order_id)
+            self.parent.bid_orders_model.append_order(order_id, price, amount)
+            self.parent.USD_balance_changed_signal.emit( -(amount * price))
+
+        elif data['type'] == 1:
+            logger.info("ask order %s in place", order_id)
+            self.parent.ask_orders_model.append_order(order_id, price, amount)
+            self.parent.BTC_balance_changed_signal.emit( -amount)
+
+
+class BitstampCancelOrderRequest(BitstampPrivateRequest):
+    prority = 0
+
+    def _handle_reply(self, raw):
+        logger.debug(raw)
+        data = json.loads(raw)
+
+        if data:
+            order_id = self.data['query']['id']
+            if not self.data['type']:
+                items = self.parent.ask_orders_model.findItems(
+                    order_id, QtCore.Qt.MatchExactly, 0)
+                if items:
+                    row = items[0].row()
+                    self.parent.ask_orders_model.removeRow(row)
+            else:
+                items = self.parent.bid_orders_model.findItems(
+                    order_id, QtCore.Qt.MatchExactly, 0)
+                if items:
+                    row = items[0].row()
+                    self.parent.bid_orders_model.removeRow(row)
+            logger.info("order %s canceled", order_id)
+
+
+class BitstampBitcoinDepositAddressRequest(BitstampPrivateRequest):
+    priority = 2
+
+    def _handle_reply(self, raw):
+        logger.debug(raw)
+        address = json.loads(raw)
+        self.parent.bitcoin_deposit_address_signal.emit(address)
+
+
+class BitstampBitcoinWithdrawalRequest(BitstampPrivateRequest):
+    priority = 2
+
+    def _handle_reply(self, raw):
+        logger.debug(raw)
+        result = json.loads(raw)
+        reply = str(QtCore.QCoreApplication.translate(
+            "BitstampExchangeAccount", """Bitstamp replied "{}" """))
+        self.parent.withdraw_bitcoin_reply_signal.emit(reply.format(result))
 
 
 tulpenmanie.exchange.register_exchange(BitstampExchangeMarket)

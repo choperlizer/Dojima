@@ -96,3 +96,68 @@ class NetworkRequest(QtNetwork.QNetworkRequest):
         # BAD hardcoding
         # TODO get this from QApplication
         self.setRawHeader("User-Agent", "tulpenmanie/0.5.0")
+
+
+class ExchangeRequest(object):
+    priority = 3
+    host_priority = None
+
+    def __init__(self, url, parent, data=None):
+        self.url = url
+        self.parent = parent
+        self.data = data
+        self.reply = None
+        parent.requests.append( (self.priority, self) )
+        parent.host_queue.enqueue(self.parent, self.host_priority)
+
+    def __del__(self):
+        if self.reply:
+            self.reply.deleteLater()
+
+    def _prepare_request(self):
+        self.request = NetworkRequest(self.url)
+        self.request.setHeader(QtNetwork.QNetworkRequest.ContentTypeHeader,
+                               "application/x-www-form-urlencoded")
+        query = QtCore.QUrl()
+        if self.data:
+            for key, value in self.data['query'].items():
+                query.addQueryItem(key, str(value))
+        self.query = query.encodedQuery()
+
+    def _extract_reply(self):
+        self.parent.replies.remove(self)
+        if self.reply.error():
+            logger.error(self.reply.errorString())
+        else:
+            if logger.isEnabledFor(logging.INFO):
+                logger.info("received reply to %s", self.url.toString())
+            raw_reply = str(self.reply.readAll())
+            self._handle_reply(raw_reply)
+
+    def _handle_error(self, error):
+        msg = str(self.reply.url().toString()) + " : " + error
+        self.parent.exchange_error_signal.emit(msg)
+        logger.warning(msg)
+
+
+class ExchangeGETRequest(ExchangeRequest):
+
+    def send(self):
+        self._prepare_request()
+        if logger.isEnabledFor(logging.INFO):
+            logger.info("GET to %s", self.url.toString())
+        self.reply = self.parent.network_manager.get(self.request)
+        self.reply.finished.connect(self._extract_reply)
+        self.parent.replies.add(self)
+
+        
+class ExchangePOSTRequest(ExchangeRequest):
+
+    def send(self):
+        self._prepare_request()
+        if logger.isEnabledFor(logging.INFO):
+            logger.info("POST to %s", self.url.toString())
+        self.reply = self.parent.network_manager.post(self.request,
+                                                        self.query)
+        self.reply.finished.connect(self._extract_reply)
+        self.parent.replies.add(self)

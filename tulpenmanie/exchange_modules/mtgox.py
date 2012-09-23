@@ -48,7 +48,7 @@ def _object_hook(dct):
 
 class MtgoxExchangeItem(tulpenmanie.exchange.ExchangeItem):
 
-    provider_name = EXCHANGE_NAME
+    exchange_name = EXCHANGE_NAME
 
     COLUMNS = 4
     MARKETS, REFRESH_RATE, ACCOUNT_KEY, ACCOUNT_SECRET = range(COLUMNS)
@@ -65,77 +65,31 @@ class MtgoxExchangeItem(tulpenmanie.exchange.ExchangeItem):
     required_account_settings = (ACCOUNT_KEY, ACCOUNT_SECRET)
     hidden_settings = ()
 
-
-class _Mtgox(object):
+    # TODO could be abstract, no object
+class _Mtgox():
+    exchange_name = EXCHANGE_NAME
 
     def pop_request(self):
         request = heapq.heappop(self.requests)[1]
         request.send()
 
 
-class _MtgoxRequest(QtCore.QObject):
-    priority = 3
-    host_priority = None
-
-    def __init__(self, url, parent, data=None):
-        super(_MtgoxRequest, self).__init__(parent)
-        self.url = url
-        self.parent = parent
-        self.data = data
-        parent.requests.append((self.priority, self))
-        parent.host_queue.enqueue(self.parent, self.host_priority)
-
-    def send(self):
-        self._prepare_request()
-        if logger.isEnabledFor(logging.DEBUG):
-            logger.debug("POST to %s", self.url.toString())
-        self.reply = self.parent.network_manager.post(self.request,
-                                                        self.query)
-        self.reply.finished.connect(self._extract_reply)
-        self.parent.replies.add(self)
-
-    def _extract_reply(self):
-        self.parent.replies.remove(self)
-        if self.reply.error():
-            logger.error(self.reply.errorString())
-        else:
-            if logger.isEnabledFor(logging.DEBUG):
-                logger.debug("received reply to %s", self.url.toString())
-            raw_reply = str(self.reply.readAll())
-            self._handle_reply(raw_reply)
-
-    def _handle_error(self, error):
-        msg = str(self.reply.url().toString()) + " : " + error
-        self.parent.exchange_error_signal.emit(msg)
-        logger.warning(msg)
-
-    def __del__(self):
-        self.reply.deleteLater()
+class _MtgoxRequest(tulpenmanie.network.ExchangePOSTRequest):
+    pass
 
 
-class MtgoxPublicRequest(_MtgoxRequest):
-
-    def _prepare_request(self):
-        self.request = tulpenmanie.network.NetworkRequest(self.url)
-        self.request.setHeader(QtNetwork.QNetworkRequest.ContentTypeHeader,
-                               "application/x-www-form-urlencoded")
-        query = QtCore.QUrl()
-        if self.data:
-            for key, value in self.data['query'].items():
-                query.addQueryItem(key, str(value))
-        self.query = query.encodedQuery()
+class MtgoxPublicRequest(tulpenmanie.network.ExchangePOSTRequest):
+    pass
 
 
 class MtgoxExchange(QtCore.QObject, _Mtgox):
     # BAD redundant
-    provider_name = EXCHANGE_NAME
     exchange_error_signal = QtCore.pyqtSignal(str)
 
     ask_signal = QtCore.pyqtSignal(decimal.Decimal)
     last_signal = QtCore.pyqtSignal(decimal.Decimal)
     bid_signal = QtCore.pyqtSignal(decimal.Decimal)
-
-    trades_signal = QtCore.pyqtSignal(list)
+    trades_signal = QtCore.pyqtSignal(tuple)
 
     def __init__(self, remote_market, network_manager=None, parent=None):
         if not network_manager:
@@ -148,15 +102,19 @@ class MtgoxExchange(QtCore.QObject, _Mtgox):
         self.replies = set()
         self._ticker_url = QtCore.QUrl(_BASE_URL + remote_market + '/ticker')
         self._trades_url = QtCore.QUrl(_BASE_URL + remote_market + '/trades')
+        self._depth_url = QtCore.QUrl(_BASE_URL + remote_market + '/depth')
 
     def refresh_ticker(self):
         MtgoxTickerRequest(self._ticker_url, self)
 
-    def refresh_trades(self):
-        MtgoxTradesRequest(self.trades_url, self)
+    def refresh_trade_data(self):
+        MtgoxTradesRequest(self._trades_url, self)
+
+    def refresh_depth_data(self):
+        MtgoxDepthRequest(self._depth_url, self)
 
 
-class MtgoxTickerRequest(MtgoxPublicRequest):
+class MtgoxTickerRequest(tulpenmanie.network.ExchangePOSTRequest):
 
     def _handle_reply(self, raw):
             data = json.loads(raw, object_hook=_object_hook)
@@ -169,30 +127,51 @@ class MtgoxTickerRequest(MtgoxPublicRequest):
                 self.parent.bid_signal.emit(data['buy'])
 
 
-class MtgoxDataRequest(MtgoxPublicRequest):
+class MtgoxTradesRequest(MtgoxPublicRequest):
 
-    def __init__(self, url, parent, data=None):
-        super(_MtgoxRequest, self).__init__(parent)
-        self.url = url
-        self.parent = parent
-        self.data = data
-        parent.requests.append((self.priority, self))
-        parent.host_queue.enqueue(self.parent, None)
-
-class MtgoxTradesRequest(MtgoxDataRequest):
+    # TODO it may be faster to return (order, order, ...)
+    # and transpose rather than (date, price, amount)
 
     def _handle_reply(self, raw):
-        trades = json.loads(raw, pair_hook=self._object_hook)
-        self.parent().trades_signal.emit(trades)
+        self.dates = list()
+        self.prices = list()
+        self.amounts = list()
+        json.loads(raw, object_hook=self._object_hook)
+
+        self.parent.trades_signal.emit( (self.dates, self.prices, self.amounts) )
 
     def _object_hook(self, dict_):
-        date = matplotlib.dates.epoch2date(float(dict_['tid']) / 1000000)
-        price = float(dct_['price'])
-        amount = float(dct_['amount'])
-        return (date, price, amount)
+        if 'return' in dict_:
+            return
+
+        self.dates.append(int(dict_[u'date']))
+        self.prices.append(float(dict_[u'price']))
+        self.amounts.append(float(dict_[u'amount']))
+
 
 class MtgoxDepthRequest(MtgoxPublicRequest):
-    pass
+
+    def _handle_reply(self, raw):
+        data = json.loads(raw, object_hook=self._object_hook)
+        f = file('/tmp/depth_tuples.pickle', 'wb')
+        import pickle
+        pickle.dump(data, f)
+        f.close
+        self.parent.depth_signal.emit(data)
+
+    def _object_hook(self, dict_):
+        if 'currency' in dict_:
+            return None
+        if 'asks' in dict_:
+            return (dict_['asks'], dict_['bids'])
+        if 'return' in dict_:
+            return dict_['return']
+
+        else:
+            price = float(dict_['price'])
+            amount = float(dict_['amount'])
+            return (price, amount)
+
 
 
 class MtgoxCurrencyRequest(MtgoxPublicRequest):
@@ -211,7 +190,6 @@ class MtgoxCurrencyRequest(MtgoxPublicRequest):
 
 class MtgoxAccount(QtCore.QObject, _Mtgox, tulpenmanie.exchange.ExchangeAccount):
     # BAD redundant
-    provider_name = EXCHANGE_NAME
     exchange_error_signal = QtCore.pyqtSignal(str)
     markets = ( 'BTCAUD', 'BTCCAD', 'BTCCHF', 'BTCCNY', 'BTCDKK',
                 'BTCEUR', 'BTCGBP', 'BTCHKD', 'BTCJPY', 'BTCNZD',
@@ -297,7 +275,6 @@ class MtgoxAccount(QtCore.QObject, _Mtgox, tulpenmanie.exchange.ExchangeAccount)
         self.ask_orders = dict()
         self.bid_orders = dict()
         self._bitcoin_deposit_address = None
-        # TODO maybe divide smaller
         self.nonce = int(time.time() / 2)
 
     def set_credentials(self, credentials):

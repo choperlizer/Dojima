@@ -14,7 +14,6 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-import abc
 import logging
 from PyQt4 import QtCore, QtGui
 
@@ -39,11 +38,11 @@ def create_exchanges_model(parent):
 
 _exchange_classes = dict()
 def register_exchange(exchange_class):
-	_exchange_classes[exchange_class.provider_name] = exchange_class
+	_exchange_classes[exchange_class.exchange_name] = exchange_class
 
 accounts = dict()
 def register_account(account_class):
-    accounts[account_class.provider_name] = account_class
+    accounts[account_class.exchange_name] = account_class
 
 
 _exchange_objects = dict()
@@ -76,6 +75,93 @@ def get_exchange_object(exchange_name, market_uuid):
     return exchange_object
 
 
+def parse_model():
+    for exchange_row in range(model.rowCount()):
+        exchange_item = model.item(exchange_row)
+        exchange_name = str(exchange_item.text())
+        if exchange_name not in self.exchanges:
+            self.exchanges[exchange_name] = dict()
+
+            # parse accounts
+            credentials = []
+            account_valid = True
+            for setting in exchange_item.required_account_settings:
+                credential = exchange_item.child(0, setting).text()
+                if credential:
+                    credentials.append(credential)
+                else:
+                    account_valid = False
+                    break
+
+            if account_valid:
+                if 'account' in self.exchanges[exchange_name]:
+                    account_object = self.exchanges[exchange_name]['account']
+                    if account_object:
+                        account_object.set_credentials(credentials)
+                else:
+                    AccountClass = tulpenmanie.exchange.accounts[exchange_name]
+                    account_object = AccountClass(credentials)
+                    self.exchanges[exchange_name]['account'] = account_object
+            else:
+                account_object = None
+                if 'account' in self.exchanges[exchange_name]:
+                    self.exchanges[exchange_name].pop('account')
+
+            ## parse remote markets
+            markets_item = exchange_item.child(0, exchange_item.MARKETS)
+            for market_row in range(markets_item.rowCount()):
+                local_market = str(markets_item.child(
+                    market_row, exchange_item.MARKET_LOCAL).text())
+
+                if not local_market:
+                    continue
+
+                remote_pair = markets_item.child(
+                    market_row, exchange_item.MARKET_REMOTE).text()
+
+                if local_market not in self.markets:
+                    logger.critical("%s has a remote market %s mapped to "
+                                    "unknown local market %s",
+                                    exchange_name, remote_pair, local_market)
+                    continue
+
+                exchange_docks_dict = self.markets[local_market]['dock']
+                if exchange_name in exchange_docks_dict:
+                    exchange_dock = exchange_docks_dict[exchange_name]
+                else:
+                    exchange_dock = tulpenmanie.ui.exchange.ExchangeDockWidget(
+                        exchange_item, market_row, self)
+                    self.addDockWidget(QtCore.Qt.LeftDockWidgetArea,
+                                       exchange_dock)
+                    self.markets[local_market]['menu'].addAction(
+                        exchange_dock.enable_exchange_action)
+
+                    exchange_docks_dict[exchange_name] = exchange_dock
+
+                enable = markets_item.child(
+                    market_row, exchange_item.MARKET_ENABLE).text()
+                if enable == "true":
+                    enable = True
+                else:
+                    enable = False
+                exchange_dock.enable_exchange(enable)
+                exchange_dock.enable_exchange_action.setChecked(enable)
+                refresh_rate = exchange_item.child(
+                    0, exchange_item.REFRESH_RATE).text()
+                if refresh_rate and enable:
+                    exchange_dock.set_refresh_rate(float(refresh_rate))
+
+                account_widget = exchange_dock.account_widget
+                if not account_widget and account_object:
+                    account_widget = tulpenmanie.ui.exchange.AccountWidget(
+                        account_object, remote_pair, exchange_dock)
+                    account_widget.enable_account(enable)
+                if account_widget and not account_object:
+                    exchange_dock.account_widget = None
+                    account_widget.deleteLater()
+
+
+
 class _ExchangesModel(QtGui.QStandardItemModel):
 
     def save(self):
@@ -92,12 +178,12 @@ class ExchangeItem(QtGui.QStandardItem):
                        ('local_market', MARKET_LOCAL))
 
     def __init__(self):
-        super(ExchangeItem, self).__init__(self.provider_name)
+        super(ExchangeItem, self).__init__(self.exchange_name)
         self.settings = QtCore.QSettings()
-        self.settings.beginGroup(self.provider_name)
+        self.settings.beginGroup(self.exchange_name)
         self.setColumnCount(self.COLUMNS)
 
-        logger.debug("loading %s settings", self.provider_name)
+        logger.debug("loading %s settings", self.exchange_name)
         if self.mappings:
             for setting, column in self.mappings:
                 value = self.settings.value(setting)
@@ -108,7 +194,7 @@ class ExchangeItem(QtGui.QStandardItem):
                 self.setChild(0, column, item)
 
         if self.markets:
-            logger.debug("loading %s markets", self.provider_name)
+            logger.debug("loading %s markets", self.exchange_name)
             self.markets_item = QtGui.QStandardItem()
             self.setChild(0, self.MARKETS, self.markets_item)
             self.settings.beginGroup('markets')
@@ -126,14 +212,14 @@ class ExchangeItem(QtGui.QStandardItem):
             self.settings.endGroup()
 
     def save(self):
-        logger.debug("saving %s settings", self.provider_name)
+        logger.debug("saving %s settings", self.exchange_name)
         if self.mappings:
             #!!!TODO wont save refresh rate
             for setting, column in self.mappings:
                 value = self.child(0, column).text()
                 self.settings.setValue(setting, value)
 
-        logger.debug("saving %s markets", self.provider_name)
+        logger.debug("saving %s markets", self.exchange_name)
         # wipe out account information format from previous version
         self.settings.remove("accounts")
         self.settings.beginGroup('markets')

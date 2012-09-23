@@ -152,7 +152,7 @@ class BtcePrivateRequest(BtceRequest):
 
 class _Btce(QtCore.QObject):
 
-    provider_name = EXCHANGE_NAME
+    exchange_name = EXCHANGE_NAME
     exchange_error_signal = QtCore.pyqtSignal(str)
 
     def pop_request(self):
@@ -336,7 +336,7 @@ class BtceAccount(_Btce, tulpenmanie.exchange.ExchangeAccount):
 
 class BtceProviderItem(tulpenmanie.exchange.ExchangeItem):
 
-    provider_name = EXCHANGE_NAME
+    exchange_name = EXCHANGE_NAME
 
     COLUMNS = 4
     MARKETS, REFRESH_RATE, ACCOUNT_KEY, ACCOUNT_SECRET = range(COLUMNS)
