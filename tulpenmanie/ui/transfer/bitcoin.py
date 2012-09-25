@@ -21,22 +21,41 @@ import tulpenmanie.bitcoin
 import tulpenmanie.translate
 
 
-class BitcoinAction(QtGui.QAction):
+class BitcoinDepositAction(QtGui.QAction):
 
     def __init__(self, parent):
-        super(BitcoinAction, self).__init__(tulpenmanie.translate.bitcoin,
-                                            parent)
+        super(BitcoinDepositAction, self).__init__(
+            QtCore.QCoreApplication.translate("BitcoinDepositAction",
+                                              "exchange &deposit addresses"),
+                                              parent)
         self.triggered.connect(self._show_dialog)
 
     def _show_dialog(self):
-        dialog = BitcoinDialog(self.parent())
+        dialog = GetDepositAddressDialog(self.parent())
         dialog.show()
 
 
-class BitcoinDialog(QtGui.QDialog):
+class BitcoinTransferAction(QtGui.QAction):
 
     def __init__(self, parent):
-        super(BitcoinDialog, self).__init__(parent)
+        super(BitcoinTransferAction, self).__init__(
+            QtCore.QCoreApplication.translate("BitcoinTransferAction",
+                                              "inter-exchange &transfer"),
+                                              parent)
+        self.triggered.connect(self._show_dialog)
+
+    def _show_dialog(self):
+        dialog = TransferDialog(self.parent())
+        dialog.show()
+
+
+actions = (BitcoinDepositAction, BitcoinTransferAction,)
+
+
+class TransferDialog(QtGui.QDialog):
+
+    def __init__(self, parent):
+        super(TransferDialog, self).__init__(parent)
 
         self.withdraw_combo = QtGui.QComboBox(self)
         self.deposit_combo = QtGui.QComboBox(self)
@@ -139,3 +158,61 @@ class BitcoinDialog(QtGui.QDialog):
     def _reset(self):
         for widget in self.widgets_to_toggle:
             widget.setEnabled(True)
+
+
+class GetDepositAddressDialog(QtGui.QDialog):
+
+    def __init__(self, parent):
+        super(GetDepositAddressDialog, self).__init__(parent)
+
+        self.exchange_combo = QtGui.QComboBox()
+        self.accounts = list()
+        self.request_button = QtGui.QPushButton(
+            QtCore.QCoreApplication.translate("GetDepositAddressDialog",
+                                              "request"))
+        self.address_view = QtGui.QLineEdit()
+        self.address_view.setReadOnly(True)
+        self.address_view.setMinimumWidth(280)
+
+        close_button_box = QtGui.QDialogButtonBox(QtGui.QDialogButtonBox.Close)
+
+        layout = QtGui.QGridLayout()
+        layout.setColumnStretch(0, 1)
+        layout.addWidget(self.exchange_combo, 0,0)
+        layout.addWidget(self.request_button, 0,1)
+        layout.addWidget(self.address_view, 1,0, 1,2)
+        layout.addWidget(close_button_box, 2,0, 1,2)
+        self.setLayout(layout)
+
+        for exchange_name, exchange_dict in parent.exchanges.items():
+            if 'account' not in exchange_dict:
+                continue
+            account_object = exchange_dict['account']
+            if not account_object:
+                continue
+            if hasattr(account_object, 'get_bitcoin_deposit_address'):
+                self.exchange_combo.addItem(exchange_name)
+                self.accounts.append(account_object)
+
+        self.request_button.clicked.connect(self._request)
+        close_button_box.rejected.connect(self.reject)
+
+    def _request(self):
+        self.exchange_combo.setEnabled(False)
+        self.request_button.setEnabled(False)
+        self.address_view.clear()
+
+        index = self.exchange_combo.currentIndex()
+        account_obj = self.accounts[index]
+        account_obj.bitcoin_deposit_address_signal.connect(self._process_address)
+        account_obj.get_bitcoin_deposit_address()
+
+    def _process_address(self, address):
+        if tulpenmanie.bitcoin.validate_address(address) is None:
+            self.address_view.setText(QtCore.QCoreApplication.translate(
+                "GetDepositAddressDialog", "received invalid address"))
+            return
+
+        self.address_view.setText(address)
+        self.exchange_combo.setEnabled(True)
+        self.request_button.setEnabled(True)

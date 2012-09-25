@@ -49,8 +49,11 @@ class MainWindow(QtGui.QMainWindow):
 
         transfer_menu = QtGui.QMenu(QtCore.QCoreApplication.translate(
             "transfer menu title", "&transfer"), self)
-        bitcoin_transfer_action = tulpenmanie.ui.transfer.bitcoin.BitcoinAction(self)
-        transfer_menu.addAction(bitcoin_transfer_action)
+        bitcoin_menu = QtGui.QMenu(tulpenmanie.translate.bitcoin, self)
+        for Action in tulpenmanie.ui.transfer.bitcoin.actions:
+            action = Action(self)
+            bitcoin_menu.addAction(action)
+        transfer_menu.addMenu(bitcoin_menu)
         self.menuBar().addMenu(transfer_menu)
 
         options_menu = QtGui.QMenu(QtCore.QCoreApplication.translate(

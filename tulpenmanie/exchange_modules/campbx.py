@@ -232,11 +232,8 @@ class CampbxAccount(_Campbx, tulpenmanie.exchange.ExchangeAccount):
             self.bitcoin_deposit_address_signal.emit(
                 self._bitcoin_deposit_address)
         else:
-            request = CampbxRequest(
-                self._getbtcaddr_url,
-                self._getbtcaddr_handler, self)
-            self._requests.append(request)
-            self._request_queue.enqueue(self, 2)
+            request = CampbxBitcoinAddressRequest(
+                self._getbtcaddr_url, self)
 
     def withdraw_bitcoin(self, address, amount):
         data = {'query':
