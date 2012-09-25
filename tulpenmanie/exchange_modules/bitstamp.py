@@ -53,7 +53,7 @@ class BitstampExchangeItem(tulpenmanie.exchange.ExchangeItem):
 class _Bitstamp(QtCore.QObject):
     exchange_name = EXCHANGE_NAME
     exchange_error_signal = QtCore.pyqtSignal(str)
-    
+
     def pop_request(self):
         request = heapq.heappop(self.requests)[1]
         request.send()
@@ -226,6 +226,7 @@ class BitstampAccount(_Bitstamp, tulpenmanie.exchange.ExchangeAccount):
         if self._bitcoin_deposit_address:
             self.bitcoin_deposit_address_signal.emit(
                 self._bitcoin_deposit_address)
+            return self._bitcoin_deposit_address            
         else:
             BitstampBitcoinDepositAddressRequest(
                 self._bitcoin_deposit_address_url, self)

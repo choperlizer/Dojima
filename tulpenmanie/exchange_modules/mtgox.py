@@ -352,6 +352,8 @@ class MtgoxAccount(QtCore.QObject, _Mtgox, tulpenmanie.exchange.ExchangeAccount)
 
     def get_bitcoin_deposit_address(self):
         if self._bitcoin_deposit_address:
+            self.bitcoin_deposit_address_signal.emit(
+                self._bitcoin_deposit_address)
             return self._bitcoin_deposit_address
         else:
             MtgoxBitcoinDepositAddressRequest(self._bitcoin_address_url, self)

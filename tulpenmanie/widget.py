@@ -111,6 +111,7 @@ class CommoditySpinBox(QtGui.QDoubleSpinBox, CommodityWidgetBase):
         self.setSuffix(self.get_suffix())
         if self.precision:
             self.setDecimals(self.precision)
+            self.setSingleStep(1.0 / pow(10, self.precision))
 
 
 class BalanceLabel(QtGui.QLabel, CommodityWidgetBase):

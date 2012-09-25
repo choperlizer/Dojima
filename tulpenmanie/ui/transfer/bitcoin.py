@@ -210,7 +210,8 @@ class GetDepositAddressDialog(QtGui.QDialog):
     def _process_address(self, address):
         if tulpenmanie.bitcoin.validate_address(address) is None:
             self.address_view.setText(QtCore.QCoreApplication.translate(
-                "GetDepositAddressDialog", "received invalid address"))
+                "GetDepositAddressDialog", "received invalid address",
+                "try and make 34 characters or less in length."))
             return
 
         self.address_view.setText(address)
