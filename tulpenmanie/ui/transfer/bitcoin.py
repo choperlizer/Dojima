@@ -18,7 +18,6 @@ import logging
 from PyQt4 import QtCore, QtGui
 
 import tulpenmanie.bitcoin
-import tulpenmanie.translate
 
 
 class BitcoinDepositAction(QtGui.QAction):
@@ -26,7 +25,7 @@ class BitcoinDepositAction(QtGui.QAction):
     def __init__(self, parent):
         super(BitcoinDepositAction, self).__init__(
             QtCore.QCoreApplication.translate("BitcoinDepositAction",
-                                              "exchange &deposit addresses"),
+                                              "&deposit"),
                                               parent)
         self.triggered.connect(self._show_dialog)
 
@@ -49,7 +48,80 @@ class BitcoinTransferAction(QtGui.QAction):
         dialog.show()
 
 
-actions = (BitcoinDepositAction, BitcoinTransferAction,)
+class BitcoinWithdrawAction(QtGui.QAction):
+
+    def __init__(self, parent):
+        super(BitcoinWithdrawAction, self).__init__(
+            QtCore.QCoreApplication.translate("BitcoinWithdrawAction",
+                                              "&withdraw"),
+                                              parent)
+        self.triggered.connect(self._show_dialog)
+
+    def _show_dialog(self):
+        dialog = WithdrawDialog(self.parent())
+        dialog.show()
+
+actions = (BitcoinDepositAction, BitcoinTransferAction, BitcoinWithdrawAction)
+
+
+
+class GetDepositAddressDialog(QtGui.QDialog):
+
+    def __init__(self, parent):
+        super(GetDepositAddressDialog, self).__init__(parent)
+
+        self.exchange_combo = QtGui.QComboBox()
+        self.accounts = list()
+        self.request_button = QtGui.QPushButton(
+            QtCore.QCoreApplication.translate("GetDepositAddressDialog",
+                                              "get address"))
+        self.address_view = QtGui.QLineEdit()
+        self.address_view.setReadOnly(True)
+        self.address_view.setMinimumWidth(280)
+
+        button_box = QtGui.QDialogButtonBox()
+
+        layout = QtGui.QGridLayout()
+        layout.setColumnStretch(0, 1)
+        layout.addWidget(self.exchange_combo, 0,0)
+        layout.addWidget(self.request_button, 0,1)
+        layout.addWidget(self.address_view, 1,0, 1,2)
+        layout.addWidget(button_box, 2,0, 1,2)
+        self.setLayout(layout)
+
+        for exchange_name, exchange_dict in parent.exchanges.items():
+            if 'account' not in exchange_dict:
+                continue
+            account_object = exchange_dict['account']
+            if not account_object:
+                continue
+            if hasattr(account_object, 'get_bitcoin_deposit_address'):
+                self.exchange_combo.addItem(exchange_name)
+                self.accounts.append(account_object)
+
+        self.request_button.clicked.connect(self._request)
+        button_box.rejected.connect(self.reject)
+
+    def _request(self):
+        self.exchange_combo.setEnabled(False)
+        self.request_button.setEnabled(False)
+        self.address_view.clear()
+
+        index = self.exchange_combo.currentIndex()
+        account_obj = self.accounts[index]
+        account_obj.bitcoin_deposit_address_signal.connect(self._process_address)
+        account_obj.get_bitcoin_deposit_address()
+
+    def _process_address(self, address):
+        if not tulpenmanie.bitcoin.is_valid_address(address):
+            self.address_view.setText(QtCore.QCoreApplication.translate(
+                "GetDepositAddressDialog", "received invalid address",
+                "try and make 34 characters or less in length."))
+            return
+
+        self.address_view.setText(address)
+        self.exchange_combo.setEnabled(True)
+        self.request_button.setEnabled(True)
 
 
 class TransferDialog(QtGui.QDialog):
@@ -59,9 +131,7 @@ class TransferDialog(QtGui.QDialog):
 
         self.withdraw_combo = QtGui.QComboBox(self)
         self.deposit_combo = QtGui.QComboBox(self)
-        self.amount_spin = QtGui.QDoubleSpinBox(self)
-        self.amount_spin.setMaximum(21000000)
-        self.amount_spin.setDecimals(8)
+        self.amount_spin = tulpenmanie.widget.BitcoinSpin(self)
         self.log_view = QtGui.QPlainTextEdit(self)
         self.log_view.setReadOnly(True)
 
@@ -123,9 +193,9 @@ class TransferDialog(QtGui.QDialog):
     def _transfer(self):
         deposit_index = self.deposit_combo.currentIndex()
         deposit_account = self.deposit_accounts[deposit_index]
-        self.log_view.insertPlainText(str(QtCore.QCoreApplication.translate(
-            "BitcoinDialog", "requesting deposit address from %s... \n\t"))
-            % (self.deposit_combo.currentText()))
+        self.log_view.insertPlainText(QtCore.QCoreApplication.translate(
+            "BitcoinDialog", "requesting deposit address from %1... \n\t").arg(
+                self.deposit_combo.currentText()))
         deposit_account.bitcoin_deposit_address_signal.connect(
             self._receive_deposit_address)
         deposit_account.get_bitcoin_deposit_address()
@@ -133,16 +203,14 @@ class TransferDialog(QtGui.QDialog):
             widget.setEnabled(False)
 
     def _receive_deposit_address(self, address):
-        valid_version = tulpenmanie.bitcoin.validate_address(address)
-        if valid_version is None:
+        if not tulpenmanie.bitcoin.is_valid_address(address):
             self.log_view.appendPlainText(QtCore.QCoreApplication.translate(
                 "BitcoinDialog", "deposit address failed verification"))
             self._reset()
             return
 
-        self.log_view.appendPlainText(str(QtCore.QCoreApplication.translate(
-            "BitcoinDialog", "deposit address %s is a valid version %s address"))
-            % (address, valid_version))
+        self.log_view.appendPlainText(QtCore.QCoreApplication.translate(
+            "BitcoinDialog", "deposit address validated"))
         amount = self.amount_spin.value()
 
         withdraw_index = self.withdraw_combo.currentIndex()
@@ -160,28 +228,44 @@ class TransferDialog(QtGui.QDialog):
             widget.setEnabled(True)
 
 
-class GetDepositAddressDialog(QtGui.QDialog):
+class WithdrawDialog(QtGui.QDialog):
 
     def __init__(self, parent):
-        super(GetDepositAddressDialog, self).__init__(parent)
+        super(WithdrawDialog, self).__init__(parent)
 
         self.exchange_combo = QtGui.QComboBox()
         self.accounts = list()
-        self.request_button = QtGui.QPushButton(
-            QtCore.QCoreApplication.translate("GetDepositAddressDialog",
-                                              "request"))
-        self.address_view = QtGui.QLineEdit()
-        self.address_view.setReadOnly(True)
-        self.address_view.setMinimumWidth(280)
+        self.address_edit = QtGui.QLineEdit()
+        self.address_edit.setMinimumWidth(280)
+        self.address_edit.setPlaceholderText
+        self.amount_spin = tulpenmanie.widget.BitcoinSpin()
+        self.log_view = QtGui.QPlainTextEdit()
+        self.log_view.setReadOnly(True)
 
-        close_button_box = QtGui.QDialogButtonBox(QtGui.QDialogButtonBox.Close)
+        self.withdraw_button = QtGui.QPushButton(
+            QtCore.QCoreApplication.translate("WithdrawDialog",
+                                              "withdraw"))
+        button_box = QtGui.QDialogButtonBox()
+        button_box.addButton(self.withdraw_button,
+                             QtGui.QDialogButtonBox.ActionRole)
+        button_box.addButton(QtGui.QDialogButtonBox.Close)
 
-        layout = QtGui.QGridLayout()
-        layout.setColumnStretch(0, 1)
-        layout.addWidget(self.exchange_combo, 0,0)
-        layout.addWidget(self.request_button, 0,1)
-        layout.addWidget(self.address_view, 1,0, 1,2)
-        layout.addWidget(close_button_box, 2,0, 1,2)
+        self.input_widgets = (self.exchange_combo, self.address_edit,
+                              self.amount_spin, self.withdraw_button)
+
+        entry_layout = QtGui.QFormLayout()
+        entry_layout.addRow(QtCore.QCoreApplication.translate(
+            "WithdrawDialog", "destination address"),
+            self.address_edit)
+        entry_layout.addRow(QtCore.QCoreApplication.translate(
+            "WithdrawDialog", "amount"),
+            self.amount_spin)
+
+        layout = QtGui.QVBoxLayout()
+        layout.addWidget(self.exchange_combo)
+        layout.addLayout(entry_layout)
+        layout.addWidget(self.log_view)
+        layout.addWidget(button_box)
         self.setLayout(layout)
 
         for exchange_name, exchange_dict in parent.exchanges.items():
@@ -190,30 +274,38 @@ class GetDepositAddressDialog(QtGui.QDialog):
             account_object = exchange_dict['account']
             if not account_object:
                 continue
-            if hasattr(account_object, 'get_bitcoin_deposit_address'):
+            if hasattr(account_object, 'withdraw_bitcoin'):
                 self.exchange_combo.addItem(exchange_name)
                 self.accounts.append(account_object)
 
-        self.request_button.clicked.connect(self._request)
-        close_button_box.rejected.connect(self.reject)
+        self.withdraw_button.clicked.connect(self.withdraw)
+        button_box.rejected.connect(self.reject)
 
-    def _request(self):
-        self.exchange_combo.setEnabled(False)
-        self.request_button.setEnabled(False)
-        self.address_view.clear()
+    def withdraw(self):
+        for widget in self.input_widgets:
+            widget.setEnabled(False)
 
         index = self.exchange_combo.currentIndex()
         account_obj = self.accounts[index]
-        account_obj.bitcoin_deposit_address_signal.connect(self._process_address)
-        account_obj.get_bitcoin_deposit_address()
+        account_obj.withdraw_bitcoin_reply_signal.connect(self.receive_reply)
+        address = self.address_edit.text()
+        if tulpenmanie.bitcoin.is_valid_address(address):
+            amount = self.amount_spin.value()
+            account_obj.withdraw_bitcoin(address, amount)
+            self.log_view.appendPlainText(QtCore.QCoreApplication.translate(
+                "WithdrawDialog", "address validated"))
+            self.log_view.appendPlainText(QtCore.QCoreApplication.translate(
+                "WithdrawDialog", "requesting withdraw from %1...").arg(
+                    self.exchange_combo.currentText()))
+        else:
+            self.log_view.appendPlainText(QtCore.QCoreApplication.translate(
+                "WithdrawDialog", "address failed verification"))
+            self.reset()
 
-    def _process_address(self, address):
-        if tulpenmanie.bitcoin.validate_address(address) is None:
-            self.address_view.setText(QtCore.QCoreApplication.translate(
-                "GetDepositAddressDialog", "received invalid address",
-                "try and make 34 characters or less in length."))
-            return
+    def receive_reply(self, reply):
+        self.log_view.appendPlainText(reply)
+        self.reset()
 
-        self.address_view.setText(address)
-        self.exchange_combo.setEnabled(True)
-        self.request_button.setEnabled(True)
+    def reset(self):
+        for widget in self.input_widgets:
+            widget.setEnabled(True)

@@ -176,9 +176,14 @@ class ExchangeDockWidget(QtGui.QDockWidget, ErrorHandling):
         label_font.setPointSize(7)
 
         row = 0
-        for translation, stat in ((tulpenmanie.translate.best_ask, 'ask'),
-                                  (tulpenmanie.translate.last_price, 'last'),
-                                  (tulpenmanie.translate.best_bid, 'bid')):
+        for translation, stat in (
+            (QtCore.QCoreApplication.translate(
+                'ExchangeDockWidget', "ask", "best ask price"), 'ask'),
+            (QtCore.QCoreApplication.translate(
+                'ExchangeDockWidget', "last", "price of last trade"), 'last'),
+            (QtCore.QCoreApplication.translate(
+                'ExchangeDockWidget', "bid", "best bid price"), 'bid')):
+
             label = QtGui.QLabel(translation)
             label.setAlignment(QtCore.Qt.AlignRight)
             label.setFont(label_font)
@@ -278,15 +283,15 @@ class AccountWidget(QtGui.QWidget, ErrorHandling):
         self.ask_price_spin = tulpenmanie.widget.CommoditySpinBox(
             parent.counter_row)
         ask_button = QtGui.QPushButton(
-            QtCore.QCoreApplication.translate('exchange account widget',
-                                              'ask'))
+            QtCore.QCoreApplication.translate('AccountWidget', "ask",
+                                              "as in ask order"))
         ask_order_menu = QtGui.QMenu()
-        ask_limit_action = QtGui.QAction(QtCore.QCoreApplication.translate(
-            'exchange account widget', 'limit order'),
+        ask_limit_action = QtGui.QAction(
+            QtCore.QCoreApplication.translate('AccountWidget', "limit order"),
             ask_button)
         ask_limit_action.setEnabled(False)
-        ask_market_action = QtGui.QAction(QtCore.QCoreApplication.translate(
-            'exchange account widget', 'market order'),
+        ask_market_action = QtGui.QAction(
+            QtCore.QCoreApplication.translate('AccountWidget', "market order"),
             ask_button)
         ask_market_action.setEnabled(False)
         ask_order_menu.addAction(ask_limit_action)
@@ -306,14 +311,15 @@ class AccountWidget(QtGui.QWidget, ErrorHandling):
         self.bid_price_spin = tulpenmanie.widget.CommoditySpinBox(
             parent.counter_row)
         bid_button = QtGui.QPushButton(
-            QtCore.QCoreApplication.translate('exchange account widget', 'bid'))
+            QtCore.QCoreApplication.translate('AccountWidget', "bid",
+                                              "as in bid order"))
         bid_order_menu = QtGui.QMenu()
-        bid_limit_action = QtGui.QAction(QtCore.QCoreApplication.translate(
-            'exchange account widget', 'limit order'),
+        bid_limit_action = QtGui.QAction(
+            QtCore.QCoreApplication.translate('AccountWidget', "limit order"),
             bid_button)
         bid_limit_action.setEnabled(False)
-        bid_market_action = QtGui.QAction(QtCore.QCoreApplication.translate(
-            'exchange account widget', 'market order'),
+        bid_market_action = QtGui.QAction(
+            QtCore.QCoreApplication.translate('AccountWidget', "market order"),
             bid_button)
         bid_market_action.setEnabled(False)
         bid_order_menu.addAction(bid_limit_action)
@@ -353,7 +359,7 @@ class AccountWidget(QtGui.QWidget, ErrorHandling):
 
         refresh_balance_button = QtGui.QPushButton("balance")
         refresh_balance_button.setToolTip(QtCore.QCoreApplication.translate(
-            "exchange account widget", "refresh balance information"))
+            "AccountWidget", "refresh account balances"))
         balance_layout = QtGui.QHBoxLayout()
         base_balance_label = tulpenmanie.widget.BalanceLabel(parent.base_row)
         counter_balance_label = tulpenmanie.widget.BalanceLabel(parent.counter_row)

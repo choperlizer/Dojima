@@ -22,7 +22,6 @@ import tulpenmanie.market
 import tulpenmanie.exchange
 #This next import registers providers with the former module
 from tulpenmanie.exchange_modules import *
-import tulpenmanie.translate
 import tulpenmanie.ui.exchange
 import tulpenmanie.ui.edit
 import tulpenmanie.ui.transfer.bitcoin
@@ -39,17 +38,18 @@ class MainWindow(QtGui.QMainWindow):
         tulpenmanie.exchange.create_exchanges_model(self)
 
         edit_definitions_action = QtGui.QAction(
-            QtCore.QCoreApplication.translate("main window options menu",
-                                              "markets and exchanges"),
+            QtCore.QCoreApplication.translate("MainWindow",
+                                              "&markets and exchanges"),
             self, triggered=self._edit_definitions)
 
-        self.markets_menu = QtGui.QMenu(QtCore.QCoreApplication.translate(
-                                        "MainWindow", "&market"), self)
+        self.markets_menu = QtGui.QMenu(
+            QtCore.QCoreApplication.translate("MainWindow", "&market"), self)
         self.menuBar().addMenu(self.markets_menu)
 
-        transfer_menu = QtGui.QMenu(QtCore.QCoreApplication.translate(
-            "transfer menu title", "&transfer"), self)
-        bitcoin_menu = QtGui.QMenu(tulpenmanie.translate.bitcoin, self)
+        transfer_menu = QtGui.QMenu(
+            QtCore.QCoreApplication.translate("MainWindow", "&transfer"), self)
+        bitcoin_menu = QtGui.QMenu(
+            QtCore.QCoreApplication.translate("MainWindow", "&bitcoin"), self)
         for Action in tulpenmanie.ui.transfer.bitcoin.actions:
             action = Action(self)
             bitcoin_menu.addAction(action)
@@ -57,7 +57,7 @@ class MainWindow(QtGui.QMainWindow):
         self.menuBar().addMenu(transfer_menu)
 
         options_menu = QtGui.QMenu(QtCore.QCoreApplication.translate(
-            "options menu title", "&options"), self)
+            "MainWindow", "&options"), self)
         options_menu.addAction(edit_definitions_action)
         self.menuBar().addMenu(options_menu)
 

@@ -26,7 +26,6 @@ from PyQt4 import QtCore, QtGui, QtNetwork
 
 import tulpenmanie.exchange
 import tulpenmanie.providers
-import tulpenmanie.translate
 import tulpenmanie.orders
 
 

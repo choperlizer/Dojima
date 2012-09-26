@@ -50,20 +50,20 @@ def b58decode(v, length):
     return result
 
 
-def validate_address(address_string):
+def is_valid_address(address_string):
     if re.match(r'[1-9A-Za-z]{27,35}$', address_string) is None:
-        return None
+        return False
 
     address = b58decode(address_string, 25)
     if address is None:
-        return None
+        return False
 
     version = address[0]
     checksum = address[-4:]
     vh160 = address[:-4] # Version plus hash160 is what is checksummed
 
     h3 = hashlib.sha256( hashlib.sha256(vh160).digest() ).digest()
-    if h3[0:4] != checksum:
-        return None
+    if h3[0:4] == checksum:
+        return True
 
-    return ord(version)
+    return False

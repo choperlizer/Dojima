@@ -30,23 +30,12 @@ import tulpenmanie.network
 
 logger = logging.getLogger(__name__)
 
-
 EXCHANGE_NAME = "BTC-e"
 COMMODITIES = ( 'btc', 'ltc', 'nmc', 'rur', 'usd' )
 HOSTNAME = "btc-e.com"
 _PUBLIC_BASE_URL = "https://" + HOSTNAME + "/api/2/"
 _PRIVATE_URL = "https://" + HOSTNAME + "/tapi"
 
-
-
-class BtceError(Exception):
-
-    def __init__(self, value):
-        self.value = value
-    def __str__(self):
-        error_msg= repr(self.value)
-        logger.error(error_msg)
-        return error_msg
 
 class BtceRequest(QtCore.QObject):
 

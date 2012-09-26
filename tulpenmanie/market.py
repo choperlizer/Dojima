@@ -19,7 +19,6 @@ from PyQt4 import QtCore, QtGui
 
 import tulpenmanie.model.base
 import tulpenmanie.commodity
-import tulpenmanie.translate
 from tulpenmanie.widget import UuidComboBox
 
 logger = logging.getLogger(__name__)

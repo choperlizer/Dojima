@@ -250,7 +250,7 @@ class MtgoxAccount(QtCore.QObject, _Mtgox, tulpenmanie.exchange.ExchangeAccount)
     BTCUSD_ready_signal = QtCore.pyqtSignal(bool)
 
     bitcoin_deposit_address_signal = QtCore.pyqtSignal(str)
-    withdraw_bitcoin_reply_signal = QtCore.pyqtSignal(str)
+    #withdraw_bitcoin_reply_signal = QtCore.pyqtSignal(str)
 
     _currency_url = QtCore.QUrl(_BASE_URL + "generic/currency")
     _info_url = QtCore.QUrl(_BASE_URL + "generic/private/info")
@@ -258,6 +258,8 @@ class MtgoxAccount(QtCore.QObject, _Mtgox, tulpenmanie.exchange.ExchangeAccount)
     _cancel_order_url = QtCore.QUrl("https://" + HOSTNAME +
                                    "/api/0/cancelOrder.php")
     _bitcoin_address_url = QtCore.QUrl(_BASE_URL + "generic/bitcoin/address")
+    #_withdraw_bitcoin_url = QtCore.QUrl('https://' + HOSTNAME +
+    #                                   '/api/0/withdraw.php')
 
     multipliers = dict()
 
@@ -357,8 +359,13 @@ class MtgoxAccount(QtCore.QObject, _Mtgox, tulpenmanie.exchange.ExchangeAccount)
             return self._bitcoin_deposit_address
         else:
             MtgoxBitcoinDepositAddressRequest(self._bitcoin_address_url, self)
-
-
+    """
+    def withdraw_bitcoin(self, address, amount):
+        data = {'query':
+                {'btca': address,
+                 'amount': amount}}
+        MtgoxWithdrawBitcoinRequest(self._withdraw_bitcoin_url, self, data)
+    """
 class MtgoxPrivateRequest(_MtgoxRequest):
     priority = 1
     host_priority = 0
@@ -449,7 +456,8 @@ class MtgoxPlaceOrderRequest(MtgoxPrivateRequest):
             if price:
                 counter_signal.emit(-decimal.Decimal(amount * price))
             else:
-                price = tulpenmanie.translate.market_order_type
+                price = QtCore.QCoreApplication.translate(
+                    'MtgoxPlaceOrderRequest', "market", "at market price")
             self.parent.bid_orders[pair].append_order(order_id, price, amount)
 
 
@@ -475,7 +483,16 @@ class MtgoxBitcoinDepositAddressRequest(MtgoxPrivateRequest):
         address = data['return']['addr']
         self.parent._bitcoin_deposit_address = address
         self.parent.bitcoin_deposit_address_signal.emit(address)
+"""
+class MtgoxWithdrawBitcoinRequest(MtgoxPrivateRequest):
+    priority = 2
 
+    def _handle_reply(self, raw):
+        logger.debug(raw)
+        data = json.loads(raw)
+
+        self.parent.withdraw_bitcoin_reply_signal.emit(str(data))
+"""
 
 tulpenmanie.exchange.register_exchange(MtgoxExchange)
 tulpenmanie.exchange.register_account(MtgoxAccount)

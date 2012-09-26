@@ -172,3 +172,11 @@ class UuidComboBox(QtGui.QComboBox):
             self.setCurrentIndex(-1)
 
     currentUuid = pyqtProperty(str, _get_current_uuid, _set_current_uuid)
+
+
+class BitcoinSpin(QtGui.QDoubleSpinBox):
+
+    def __init__(self, parent=None):
+        super(BitcoinSpin, self).__init__(parent)
+        self.setMaximum(21000000)
+        self.setDecimals(8)

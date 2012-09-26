@@ -21,7 +21,6 @@ import logging
 from PyQt4 import QtCore, QtGui, QtNetwork
 
 import tulpenmanie.exchange
-import tulpenmanie.translate
 import tulpenmanie.orders
 
 
@@ -284,7 +283,8 @@ class CampbxTradeRequest(_CampbxRequest):
                 self.parent.bid_orders_model.append_order(order_id,
                                                           price, amount)
             if price == 'Market':
-                price = tulpenmanie.translate.market_order_type
+                price = QtCore.QCoreApplication.translate(
+                    'CampbxTradeRequest', "market", "at market price")
             else:
                 self.parent.USD_balance_changed_signal.emit(
                     -(decimal.Decimal(data['Quantity']) *

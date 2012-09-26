@@ -19,7 +19,6 @@ from PyQt4 import QtCore, QtGui
 
 import tulpenmanie.market
 import tulpenmanie.commodity
-import tulpenmanie.translate
 from tulpenmanie.widget import UuidComboBox
 
 
@@ -34,15 +33,21 @@ class EditWidget(QtGui.QWidget):
         self.list_view = QtGui.QListView()
         self.base_combo = UuidComboBox()
         self.counter_combo = UuidComboBox()
-        new_button = QtGui.QPushButton(tulpenmanie.translate.new)
-        delete_button = QtGui.QPushButton(tulpenmanie.translate.remove)
+        new_button = QtGui.QPushButton(
+            QtCore.QCoreApplication.translate('EditWidget', "new"))
+        delete_button = QtGui.QPushButton(
+            QtCore.QCoreApplication.translate('EditWidget', "remove"))
 
         layout = QtGui.QGridLayout()
         layout.addWidget(self.list_view, 0,0, 2,1)
 
         combo_layout = QtGui.QFormLayout()
-        combo_layout.addRow(tulpenmanie.translate.base, self.base_combo)
-        combo_layout.addRow(tulpenmanie.translate.counter, self.counter_combo)
+        combo_layout.addRow(
+            QtCore.QCoreApplication.translate('EditWidget', "base"),
+            self.base_combo)
+        combo_layout.addRow(
+            QtCore.QCoreApplication.translate('EditWidget', "counter"),
+            self.counter_combo)
 
         layout.addLayout(combo_layout, 0,1, 1,2)
         layout.addWidget(new_button, 1,1)

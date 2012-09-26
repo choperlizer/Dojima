@@ -23,7 +23,6 @@ from PyQt4 import QtCore, QtGui, QtNetwork
 import tulpenmanie.exchange
 import tulpenmanie.network
 import tulpenmanie.orders
-import tulpenmanie.translate
 
 
 logger = logging.getLogger(__name__)

@@ -20,7 +20,7 @@ from PyQt4 import QtCore, QtGui
 
 import tulpenmanie.model.base
 import tulpenmanie.market
-import tulpenmanie.translate
+
 
 logger = logging.getLogger(__name__)
 
@@ -44,8 +44,10 @@ class _CommoditiesModel(tulpenmanie.model.base.FlatSettingsModel):
         search_static = self.findItems(self.BITCOIN_UUID,
                                 QtCore.Qt.MatchExactly,
                                 self.UUID)
+        bitcoin_string = QtCore.QCoreApplication.translate('CommoditiesModel',
+                                                           "Bitcoin")
         if not search_static:
-            search_existing = self.findItems(tulpenmanie.translate.bitcoin,
+            search_existing = self.findItems(bitcoin_string,
                                              QtCore.Qt.MatchFixedString,
                                              self.NAME)
             for item in search_existing:
@@ -54,7 +56,7 @@ class _CommoditiesModel(tulpenmanie.model.base.FlatSettingsModel):
                     "commodities", " (user defined)"))
 
             items = [QtGui.QStandardItem(self.BITCOIN_UUID),
-                     QtGui.QStandardItem(tulpenmanie.translate.bitcoin),
+                     QtGui.QStandardItem(bitcoin_string),
                      QtGui.QStandardItem(),
                      QtGui.QStandardItem(),
                      QtGui.QStandardItem('8')]
