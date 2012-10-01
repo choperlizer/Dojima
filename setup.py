@@ -1,8 +1,8 @@
 from distutils.core import setup
 
 setup(name='tulpenmanie',
-      version='0.5.0',
-      description='Graphical commodity market client.',
+      version='0.6.0',
+      description='Graphical speculation platform',
       url='https://github.com/3M3RY/tulpenmanie',
       author='Emery Hemingway',
       author_email='tulpenmanie@emery.neomailbox.net',

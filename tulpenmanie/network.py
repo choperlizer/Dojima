@@ -1,4 +1,4 @@
-# Tulpenmanie, a commodities market client.
+# Tulpenmanie, a graphical speculation platform.
 # Copyright (C) 2012  Emery Hemingway
 #
 # This program is free software: you can redistribute it and/or modify
@@ -95,7 +95,7 @@ class NetworkRequest(QtNetwork.QNetworkRequest):
         super(NetworkRequest, self).__init__(url)
         # BAD hardcoding
         # TODO get this from QApplication
-        self.setRawHeader("User-Agent", "tulpenmanie/0.5.0")
+        self.setRawHeader("User-Agent", "tulpenmanie/0.6.0")
 
 
 class ExchangeRequest(object):

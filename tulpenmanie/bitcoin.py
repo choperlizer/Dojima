@@ -1,4 +1,4 @@
-# Tulpenmanie, a commodities market client.
+# Tulpenmanie, a graphical speculation platform.
 # Copyright (C) 2012  Emery Hemingway
 #
 # The code herein is nearly verbatim work released into

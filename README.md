@@ -1,5 +1,5 @@
 # Tulpenmanie
-A commodities market client in PyQt4
+A graphical speculation platform in PyQt4
 
 ## Supported Markets
  - [Bitstamp](https://www.bitstamp.net/)
