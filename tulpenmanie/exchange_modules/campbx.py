@@ -147,8 +147,10 @@ class CampbxAccount(_Campbx, tulpenmanie.exchange.ExchangeAccount):
     _getbtcaddr_url = QtCore.QUrl(_BASE_URL + "getbtcaddr.php")
     _sendbtc_url = QtCore.QUrl(_BASE_URL + "sendbtc.php")
 
-    BTC_balance_signal = QtCore.pyqtSignal(decimal.Decimal)
-    USD_balance_signal = QtCore.pyqtSignal(decimal.Decimal)
+    trade_commission_signal = QtCore.pyqtSignal(decimal.Decimal)
+    
+    BTC_funds_signal = QtCore.pyqtSignal(decimal.Decimal)
+    USD_funds_signal = QtCore.pyqtSignal(decimal.Decimal)
 
     BTC_balance_changed_signal = QtCore.pyqtSignal(decimal.Decimal)
     USD_balance_changed_signal = QtCore.pyqtSignal(decimal.Decimal)
@@ -243,8 +245,8 @@ class CampbxAccount(_Campbx, tulpenmanie.exchange.ExchangeAccount):
 
 class CampbxFundsRequest(_CampbxRequest):
     def _handle_reply(self, data):
-        self.parent.BTC_balance_signal.emit(decimal.Decimal(data['Liquid BTC']))
-        self.parent.USD_balance_signal.emit(decimal.Decimal(data['Liquid USD']))
+        self.parent.BTC_funds_signal.emit(decimal.Decimal(data['Liquid BTC']))
+        self.parent.USD_funds_signal.emit(decimal.Decimal(data['Liquid USD']))
 
 class CampbxOrdersRequest(_CampbxRequest):
     def _handle_reply(self, data):

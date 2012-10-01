@@ -187,11 +187,13 @@ class BtceAccount(_Btce, tulpenmanie.exchange.ExchangeAccount):
     # BAD rudunant
     markets = ( 'btc_usd', 'btc_rur', 'ltc_btc', 'nmc_btc', 'usd_rur' )
 
-    btc_balance_signal = QtCore.pyqtSignal(decimal.Decimal)
-    ltc_balance_signal = QtCore.pyqtSignal(decimal.Decimal)
-    nmc_balance_signal = QtCore.pyqtSignal(decimal.Decimal)
-    rur_balance_signal = QtCore.pyqtSignal(decimal.Decimal)
-    usd_balance_signal = QtCore.pyqtSignal(decimal.Decimal)
+    trade_commission_signal = QtCore.pyqtSignal(decimal.Decimal)
+    
+    btc_funds_signal = QtCore.pyqtSignal(decimal.Decimal)
+    ltc_funds_signal = QtCore.pyqtSignal(decimal.Decimal)
+    nmc_funds_signal = QtCore.pyqtSignal(decimal.Decimal)
+    rur_funds_signal = QtCore.pyqtSignal(decimal.Decimal)
+    usd_funds_signal = QtCore.pyqtSignal(decimal.Decimal)
 
     btc_usd_ready_signal = QtCore.pyqtSignal(bool)
     btc_rur_ready_signal = QtCore.pyqtSignal(bool)
@@ -317,7 +319,7 @@ class BtceAccount(_Btce, tulpenmanie.exchange.ExchangeAccount):
 
     def _emit_funds(self, data):
         for commodity, balance in data.items():
-            signal = getattr(self, commodity + '_balance_signal', None)
+            signal = getattr(self, commodity + '_funds_signal', None)
             if signal:
                 signal.emit(decimal.Decimal(balance))
             else:

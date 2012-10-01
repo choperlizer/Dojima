@@ -159,8 +159,8 @@ class BitstampAccount(_Bitstamp, tulpenmanie.exchange.ExchangeAccount):
     _buy_limit_url = QtCore.QUrl(_BASE_URL + 'buy/')
     _sell_limit_url = QtCore.QUrl(_BASE_URL + 'sell/')
 
-    BTC_balance_signal = QtCore.pyqtSignal(decimal.Decimal)
-    USD_balance_signal = QtCore.pyqtSignal(decimal.Decimal)
+    BTC_funds_signal = QtCore.pyqtSignal(decimal.Decimal)
+    USD_funds_signal = QtCore.pyqtSignal(decimal.Decimal)
 
     BTC_balance_changed_signal = QtCore.pyqtSignal(decimal.Decimal)
     USD_balance_changed_signal = QtCore.pyqtSignal(decimal.Decimal)
@@ -206,8 +206,8 @@ class BitstampAccount(_Bitstamp, tulpenmanie.exchange.ExchangeAccount):
 
     def _balance_handler(self, data):
         #TODO maybe not emit 'Total' but rather available
-        self.BTC_balance_signal.emit(decimal.Decimal(data['btc_available']))
-        self.USD_balance_signal.emit(decimal.Decimal(data['usd_available']))
+        self.BTC_funds_signal.emit(decimal.Decimal(data['btc_available']))
+        self.USD_funds_signal.emit(decimal.Decimal(data['usd_available']))
 
     def refresh_orders(self):
         request = BitstampPOSTRequest(self._open_orders_url,

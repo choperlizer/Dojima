@@ -90,6 +90,7 @@ class MtgoxExchange(QtCore.QObject, _Mtgox):
     last_signal = QtCore.pyqtSignal(decimal.Decimal)
     bid_signal = QtCore.pyqtSignal(decimal.Decimal)
     trades_signal = QtCore.pyqtSignal(tuple)
+    depth_signal = QtCore.pyqtSignal(tuple)
 
     def __init__(self, remote_market, network_manager=None, parent=None):
         if not network_manager:
@@ -136,42 +137,32 @@ class MtgoxTradesRequest(MtgoxPublicRequest):
         self.dates = list()
         self.prices = list()
         self.amounts = list()
-        json.loads(raw, object_hook=self._object_hook)
 
+        json.loads(raw, object_hook=self._object_hook)
         self.parent.trades_signal.emit( (self.dates, self.prices, self.amounts) )
 
     def _object_hook(self, dict_):
-        if 'return' in dict_:
+        try:
+            self.dates.append(int(dict_[u'date']))
+            self.prices.append(float(dict_[u'price']))
+            self.amounts.append(float(dict_[u'amount']))
+        except KeyError:
             return
-
-        self.dates.append(int(dict_[u'date']))
-        self.prices.append(float(dict_[u'price']))
-        self.amounts.append(float(dict_[u'amount']))
 
 
 class MtgoxDepthRequest(MtgoxPublicRequest):
 
     def _handle_reply(self, raw):
         data = json.loads(raw, object_hook=self._object_hook)
-        f = file('/tmp/depth_tuples.pickle', 'wb')
-        import pickle
-        pickle.dump(data, f)
-        f.close
+        data = data['return']
+        data = (data['asks'], data['bids'])
         self.parent.depth_signal.emit(data)
 
     def _object_hook(self, dict_):
-        if 'currency' in dict_:
-            return None
-        if 'asks' in dict_:
-            return (dict_['asks'], dict_['bids'])
-        if 'return' in dict_:
-            return dict_['return']
-
-        else:
-            price = float(dict_['price'])
-            amount = float(dict_['amount'])
-            return (price, amount)
-
+        try:
+            return ( float(dict_['price']), float(dict_['amount']))
+        except KeyError:
+            return dict_
 
 
 class MtgoxCurrencyRequest(MtgoxPublicRequest):
@@ -196,23 +187,25 @@ class MtgoxAccount(QtCore.QObject, _Mtgox, tulpenmanie.exchange.ExchangeAccount)
                 'BTCPLN', 'BTCRUB', 'BTCSEK', 'BTCSGD', 'BTCTHB',
                 'BTCUSD' )
 
-    AUD_balance_signal = QtCore.pyqtSignal(decimal.Decimal)
-    BTC_balance_signal = QtCore.pyqtSignal(decimal.Decimal)
-    CAD_balance_signal = QtCore.pyqtSignal(decimal.Decimal)
-    CHF_balance_signal = QtCore.pyqtSignal(decimal.Decimal)
-    CNY_balance_signal = QtCore.pyqtSignal(decimal.Decimal)
-    DKK_balance_signal = QtCore.pyqtSignal(decimal.Decimal)
-    EUR_balance_signal = QtCore.pyqtSignal(decimal.Decimal)
-    GBP_balance_signal = QtCore.pyqtSignal(decimal.Decimal)
-    HKD_balance_signal = QtCore.pyqtSignal(decimal.Decimal)
-    JPY_balance_signal = QtCore.pyqtSignal(decimal.Decimal)
-    NZD_balance_signal = QtCore.pyqtSignal(decimal.Decimal)
-    PLN_balance_signal = QtCore.pyqtSignal(decimal.Decimal)
-    RUB_balance_signal = QtCore.pyqtSignal(decimal.Decimal)
-    SEK_balance_signal = QtCore.pyqtSignal(decimal.Decimal)
-    SGD_balance_signal = QtCore.pyqtSignal(decimal.Decimal)
-    THB_balance_signal = QtCore.pyqtSignal(decimal.Decimal)
-    USD_balance_signal = QtCore.pyqtSignal(decimal.Decimal)
+    trade_commission_signal = QtCore.pyqtSignal(decimal.Decimal)
+    
+    AUD_funds_signal = QtCore.pyqtSignal(decimal.Decimal)
+    BTC_funds_signal = QtCore.pyqtSignal(decimal.Decimal)
+    CAD_funds_signal = QtCore.pyqtSignal(decimal.Decimal)
+    CHF_funds_signal = QtCore.pyqtSignal(decimal.Decimal)
+    CNY_funds_signal = QtCore.pyqtSignal(decimal.Decimal)
+    DKK_funds_signal = QtCore.pyqtSignal(decimal.Decimal)
+    EUR_funds_signal = QtCore.pyqtSignal(decimal.Decimal)
+    GBP_funds_signal = QtCore.pyqtSignal(decimal.Decimal)
+    HKD_funds_signal = QtCore.pyqtSignal(decimal.Decimal)
+    JPY_funds_signal = QtCore.pyqtSignal(decimal.Decimal)
+    NZD_funds_signal = QtCore.pyqtSignal(decimal.Decimal)
+    PLN_funds_signal = QtCore.pyqtSignal(decimal.Decimal)
+    RUB_funds_signal = QtCore.pyqtSignal(decimal.Decimal)
+    SEK_funds_signal = QtCore.pyqtSignal(decimal.Decimal)
+    SGD_funds_signal = QtCore.pyqtSignal(decimal.Decimal)
+    THB_funds_signal = QtCore.pyqtSignal(decimal.Decimal)
+    USD_funds_signal = QtCore.pyqtSignal(decimal.Decimal)
 
     AUD_balance_changed_signal = QtCore.pyqtSignal(decimal.Decimal)
     BTC_balance_changed_signal = QtCore.pyqtSignal(decimal.Decimal)
@@ -325,11 +318,9 @@ class MtgoxAccount(QtCore.QObject, _Mtgox, tulpenmanie.exchange.ExchangeAccount)
 
     def _place_order(self, remote_pair, order_type, amount, price=None):
         counter = remote_pair[-3:]
-        amount = decimal.Decimal(amount)
         query_data = {'type': order_type,
                       'amount_int': int(amount * self.multipliers['BTC'])}
         if price:
-            price = decimal.Decimal(price)
             query_data['price_int'] = int(price * self.multipliers[counter])
 
         data = {'pair': remote_pair, 'amount':amount, 'price':price,
@@ -395,7 +386,7 @@ class MtgoxInfoRequest(MtgoxPrivateRequest):
     def _handle_reply(self, raw):
         data = json.loads(raw, object_hook=_object_hook)
         for symbol, dict_ in data['return']['Wallets'].items():
-            signal = getattr(self.parent, symbol + '_balance_signal', None)
+            signal = getattr(self.parent, symbol + '_funds_signal', None)
             if signal:
                 balance = dict_['Balance'] -  dict_['Open_Orders']
                 signal.emit(balance)

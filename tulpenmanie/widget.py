@@ -14,6 +14,8 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+import decimal
+
 from PyQt4 import QtCore, QtGui
 from PyQt4.QtCore import pyqtProperty
 
@@ -113,14 +115,17 @@ class CommoditySpinBox(QtGui.QDoubleSpinBox, CommodityWidgetBase):
             self.setDecimals(self.precision)
             self.setSingleStep(1.0 / pow(10, self.precision))
 
+    def decimal_value(self):
+        return decimal.Decimal(str(self.cleanText()))
 
-class BalanceLabel(QtGui.QLabel, CommodityWidgetBase):
+
+class FundsLabel(QtGui.QLabel, CommodityWidgetBase):
     steady_style = 'color : black'
     increase_style = 'color : green'
     decrease_style = 'color : red'
 
     def __init__(self, commodity_row, parent=None):
-        super(BalanceLabel, self).__init__(parent)
+        super(FundsLabel, self).__init__(parent)
         self.commodity_row = commodity_row
         self.value = None
         self.estimated = True

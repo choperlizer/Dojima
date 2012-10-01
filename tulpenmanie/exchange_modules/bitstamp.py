@@ -133,8 +133,10 @@ class BitstampAccount(_Bitstamp, tulpenmanie.exchange.ExchangeAccount):
 
     exchange_error_signal = QtCore.pyqtSignal(str)
 
-    BTC_balance_signal = QtCore.pyqtSignal(decimal.Decimal)
-    USD_balance_signal = QtCore.pyqtSignal(decimal.Decimal)
+    trade_commission_signal = QtCore.pyqtSignal(decimal.Decimal)
+    
+    BTC_funds_signal = QtCore.pyqtSignal(decimal.Decimal)
+    USD_funds_signal = QtCore.pyqtSignal(decimal.Decimal)
 
     BTC_balance_changed_signal = QtCore.pyqtSignal(decimal.Decimal)
     USD_balance_changed_signal = QtCore.pyqtSignal(decimal.Decimal)
@@ -258,9 +260,9 @@ class BitstampBalanceRequest(BitstampPrivateRequest):
     def _handle_reply(self, raw):
         logger.debug(raw)
         data = json.loads(raw)
-        self.parent.BTC_balance_signal.emit(
+        self.parent.BTC_funds_signal.emit(
             decimal.Decimal(data['btc_available']))
-        self.parent.USD_balance_signal.emit(
+        self.parent.USD_funds_signal.emit(
             decimal.Decimal(data['usd_available']))
 
 

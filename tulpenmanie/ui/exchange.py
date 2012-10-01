@@ -14,6 +14,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+import decimal
 import logging
 from PyQt4 import QtCore, QtGui
 
@@ -259,7 +260,7 @@ class ExchangeDockWidget(QtGui.QDockWidget, ErrorHandling):
 
 class AccountWidget(QtGui.QWidget, ErrorHandling):
 
-    #TODO balance signals should connect to multiple account widgets,
+    #TODO funds signals should connect to multiple account widgets,
     # where accounts and commodities are the same
 
     def __init__(self, account_object, remote_pair, parent):
@@ -273,18 +274,65 @@ class AccountWidget(QtGui.QWidget, ErrorHandling):
         # Data
         self.account = account_object
 
+        self.commission_multiplier = 1
+
         # Create UI
-        # TODO
-        # make a parent widget to hold ask stuff and handle the enter-key
-        ask_widget = QtGui.QWidget(self)
-        ask_layout = QtGui.QGridLayout()
-        self.ask_amount_spin = tulpenmanie.widget.CommoditySpinBox(
+        layout = QtGui.QGridLayout()
+
+        base_funds_label = tulpenmanie.widget.FundsLabel(
             parent.base_row)
+        counter_funds_label = tulpenmanie.widget.FundsLabel(
+            parent.counter_row)
+
+        refresh_funds_action = QtGui.QAction(
+            QtCore.QCoreApplication.translate('AccountWidget',
+                                              "&refresh funds"),
+            self, triggered=self.account.refresh_funds)
+
+        funds_font = QtGui.QFont()
+        funds_font.setPointSize(13)
+        for label in base_funds_label, counter_funds_label:
+            label.setAlignment(QtCore.Qt.AlignHCenter)
+            label.setFont(funds_font)
+            label.setContextMenuPolicy(QtCore.Qt.ActionsContextMenu)
+            label.addAction(refresh_funds_action)
+
+        layout.addWidget(base_funds_label, 0,0, 1,3)
+        layout.addWidget(counter_funds_label, 0,3, 1,3)
+
+        self.ask_base_amount_spin = tulpenmanie.widget.CommoditySpinBox(
+            parent.base_row)
+        self.ask_base_amount_spin.editingFinished.connect(
+            self.change_ask_counter_amount)
+        self.bid_base_amount_spin = tulpenmanie.widget.CommoditySpinBox(
+            parent.base_row)
+        self.bid_base_amount_spin.editingFinished.connect(
+            self.change_bid_counter_amount)
+
         self.ask_price_spin = tulpenmanie.widget.CommoditySpinBox(
             parent.counter_row)
+        self.ask_price_spin.editingFinished.connect(
+            self.change_ask_counter_amount)
+        self.bid_price_spin = tulpenmanie.widget.CommoditySpinBox(
+            parent.counter_row)
+        self.bid_price_spin.editingFinished.connect(
+            self.change_bid_counter_amount)
+
+        self.ask_counter_amount_spin = tulpenmanie.widget.CommoditySpinBox(
+            parent.counter_row)
+        self.ask_counter_amount_spin.valueChanged.connect(
+            self.ask_counter_amount_changed)
+        self.bid_counter_amount_spin = tulpenmanie.widget.CommoditySpinBox(
+            parent.counter_row)
+        self.bid_counter_amount_spin.valueChanged.connect(
+            self.bid_counter_amount_changed)
+
         ask_button = QtGui.QPushButton(
-            QtCore.QCoreApplication.translate('AccountWidget', "ask",
+            QtCore.QCoreApplication.translate('AccountWidget', "&ask",
                                               "as in ask order"))
+        bid_button = QtGui.QPushButton(
+            QtCore.QCoreApplication.translate('AccountWidget', "&bid",
+                                              "as in bid order"))
         ask_order_menu = QtGui.QMenu()
         ask_limit_action = QtGui.QAction(
             QtCore.QCoreApplication.translate('AccountWidget', "limit order"),
@@ -299,20 +347,6 @@ class AccountWidget(QtGui.QWidget, ErrorHandling):
         ask_order_menu.setDefaultAction(ask_limit_action)
         ask_button.setMenu(ask_order_menu)
 
-        ask_layout.addWidget(self.ask_amount_spin, 0,0)
-        ask_layout.addWidget(self.ask_price_spin, 0,1)
-        ask_layout.addWidget(ask_button, 1,0, 1,2)
-        ask_widget.setLayout(ask_layout)
-
-        bid_widget = QtGui.QWidget(self)
-        bid_layout = QtGui.QGridLayout()
-        self.bid_amount_spin = tulpenmanie.widget.CommoditySpinBox(
-            parent.base_row)
-        self.bid_price_spin = tulpenmanie.widget.CommoditySpinBox(
-            parent.counter_row)
-        bid_button = QtGui.QPushButton(
-            QtCore.QCoreApplication.translate('AccountWidget', "bid",
-                                              "as in bid order"))
         bid_order_menu = QtGui.QMenu()
         bid_limit_action = QtGui.QAction(
             QtCore.QCoreApplication.translate('AccountWidget', "limit order"),
@@ -326,13 +360,25 @@ class AccountWidget(QtGui.QWidget, ErrorHandling):
         bid_order_menu.addAction(bid_market_action)
         bid_order_menu.setDefaultAction(bid_limit_action)
         bid_button.setMenu(bid_order_menu)
-        bid_layout.addWidget(self.bid_amount_spin, 0,0)
-        bid_layout.addWidget(self.bid_price_spin, 0,1)
-        bid_layout.addWidget(bid_button, 1,0, 1,2)
-        bid_widget.setLayout(bid_layout)
 
-        for spin in (self.ask_amount_spin, self.ask_price_spin,
-                     self.bid_amount_spin, self.bid_price_spin):
+        at_seperator = QtCore.QCoreApplication.translate('AccountWidget',
+                                                         "@", "amount @ price")
+
+        layout.addWidget(self.ask_base_amount_spin, 1,0)
+        layout.addWidget(QtGui.QLabel(at_seperator), 1,1)
+        layout.addWidget(self.ask_price_spin, 1,2)
+        layout.addWidget(self.ask_counter_amount_spin, 2,0)
+        layout.addWidget(ask_button, 2,1, 1,2)
+
+        layout.addWidget(self.bid_base_amount_spin, 1,3)
+        layout.addWidget(QtGui.QLabel(at_seperator), 1,4)
+        layout.addWidget(self.bid_price_spin, 1,5)
+        layout.addWidget(self.bid_counter_amount_spin, 2,3)
+        layout.addWidget(bid_button, 2,4, 1,2)
+
+        for spin in (self.ask_base_amount_spin, self.bid_base_amount_spin,
+                     self.ask_price_spin,self.bid_price_spin,
+                     self.ask_counter_amount_spin, self.bid_counter_amount_spin):
             spin.setMaximum(999999)
 
         self.ask_model = self.account.get_ask_orders_model(self.remote_pair)
@@ -343,11 +389,11 @@ class AccountWidget(QtGui.QWidget, ErrorHandling):
         # TODO these views should prefix/suffix price and amounts
         self.ask_orders_view = QtGui.QTableView()
         self.ask_orders_view.setModel(self.ask_model)
-        ask_layout.addWidget(self.ask_orders_view, 2,0, 1,2)
+        layout.addWidget(self.ask_orders_view, 3,0, 1,3)
 
         self.bid_orders_view = QtGui.QTableView()
         self.bid_orders_view.setModel(self.bid_model)
-        bid_layout.addWidget(self.bid_orders_view, 2,0, 1,2)
+        layout.addWidget(self.bid_orders_view, 3,3, 1,3)
 
         for view in self.ask_orders_view, self.bid_orders_view:
             view.setSelectionMode(QtGui.QListView.SingleSelection)
@@ -356,41 +402,6 @@ class AccountWidget(QtGui.QWidget, ErrorHandling):
             view.setShowGrid(False)
             view.verticalHeader().hide()
             view.setContextMenuPolicy(QtCore.Qt.ActionsContextMenu)
-
-        refresh_balance_button = QtGui.QPushButton("balance")
-        refresh_balance_button.setToolTip(QtCore.QCoreApplication.translate(
-            "AccountWidget", "refresh account balances"))
-        balance_layout = QtGui.QHBoxLayout()
-        base_balance_label = tulpenmanie.widget.BalanceLabel(parent.base_row)
-        counter_balance_label = tulpenmanie.widget.BalanceLabel(parent.counter_row)
-        for label in base_balance_label, counter_balance_label:
-            label.setAlignment(QtCore.Qt.AlignHCenter)
-            balance_font = QtGui.QFont()
-            balance_font.setPointSize(13)
-            label.setFont(balance_font)
-        balance_layout.addWidget(base_balance_label)
-        balance_layout.addWidget(refresh_balance_button)
-        balance_layout.addWidget(counter_balance_label)
-
-
-        #pending_requests_label = QtGui.QLabel("pending requests: ")
-        #pending_requests_view = QtGui.QLabel()
-        #pending_replies_label = QtGui.QLabel("pending replies: ")
-        #pending_replies_view = QtGui.QLabel()
-
-        # Layout
-        layout = QtGui.QGridLayout()
-        layout.addLayout(balance_layout, 0,0, 1,2)
-        layout.addWidget(ask_widget, 1,0)
-        layout.addWidget(bid_widget, 1,1)
-
-        #network_layout = QtGui.QHBoxLayout()
-        #network_layout.addStretch()
-        #network_layout.addWidget(pending_requests_label)
-        #network_layout.addWidget(pending_requests_view)
-        #network_layout.addWidget(pending_replies_label)
-        #network_layout.addWidget(pending_replies_view)
-        #layout.addLayout(network_layout)
 
         self.setLayout(layout)
 
@@ -408,19 +419,20 @@ class AccountWidget(QtGui.QWidget, ErrorHandling):
         self.bid_orders_view.addAction(refresh_orders_action)
 
         # Connect to account
-        signal = getattr(self.account, counter + '_balance_signal')
-        signal.connect(counter_balance_label.setValue)
-        signal = getattr(self.account, counter + '_balance_changed_signal', None)
+        signal = getattr(self.account, counter + '_funds_signal')
+        signal.connect(counter_funds_label.setValue)
+        signal = getattr(self.account, counter + '_funds_changed_signal', None)
         if signal:
-            signal.connect(counter_balance_label.change_value)
+            signal.connect(counter_funds_label.change_value)
 
-        signal = getattr(self.account, base + '_balance_signal')
-        signal.connect(base_balance_label.setValue)
-        signal = getattr(self.account, base + '_balance_changed_signal', None)
+        signal = getattr(self.account, base + '_funds_signal')
+        signal.connect(base_funds_label.setValue)
+        signal = getattr(self.account, base + '_funds_changed_signal', None)
         if signal:
-            signal.connect(base_balance_label.change_value)
+            signal.connect(base_funds_label.change_value)
 
         self.account.exchange_error_signal.connect(self.exchange_error_handler)
+        self.account.trade_commission_signal.connect(self.set_commission)
 
         # Check if ready to order
         signal = getattr(self.account, self.remote_pair + '_ready_signal')
@@ -435,15 +447,6 @@ class AccountWidget(QtGui.QWidget, ErrorHandling):
             ask_market_action.triggered.connect(self._ask_market)
             bid_market_action.triggered.connect(self._bid_market)
 
-        refresh_balance_button.clicked.connect(self.account.refresh_funds)
-        #self.account.pending_requests_signal.connect(pending_requests_view.setNum)
-        #self.account.pending_replies_signal.connect(pending_replies_view.setNum)
-
-        #self.enable_action = QtGui.QAction(self)
-        #self.enable_action.setCheckable(True)
-        #parent.enable_action.toggled.connect(self.enable_action.toggle)
-        #self.enable_action.toggled.connect(self.enable)
-
         parent.add_account_widget(self)
         parent.enable_exchange_action.toggled.connect(self.enable_account)
 
@@ -455,21 +458,21 @@ class AccountWidget(QtGui.QWidget, ErrorHandling):
             self.account.refresh_orders()
 
     def _ask_limit(self):
-        amount = self.ask_amount_spin.value()
-        price = self.ask_price_spin.value()
+        amount = self.ask_base_amount_spin.decimal_value()
+        price = self.ask_price_spin.decimal_value()
         self.account.place_ask_limit_order(self.remote_pair, amount, price)
 
     def _bid_limit(self):
-        amount = self.bid_amount_spin.value()
-        price = self.bid_price_spin.value()
+        amount = self.bid_base_amount_spin.decimal_value()
+        price = self.bid_price_spin.decimal_value()
         self.account.place_bid_limit_order(self.remote_pair, amount, price)
 
     def _ask_market(self):
-        amount = self.ask_amount_spin.value()
+        amount = self.ask_base_amount_spin.decimal_value()
         self.account.place_ask_market_order(self.remote_pair, amount)
 
     def _bid_market(self):
-        amount = self.bid_amount_spin.value()
+        amount = self.bid_base_amount_spin.decimal_value()
         self.account.place_bid_market_order(self.remote_pair, amount)
 
     def _cancel_ask(self):
@@ -485,3 +488,60 @@ class AccountWidget(QtGui.QWidget, ErrorHandling):
         if item:
             order_id = item.text()
             self.account.cancel_bid_order(self.remote_pair, item.text())
+
+    def set_commission(self, commission):
+        self.commission_multiplier = decimal.Decimal(1.0) - commission
+
+    def calculate_counter_amount(self, base_amount, price):
+        return (base_amount * self.commission_multiplier) * price
+
+    def calculate_base_amount(self, counter_amount, price):
+        return (counter_amount / price) * self.commission_multiplier
+
+    def change_ask_counter_amount(self):
+        price = self.ask_price_spin.decimal_value()
+        if not price:
+            self.ask_counter_amount_spin.setValue(0)
+            return
+        base_amount = self.ask_base_amount_spin.decimal_value()
+        if not base_amount:
+            return
+        counter_amount = self.calculate_counter_amount(base_amount, price)
+        self.ask_counter_amount_spin.setValue(counter_amount)
+
+    def change_bid_counter_amount(self):
+        price = self.bid_price_spin.decimal_value()
+        if not price:
+            self.bid_counter_amount_spin.setValue(0)
+            return
+        base_amount = self.bid_base_amount_spin.decimal_value()
+        if not base_amount:
+            return
+        counter_amount = self.calculate_counter_amount(base_amount, price)
+        self.bid_counter_amount_spin.setValue(counter_amount)
+
+    def ask_counter_amount_changed(self, counter_amount):
+        if not self.ask_counter_amount_spin.hasFocus():
+            return
+        if not counter_amount:
+            return
+        price = self.ask_price_spin.decimal_value()
+        if not price:
+            self.ask_counter_amount_spin.setValue(0)
+            return
+        counter_amount = decimal.Decimal(str(counter_amount))
+        base_amount = self.calculate_base_amount(counter_amount, price)
+        self.ask_base_amount_spin.setValue(base_amount)
+
+    def bid_counter_amount_changed(self, counter_amount):
+        if not self.bid_counter_amount_spin.hasFocus():
+            return
+        if not counter_amount:
+            return
+        price = self.bid_price_spin.decimal_value()
+        if not price:
+            self.bid_counter_amount_spin.setValue(0)
+            return
+        counter_amount = decimal.Decimal(str(counter_amount))
+        base_amount = self.calculate_base_amount(counter_amount, price)
+        self.bid_base_amount_spin.setValue(base_amount)
