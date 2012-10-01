@@ -79,6 +79,7 @@ class BtceRequest(QtCore.QObject):
             if logger.isEnabledFor(logging.DEBUG):
                 logger.debug("received reply to %s", self.url.toString())
             raw = str(self.reply.readAll())
+            logger.debug(raw)
             self.data = json.loads(raw,
                                    object_pairs_hook=self._object_pairs_hook)
             self.handler(self.data)
@@ -123,6 +124,7 @@ class BtcePrivateRequest(BtceRequest):
             if logger.isEnabledFor(logging.DEBUG):
                 logger.debug("received reply to %s", self.url.toString())
             raw = str(self.reply.readAll())
+            logger.debug(raw)
             data = json.loads(raw)
             if data['success'] != 1:
                 if data['error'] != 'no orders':
@@ -188,7 +190,7 @@ class BtceAccount(_Btce, tulpenmanie.exchange.ExchangeAccount):
     markets = ( 'btc_usd', 'btc_rur', 'ltc_btc', 'nmc_btc', 'usd_rur' )
 
     trade_commission_signal = QtCore.pyqtSignal(decimal.Decimal)
-    
+
     btc_funds_signal = QtCore.pyqtSignal(decimal.Decimal)
     ltc_funds_signal = QtCore.pyqtSignal(decimal.Decimal)
     nmc_funds_signal = QtCore.pyqtSignal(decimal.Decimal)
@@ -318,6 +320,7 @@ class BtceAccount(_Btce, tulpenmanie.exchange.ExchangeAccount):
         self._emit_funds(data['return']['funds'])
 
     def _emit_funds(self, data):
+        self.trade_commission_signal.emit(decimal.Decimal('0.2'))
         for commodity, balance in data.items():
             signal = getattr(self, commodity + '_funds_signal', None)
             if signal:

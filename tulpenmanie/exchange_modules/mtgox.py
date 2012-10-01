@@ -118,14 +118,15 @@ class MtgoxExchange(QtCore.QObject, _Mtgox):
 class MtgoxTickerRequest(tulpenmanie.network.ExchangePOSTRequest):
 
     def _handle_reply(self, raw):
-            data = json.loads(raw, object_hook=_object_hook)
-            if data['result'] != u'success':
-                self._handle_error(data['error'])
-            else:
-                data = data['return']
-                self.parent.ask_signal.emit(data['sell'])
-                self.parent.last_signal.emit(data['last_local'])
-                self.parent.bid_signal.emit(data['buy'])
+        logger.debug(raw)
+        data = json.loads(raw, object_hook=_object_hook)
+        if data['result'] != u'success':
+            self._handle_error(data['error'])
+        else:
+            data = data['return']
+            self.parent.ask_signal.emit(data['sell'])
+            self.parent.last_signal.emit(data['last_local'])
+            self.parent.bid_signal.emit(data['buy'])
 
 
 class MtgoxTradesRequest(MtgoxPublicRequest):
@@ -153,6 +154,7 @@ class MtgoxTradesRequest(MtgoxPublicRequest):
 class MtgoxDepthRequest(MtgoxPublicRequest):
 
     def _handle_reply(self, raw):
+        logger.debug(raw)
         data = json.loads(raw, object_hook=self._object_hook)
         data = data['return']
         data = (data['asks'], data['bids'])
@@ -188,7 +190,7 @@ class MtgoxAccount(QtCore.QObject, _Mtgox, tulpenmanie.exchange.ExchangeAccount)
                 'BTCUSD' )
 
     trade_commission_signal = QtCore.pyqtSignal(decimal.Decimal)
-    
+
     AUD_funds_signal = QtCore.pyqtSignal(decimal.Decimal)
     BTC_funds_signal = QtCore.pyqtSignal(decimal.Decimal)
     CAD_funds_signal = QtCore.pyqtSignal(decimal.Decimal)
@@ -384,6 +386,7 @@ class MtgoxInfoRequest(MtgoxPrivateRequest):
     priority = 2
 
     def _handle_reply(self, raw):
+        logger.debug(raw)
         data = json.loads(raw, object_hook=_object_hook)
         for symbol, dict_ in data['return']['Wallets'].items():
             signal = getattr(self.parent, symbol + '_funds_signal', None)
@@ -392,12 +395,15 @@ class MtgoxInfoRequest(MtgoxPrivateRequest):
                 signal.emit(balance)
             else:
                 logger.warning("unknown commodity %s found in balances", symbol)
+        self.parent.trade_commission_signal.emit(
+            decimal.Decimal(str(data['return']['Trade_Fee'])))
 
 
 class MtgoxOrdersRequest(MtgoxPrivateRequest):
     priority = 1
 
     def _handle_reply(self, raw):
+        logger.debug(raw)
         data = json.loads(raw, object_hook=_object_hook)
         data = data['return']
         if data:
@@ -430,6 +436,7 @@ class MtgoxPlaceOrderRequest(MtgoxPrivateRequest):
     priority = 1
 
     def _handle_reply(self, raw):
+        logger.debug(raw)
         self.data.update(json.loads(raw, object_hook=_object_hook))
         order_id = self.data['return']
         amount = self.data['amount']
@@ -456,6 +463,7 @@ class MtgoxCancelOrderRequest(MtgoxPrivateRequest):
     priority = 0
 
     def _handle_reply(self, raw):
+        logger.debug(raw)
         self.data.update(json.loads(raw, object_hook=_object_hook))
         pair = self.data['pair']
         order_id = self.data['query']['oid']
@@ -470,6 +478,7 @@ class MtgoxBitcoinDepositAddressRequest(MtgoxPrivateRequest):
     priority = 2
 
     def _handle_reply(self, raw):
+        logger.debug(raw)
         data = json.loads(raw)
         address = data['return']['addr']
         self.parent._bitcoin_deposit_address = address

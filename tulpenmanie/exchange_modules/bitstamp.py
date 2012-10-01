@@ -100,6 +100,7 @@ class BitstampTickerRequest(tulpenmanie.network.ExchangeGETRequest):
 class BitstampTransactionsRequest(tulpenmanie.network.ExchangeGETRequest):
 
     def _handle_reply(self, raw):
+        logger.debug(raw)
         trade_list = json.loads(raw, object_hook=self._object_hook)
         dates = list()
         prices = list()
@@ -134,7 +135,7 @@ class BitstampAccount(_Bitstamp, tulpenmanie.exchange.ExchangeAccount):
     exchange_error_signal = QtCore.pyqtSignal(str)
 
     trade_commission_signal = QtCore.pyqtSignal(decimal.Decimal)
-    
+
     BTC_funds_signal = QtCore.pyqtSignal(decimal.Decimal)
     USD_funds_signal = QtCore.pyqtSignal(decimal.Decimal)
 
@@ -227,7 +228,7 @@ class BitstampAccount(_Bitstamp, tulpenmanie.exchange.ExchangeAccount):
         if self._bitcoin_deposit_address:
             self.bitcoin_deposit_address_signal.emit(
                 self._bitcoin_deposit_address)
-            return self._bitcoin_deposit_address            
+            return self._bitcoin_deposit_address
         else:
             BitstampBitcoinDepositAddressRequest(
                 self._bitcoin_deposit_address_url, self)
@@ -264,6 +265,8 @@ class BitstampBalanceRequest(BitstampPrivateRequest):
             decimal.Decimal(data['btc_available']))
         self.parent.USD_funds_signal.emit(
             decimal.Decimal(data['usd_available']))
+        self.parent.trade_commission_signal.emit(
+            decimal.Decimal(data['fee'].rstrip('0')))
 
 
 class BitstampOpenOrdersRequest(BitstampPrivateRequest):

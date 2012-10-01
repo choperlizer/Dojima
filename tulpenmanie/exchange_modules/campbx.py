@@ -148,7 +148,7 @@ class CampbxAccount(_Campbx, tulpenmanie.exchange.ExchangeAccount):
     _sendbtc_url = QtCore.QUrl(_BASE_URL + "sendbtc.php")
 
     trade_commission_signal = QtCore.pyqtSignal(decimal.Decimal)
-    
+
     BTC_funds_signal = QtCore.pyqtSignal(decimal.Decimal)
     USD_funds_signal = QtCore.pyqtSignal(decimal.Decimal)
 
@@ -245,11 +245,14 @@ class CampbxAccount(_Campbx, tulpenmanie.exchange.ExchangeAccount):
 
 class CampbxFundsRequest(_CampbxRequest):
     def _handle_reply(self, data):
+        logger.debug(data)
         self.parent.BTC_funds_signal.emit(decimal.Decimal(data['Liquid BTC']))
         self.parent.USD_funds_signal.emit(decimal.Decimal(data['Liquid USD']))
+        self.parent.trade_commission_signal.emit(decimal.Decimal('0.55'))
 
 class CampbxOrdersRequest(_CampbxRequest):
     def _handle_reply(self, data):
+        logger.debug(data)
         for model, array, in ((self.parent.ask_orders_model, 'Sell'),
                               (self.parent.bid_orders_model, 'Buy') ):
             model.clear_orders()
@@ -267,6 +270,7 @@ class CampbxOrdersRequest(_CampbxRequest):
 class CampbxTradeRequest(_CampbxRequest):
     priority = 1
     def _handle_reply(self, data):
+        logger.debug(data)
         order_id = int(data['Success'])
         data = self.data['query']
         amount = data['Quantity']
@@ -296,7 +300,7 @@ class CampbxTradeRequest(_CampbxRequest):
 class CampbxCancelOrderRequest(_CampbxRequest):
     priority = 0
     def _handle_reply(self, data):
-
+        logger.debug(data)
         words = data['Success'].split()
         order_id = words[2]
         order_type = self.data['query']['Type']
@@ -318,6 +322,7 @@ class CampbxCancelOrderRequest(_CampbxRequest):
 class CampbxBitcoinAddressRequest(_CampbxRequest):
     priority = 2
     def _handle_reply(self, data):
+        logger.debug(data)
         address = data['Success']
         self.parent._bitcoin_deposit_address = address
         self.parent.bitcoin_deposit_address_signal.emit(address)
@@ -325,6 +330,7 @@ class CampbxBitcoinAddressRequest(_CampbxRequest):
 class CampbxWithdrawBitcoinRequest(_CampbxRequest):
     priority = 2
     def _handle_reply(self, data):
+        logger.debug(data)
         transaction = data['Success']
         reply = str(QtCore.QCoreApplication.translate(
             "CampbxWithdrawBitcoinRequest", "transaction id: {}"))

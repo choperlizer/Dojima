@@ -274,13 +274,16 @@ class AccountWidget(QtGui.QWidget, ErrorHandling):
         # Data
         self.account = account_object
 
-        self.commission_multiplier = 1
+        self.commission = 0
+        self.commission_display = QtCore.QCoreApplication.translate(
+            'AccountWidget', "%1%")
 
         # Create UI
         layout = QtGui.QGridLayout()
 
         base_funds_label = tulpenmanie.widget.FundsLabel(
             parent.base_row)
+        self.commission_label = QtGui.QLabel()
         counter_funds_label = tulpenmanie.widget.FundsLabel(
             parent.counter_row)
 
@@ -291,14 +294,17 @@ class AccountWidget(QtGui.QWidget, ErrorHandling):
 
         funds_font = QtGui.QFont()
         funds_font.setPointSize(13)
-        for label in base_funds_label, counter_funds_label:
+        for label in (base_funds_label,
+                      self.commission_label,
+                      counter_funds_label):
             label.setAlignment(QtCore.Qt.AlignHCenter)
             label.setFont(funds_font)
             label.setContextMenuPolicy(QtCore.Qt.ActionsContextMenu)
             label.addAction(refresh_funds_action)
 
-        layout.addWidget(base_funds_label, 0,0, 1,3)
-        layout.addWidget(counter_funds_label, 0,3, 1,3)
+        layout.addWidget(base_funds_label, 0,0, 1,2)
+        layout.addWidget(self.commission_label, 0,2, 1,2)
+        layout.addWidget(counter_funds_label, 0,4, 1,2)
 
         self.ask_base_amount_spin = tulpenmanie.widget.CommoditySpinBox(
             parent.base_row)
@@ -320,11 +326,11 @@ class AccountWidget(QtGui.QWidget, ErrorHandling):
 
         self.ask_counter_amount_spin = tulpenmanie.widget.CommoditySpinBox(
             parent.counter_row)
-        self.ask_counter_amount_spin.valueChanged.connect(
+        self.ask_counter_amount_spin.editingFinished.connect(
             self.ask_counter_amount_changed)
         self.bid_counter_amount_spin = tulpenmanie.widget.CommoditySpinBox(
             parent.counter_row)
-        self.bid_counter_amount_spin.valueChanged.connect(
+        self.bid_counter_amount_spin.editingFinished.connect(
             self.bid_counter_amount_changed)
 
         ask_button = QtGui.QPushButton(
@@ -490,13 +496,18 @@ class AccountWidget(QtGui.QWidget, ErrorHandling):
             self.account.cancel_bid_order(self.remote_pair, item.text())
 
     def set_commission(self, commission):
-        self.commission_multiplier = decimal.Decimal(1.0) - commission
+        self.commission_label.setText(
+            self.commission_display.arg(str(commission)))
+        self.commission = (commission / 100)
+        logger.info("commission  set to %s", self.commission)
 
     def calculate_counter_amount(self, base_amount, price):
-        return (base_amount * self.commission_multiplier) * price
+        counter_amount = (base_amount * price)
+        return counter_amount - (counter_amount * self.commission)
 
     def calculate_base_amount(self, counter_amount, price):
-        return (counter_amount / price) * self.commission_multiplier
+        base_amount = counter_amount / price
+        return base_amount + (base_amount * self.commission)
 
     def change_ask_counter_amount(self):
         price = self.ask_price_spin.decimal_value()
@@ -520,28 +531,24 @@ class AccountWidget(QtGui.QWidget, ErrorHandling):
         counter_amount = self.calculate_counter_amount(base_amount, price)
         self.bid_counter_amount_spin.setValue(counter_amount)
 
-    def ask_counter_amount_changed(self, counter_amount):
-        if not self.ask_counter_amount_spin.hasFocus():
-            return
+    def ask_counter_amount_changed(self):
+        counter_amount = self.ask_counter_amount_spin.decimal_value()
         if not counter_amount:
             return
         price = self.ask_price_spin.decimal_value()
         if not price:
             self.ask_counter_amount_spin.setValue(0)
             return
-        counter_amount = decimal.Decimal(str(counter_amount))
         base_amount = self.calculate_base_amount(counter_amount, price)
         self.ask_base_amount_spin.setValue(base_amount)
 
-    def bid_counter_amount_changed(self, counter_amount):
-        if not self.bid_counter_amount_spin.hasFocus():
-            return
+    def bid_counter_amount_changed(self):
+        counter_amount = self.bid_counter_amount_spin.decimal_value()
         if not counter_amount:
             return
         price = self.bid_price_spin.decimal_value()
         if not price:
             self.bid_counter_amount_spin.setValue(0)
             return
-        counter_amount = decimal.Decimal(str(counter_amount))
         base_amount = self.calculate_base_amount(counter_amount, price)
         self.bid_base_amount_spin.setValue(base_amount)
