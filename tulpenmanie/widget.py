@@ -162,6 +162,20 @@ class FundsLabel(QtGui.QLabel, CommodityWidgetBase):
         self.estimated = True
 
 
+class CounterAmountLabel(QtGui.QLabel, CommodityWidgetBase):
+
+    def __init__(self, commodity_row, parent=None):
+        super(CounterAmountLabel, self).__init__(parent)
+        self.commodity_row = commodity_row
+        self.setAlignment(QtCore.Qt.AlignCenter)
+
+    def setValue(self, value):
+        if self.precision:
+            value = round(value, self.precision)
+        text = QtCore.QString("(%1%2%3)").arg(self.prefix).arg(value).arg(self.suffix)
+        self.setText(text)
+
+
 class UuidComboBox(QtGui.QComboBox):
 
     #TODO set the default tulpenmanie.commodity.model column to 1
