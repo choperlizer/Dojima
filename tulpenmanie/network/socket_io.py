@@ -109,7 +109,7 @@ class SocketIOClient(QtCore.QObject):
         self._state = 2
         #self.transport.close()
 
-    def _set_transport_state(self, state)
+    def _set_transport_state(self, state):
         if state:
             self._state = 1
             self.heartbeat_timer.start(self.heartbeat_interval)
@@ -259,8 +259,3 @@ class WebSocketTransport(QtCore.QObject, WebSocketClient):
     def recieved_message(self, message):
         self.logger.debug(message)
         self.message_signal.emit(message)
-
-
-var conn = io.connect('https://api.icbit.se/icbit?AuthKey=AUTHKEY&UserId=USERID')
-var socket = io.connect('http://localhost');
-socket.emit('my other event', { my: 'data' });
