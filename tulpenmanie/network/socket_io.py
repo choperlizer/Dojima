@@ -20,12 +20,13 @@ import logging
 from PyQt4 import QtCore, QtNetwork
 from ws4py.client.threadedclient import WebSocketClient
 
+import tulpenmanie.network
 
 # TODO don't let the user try to connect to two different hosts
 # over the same socket client
 
 
-logger = logging.get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
 class SocketIOClient(QtCore.QObject):
@@ -44,7 +45,7 @@ class SocketIOClient(QtCore.QObject):
         else:
             self.network_manager = network_manager
         self._state = 3
-        self.namespaces = {'': self}
+        self.endpoints = {'': self}
         self.endpoint_queue = list()
         self.heartbeat_timer = QtCore.QTimer(self)
         self.heartbeat_timer.timeout.connect(self._emit_heartbeat)
@@ -53,13 +54,19 @@ class SocketIOClient(QtCore.QObject):
     def state(self):
         return self._states[self._state]
 
+    def get_endpoint(self, path):
+        return self.endpoints[path]
+
     def connect(self, url):
         self._state = 0
         #TODO decide what to do about SSL
-        endpoint = url.path()
+        endpoint = str(url.path())[1:]
+        if endpoint not in self.endpoints:
+            namespace = EndpointNameSpace(endpoint, self)
+            self.endpoints[endpoint] = namespace
         query = str(url.toString()).partition('?')[2]
-        if self.namespace._state != 1:
-            self.namespace_queue.append((endpoint, query))
+        if self._state != 1:
+            self.endpoint_queue.append((endpoint, query))
             self._send_handshake(url)
             return
         else:
@@ -88,7 +95,7 @@ class SocketIOClient(QtCore.QObject):
             return
         handshake = str(self.reply.readAll()).split(':')
         self.session_id = handshake[0]
-        self.heartbeat_interval = int(handshake) * 750
+        self.heartbeat_interval = int(handshake[1]) * 750
         self.close_timeount = handshake[2]
         transports = handshake[3].split(',')
         if 'websocket' not in transports:
@@ -114,7 +121,7 @@ class SocketIOClient(QtCore.QObject):
             self._state = 1
             self.heartbeat_timer.start(self.heartbeat_interval)
             while self.endpoint_queue:
-                path, query = endpoint_queue.pop()
+                path, query = self.endpoint_queue.pop()
                 self._emit_connect(path, query)
         else:
             self.heartbeat_timer.stop
@@ -138,19 +145,19 @@ class SocketIOClient(QtCore.QObject):
         pass
 
     def _message_(self, message):
-        namespace = self.namespaces[message[2]]
+        namespace = self.endpoints[message[2]]
         namespace.on_message.emit(message[3])
         for index, part in enumerate(message):
             logger.info("message part %: %s", index, part)
 
     def _json_message_(self, message):
-        namespace = self.namespaces[message[2]]
+        namespace = self.endpoints[message[2]]
         namespace.on_json_message.emit(message[3])
         for index, part in enumerate(message):
             logger.info("json message part %: %s", index, part)
 
     def _event_(self, message):
-        namespace = self.namespaces[message[2]]
+        namespace = self.endpoints[message[2]]
         namespace.on_event.emit(message[3])
         for index, part in enumerate(message):
             logger.info("event part %: %s", index, part)
@@ -160,7 +167,7 @@ class SocketIOClient(QtCore.QObject):
         pass
 
     def _error_(self, message):
-        namespace = self.namespaces[message[2]]
+        namespace = self.endpoints[message[2]]
         namespace.on_error.emit(message[3])
         logger.error("[%s][%s] %s", self.host, message[2], message[3])
 
@@ -173,18 +180,18 @@ class SocketIOClient(QtCore.QObject):
     def _emit_connect(self, endpoint, query=None):
         if query:
             endpoint += '?' + query
-        payload = (1, '', endpoint)
+        payload = ('1', '', endpoint)
         self.transport.send(':'.join(payload))
 
     def _emit_heartbeat(self):
         self.transport.send('2')
 
     def emit_message(self, message, endpoint=''):
-        payload = (3, '', endpoint, message)
+        payload = ('3', '', endpoint, message)
         self.transport.send(':'.join(payload))
 
     def emit_json_message(self, message, endpoint=''):
-        payload = (4, '', endpoint, json.dumps(message))
+        payload = ('4', '', endpoint, json.dumps(message))
         self.transport.send(':'.join(payload))
 
     def emit_event(self, message, endpoint=''):
@@ -195,7 +202,7 @@ class SocketIOClient(QtCore.QObject):
         """
         assert name in message
         assert args in message
-        payload = (5, '', endpoint, json.dumps(message))
+        payload = ('5', '', endpoint, json.dumps(message))
         self.transport.send(':'.join(payload))
 
 
@@ -246,7 +253,7 @@ class WebSocketTransport(QtCore.QObject, WebSocketClient):
 
     def __init__(self, url, protocols=None, extensions=None, parent=None):
         super(WebSocketTransport, self).__init__(parent)
-        WebSocketBaseClient.__init__(self, url, protocols, extensions)
+        WebSocketClient.__init__(self, url, protocols, extensions)
 
     def opened(self):
         self.logger.info("connected to %s", self.url)
@@ -259,3 +266,5 @@ class WebSocketTransport(QtCore.QObject, WebSocketClient):
     def recieved_message(self, message):
         self.logger.debug(message)
         self.message_signal.emit(message)
+
+    connect = WebSocketClient.connect
