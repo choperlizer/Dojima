@@ -14,17 +14,18 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-import decimal
 import hashlib
 import heapq
 import hmac
 import json
 import logging
 import time
+from decimal import Decimal
 
 from PyQt4 import QtCore, QtGui, QtNetwork
 
 import tulpenmanie.exchange
+import tulpenmanie.data.ticker
 import tulpenmanie.network
 
 
@@ -35,6 +36,23 @@ COMMODITIES = ( 'btc', 'ltc', 'nmc', 'rur', 'usd' )
 HOSTNAME = "btc-e.com"
 _PUBLIC_BASE_URL = "https://" + HOSTNAME + "/api/2/"
 _PRIVATE_URL = "https://" + HOSTNAME + "/tapi"
+
+
+class BtceProviderItem(tulpenmanie.exchange.ExchangeItem):
+
+    exchange_name = EXCHANGE_NAME
+
+    COLUMNS = 4
+    MARKETS, REFRESH_RATE, ACCOUNT_KEY, ACCOUNT_SECRET = range(COLUMNS)
+    mappings = (("refresh rate (seconds)", REFRESH_RATE),
+                ("key", ACCOUNT_KEY),
+                ("secret", ACCOUNT_SECRET),)
+    markets = ( 'btc_usd', 'btc_rur', 'ltc_btc', 'nmc_btc', 'usd_rur' )
+
+    numeric_settings = (REFRESH_RATE,)
+    boolean_settings = ()
+    required_account_settings = (ACCOUNT_KEY, ACCOUNT_SECRET)
+    hidden_settings = ()
 
 
 class BtceRequest(QtCore.QObject):
@@ -69,7 +87,7 @@ class BtceRequest(QtCore.QObject):
         for key, value in pairs:
             if key == 'ticker':
                 return value
-            dct[key] = decimal.Decimal(value)
+            dct[key] = Decimal(value)
         return dct
 
     def _process_reply(self):
@@ -81,6 +99,7 @@ class BtceRequest(QtCore.QObject):
             raw = str(self.reply.readAll())
             logger.debug(raw)
             self.data = json.loads(raw,
+                                   parse_float=Decimal,
                                    object_pairs_hook=self._object_pairs_hook)
             self.handler(self.data)
         self.reply.deleteLater()
@@ -125,7 +144,7 @@ class BtcePrivateRequest(BtceRequest):
                 logger.debug("received reply to %s", self.url.toString())
             raw = str(self.reply.readAll())
             logger.debug(raw)
-            data = json.loads(raw)
+            data = json.loads(raw, parse_float=Decimal)
             if data['success'] != 1:
                 if data['error'] != 'no orders':
                     msg = HOSTNAME + " " + str(self.method) + " : " + data['error']
@@ -138,7 +157,7 @@ class BtcePrivateRequest(BtceRequest):
                     self.data = data
                 self.handler(self.data)
         self.reply.deleteLater()
-        self.parent._replies.remove(self)
+        self.parent.replies.remove(self)
 
 
 class _Btce(QtCore.QObject):
@@ -147,41 +166,92 @@ class _Btce(QtCore.QObject):
     exchange_error_signal = QtCore.pyqtSignal(str)
 
     def pop_request(self):
-        request = heapq.heappop(self._requests)[1]
-        request.post()
-        self._replies.add(request)
+        request = heapq.heappop(self.requests)[1]
+        request.send()
 
 
 class BtceExchange(_Btce):
 
-    ask_signal = QtCore.pyqtSignal(decimal.Decimal)
-    last_signal = QtCore.pyqtSignal(decimal.Decimal)
-    bid_signal = QtCore.pyqtSignal(decimal.Decimal)
-
-    def __init__(self, remote_market, network_manager=None, parent=None):
+    def __init__(self, network_manager=None, parent=None):
         if not network_manager:
             network_manager = tulpenmanie.network.get_network_manager()
         super(BtceExchange, self).__init__(parent)
-        remote_market = str(remote_market.replace("/", "_")).lower()
-        self._ticker_url = QtCore.QUrl(_PUBLIC_BASE_URL +
-                                        remote_market + "/ticker")
 
         # TODO make this wait time a user option
         self.network_manager = network_manager
-        self._host_queue = self.network_manager.get_host_request_queue(
+        self.host_queue = self.network_manager.get_host_request_queue(
             HOSTNAME, 500)
-        self._requests = list()
-        self._replies = set()
+        self.requests = list()
+        self.replies = set()
+        self._ticker_proxies = dict()
+        self._ticker_clients = dict()
+        self._ticker_timer = QtCore.QTimer(self)
+        self._ticker_timer.timeout.connect(self._refresh_tickers)
+        search = tulpenmanie.exchange.model.findItems(self.exchange_name,
+                                                      QtCore.Qt.MatchExactly)
+        self._model_item = search[0]
 
-    def refresh_ticker(self):
-        request = BtceRequest(self._ticker_url, self._ticker_handler, self)
-        self._requests.append((2, request))
-        self._host_queue.enqueue(self)
+    def get_ticker_proxy(self, remote_market):
+        if remote_market not in self._ticker_proxies:
+            ticker_proxy = tulpenmanie.data.ticker.TickerProxy(self)
+            self._ticker_proxies[remote_market] = ticker_proxy
+            return ticker_proxy
+        return self._ticker_proxies[remote_market]
 
-    def _ticker_handler(self, data):
-        self.ask_signal.emit(decimal.Decimal(data['sell']))
-        self.last_signal.emit(decimal.Decimal(data['last']))
-        self.bid_signal.emit(decimal.Decimal(data['buy']))
+    def set_ticker_stream_state(self, state, remote_market):
+        if state is True:
+            if not remote_market in self._ticker_clients:
+                self._ticker_clients[remote_market] = 1
+            else:
+                self._ticker_clients[remote_market] += 1
+            refresh_rate = self._model_item.child(
+                0, self._model_item.REFRESH_RATE).text()
+            if not refresh_rate:
+                refresh_rate = 10000
+            else:
+                refresh_rate = float(refresh_rate) * 1000
+            if self._ticker_timer.isActive():
+                self._ticker_timer.setInterval(refresh_rate)
+                return
+            logger.info(QtCore.QCoreApplication.translate(
+                'BteExchange', "starting ticker stream"))
+            self._ticker_timer.start(refresh_rate)
+        else:
+            if remote_market in self._ticker_clients:
+                market_clients = self._ticker_clients[remote_market]
+                if market_clients > 1:
+                    self._ticker_clients[remote_market] -= 1
+                    return
+                if market_clients == 1:
+                    self._ticker_clients.pop(remote_market)
+
+            if sum(self._ticker_clients.values()) == 0:
+                logger.info(QtCore.QCoreApplication.translate(
+                    'BtceExchange', "stopping ticker stream"))
+                self._ticker_timer.stop()
+
+    def refresh_ticker(self, remote_market):
+        ticker_url = QtCore.QUrl(_PUBLIC_BASE_URL + remote_market + "/ticker")
+        BtceTickerRequest(ticker_url, self)
+
+    def _refresh_tickers(self):
+        for remote_market in self._ticker_clients.keys():
+            ticker_url = QtCore.QUrl(
+                _PUBLIC_BASE_URL + remote_market + "/ticker")
+            BtceTickerRequest(ticker_url, self)
+
+class BtceTickerRequest(tulpenmanie.network.ExchangeGETRequest):
+
+    def _handle_reply(self, raw):
+        logger.debug(raw)
+        data = json.loads(raw, parse_float=Decimal, parse_int=Decimal)
+        data = data['ticker']
+        path = self.url.path().split('/')
+        remote_market = path[3]
+        proxy = self.parent._ticker_proxies[remote_market]
+        proxy.ask_signal.emit(data['buy'])
+        proxy.last_signal.emit(data['last'])
+        proxy.bid_signal.emit(data['sell'])
 
 
 class BtceAccount(_Btce, tulpenmanie.exchange.ExchangeAccount):
@@ -189,13 +259,13 @@ class BtceAccount(_Btce, tulpenmanie.exchange.ExchangeAccount):
     # BAD rudunant
     markets = ( 'btc_usd', 'btc_rur', 'ltc_btc', 'nmc_btc', 'usd_rur' )
 
-    trade_commission_signal = QtCore.pyqtSignal(decimal.Decimal)
+    trade_commission_signal = QtCore.pyqtSignal(Decimal)
 
-    btc_funds_signal = QtCore.pyqtSignal(decimal.Decimal)
-    ltc_funds_signal = QtCore.pyqtSignal(decimal.Decimal)
-    nmc_funds_signal = QtCore.pyqtSignal(decimal.Decimal)
-    rur_funds_signal = QtCore.pyqtSignal(decimal.Decimal)
-    usd_funds_signal = QtCore.pyqtSignal(decimal.Decimal)
+    btc_funds_signal = QtCore.pyqtSignal(Decimal)
+    ltc_funds_signal = QtCore.pyqtSignal(Decimal)
+    nmc_funds_signal = QtCore.pyqtSignal(Decimal)
+    rur_funds_signal = QtCore.pyqtSignal(Decimal)
+    usd_funds_signal = QtCore.pyqtSignal(Decimal)
 
     btc_usd_ready_signal = QtCore.pyqtSignal(bool)
     btc_rur_ready_signal = QtCore.pyqtSignal(bool)
@@ -210,15 +280,20 @@ class BtceAccount(_Btce, tulpenmanie.exchange.ExchangeAccount):
         self.set_credentials(credentials)
 
         self.network_manager = network_manager
-        self._host_queue = self.network_manager.get_host_request_queue(
+        self.host_queue = self.network_manager.get_host_request_queue(
             HOSTNAME, 5000)
-        self._requests = list()
-        self._replies = set()
+        self.requests = list()
+        self.replies = set()
 
         self.ask_orders = dict()
         self.bid_orders = dict()
         # TODO maybe divide smaller
         self.nonce = int(time.time() / 2)
+
+    def pop_request(self):
+        request = heapq.heappop(self.requests)[1]
+        request.post()
+        self.replies.add(request)
 
     def set_credentials(self, credentials):
         self._key = str(credentials[0])
@@ -230,16 +305,16 @@ class BtceAccount(_Btce, tulpenmanie.exchange.ExchangeAccount):
 
     def refresh_funds(self):
         request = BtcePrivateRequest('getInfo', self._getinfo_handler, self)
-        self._requests.append((2, request))
-        self._host_queue.enqueue(self, 2)
+        self.requests.append((2, request))
+        self.host_queue.enqueue(self, 2)
 
     def _getinfo_handler(self, data):
         self._emit_funds(data['return']['funds'])
 
     def refresh_orders(self):
         request = BtcePrivateRequest('OrderList', self._orderlist_handler, self)
-        self._requests.append((2, request))
-        self._host_queue.enqueue(self, 2)
+        self.requests.append((2, request))
+        self.host_queue.enqueue(self, 2)
 
     def _orderlist_handler(self, data):
         data = data['return']
@@ -277,8 +352,8 @@ class BtceAccount(_Btce, tulpenmanie.exchange.ExchangeAccount):
                          'amount': amount,
                          'rate': price} }
         request = BtcePrivateRequest('Trade', self._trade_handler, self, data)
-        self._requests.append((1, request))
-        self._host_queue.enqueue(self, 1)
+        self.requests.append((1, request))
+        self.host_queue.enqueue(self, 1)
 
     def _trade_handler(self, data):
         order_id = data['return']['order_id']
@@ -306,8 +381,8 @@ class BtceAccount(_Btce, tulpenmanie.exchange.ExchangeAccount):
                 'query':{'order_id':order_id}}
         request = BtcePrivateRequest('CancelOrder', self._cancelorder_handler,
                                      self, data)
-        self._requests.append((0, request))
-        self._host_queue.enqueue(self, 0)
+        self.requests.append((0, request))
+        self.host_queue.enqueue(self, 0)
 
     def _cancelorder_handler(self, data):
         order_id = data['return']['order_id']
@@ -320,30 +395,13 @@ class BtceAccount(_Btce, tulpenmanie.exchange.ExchangeAccount):
         self._emit_funds(data['return']['funds'])
 
     def _emit_funds(self, data):
-        self.trade_commission_signal.emit(decimal.Decimal('0.2'))
+        self.trade_commission_signal.emit(Decimal('0.2'))
         for commodity, balance in data.items():
             signal = getattr(self, commodity + '_funds_signal', None)
             if signal:
-                signal.emit(decimal.Decimal(balance))
+                signal.emit(Decimal(balance))
             else:
                 logger.warning("unknown commodity %s", commodity)
-
-class BtceProviderItem(tulpenmanie.exchange.ExchangeItem):
-
-    exchange_name = EXCHANGE_NAME
-
-    COLUMNS = 4
-    MARKETS, REFRESH_RATE, ACCOUNT_KEY, ACCOUNT_SECRET = range(COLUMNS)
-    mappings = (("refresh rate", REFRESH_RATE),
-                ("key", ACCOUNT_KEY),
-                ("secret", ACCOUNT_SECRET),)
-    markets = ( 'btc_usd', 'btc_rur', 'ltc_btc', 'nmc_btc', 'usd_rur' )
-
-    numeric_settings = (REFRESH_RATE,)
-    boolean_settings = ()
-    required_account_settings = (ACCOUNT_KEY, ACCOUNT_SECRET)
-    hidden_settings = ()
-
 
 tulpenmanie.exchange.register_exchange(BtceExchange)
 tulpenmanie.exchange.register_account(BtceAccount)

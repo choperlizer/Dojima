@@ -134,18 +134,16 @@ class ExchangeDockWidget(QtGui.QDockWidget, ErrorHandling):
         exchange_name = exchange_item.text()
         market_uuid = exchange_item.markets_item.child(
             exchange_market_row, exchange_item.MARKET_LOCAL).text()
-        remote_pair = exchange_item.markets_item.child(
+        self.remote_market = exchange_item.markets_item.child(
             exchange_market_row, exchange_item.MARKET_REMOTE).text()
-        title = exchange_name + ' ' + remote_pair
+        title = exchange_name + ' ' + self.remote_market
         super(ExchangeDockWidget, self).__init__(title, parent)
 
         self.account_widget = None
         self.exchange_item = exchange_item
         self.market_row = exchange_market_row
 
-
-        self.exchange = tulpenmanie.exchange.get_exchange_object(
-            str(exchange_name), market_uuid)
+        self.exchange = tulpenmanie.exchange.get_exchange_object(exchange_name)
 
         try:
             market_uuid = exchange_item.markets_item.child(
@@ -155,11 +153,15 @@ class ExchangeDockWidget(QtGui.QDockWidget, ErrorHandling):
 
             base_uuid = tulpenmanie.market.model.item(
                 local_market_row, tulpenmanie.market.model.BASE).text()
-            base_item = tulpenmanie.commodity.model.findItems(base_uuid)[0]
+            base_search = tulpenmanie.commodity.model.findItems(
+                base_uuid, QtCore.Qt.MatchExactly, 0)
+            base_item = base_search[0]
 
             counter_uuid = tulpenmanie.market.model.item(
                 local_market_row, tulpenmanie.market.model.COUNTER).text()
-            counter_item = tulpenmanie.commodity.model.findItems(counter_uuid)[0]
+            counter_search = tulpenmanie.commodity.model.findItems(
+                counter_uuid, QtCore.Qt.MatchExactly, 0)
+            counter_item = counter_search[0]
         except IndexError:
             logger.critical("settings error, invalid model mapping in market "
                             "%s or exchange %s", market_uuid, exchange_name)
@@ -189,8 +191,7 @@ class ExchangeDockWidget(QtGui.QDockWidget, ErrorHandling):
             label.setAlignment(QtCore.Qt.AlignRight)
             label.setFont(label_font)
             widget = tulpenmanie.widget.CommodityLcdWidget(self.counter_row)
-            signal = getattr(self.exchange, stat + '_signal')
-            signal.connect(widget.setValue)
+            setattr(self, '{}_widget'.format(stat), widget)
             side_layout.addWidget(label, row,0)
             side_layout.addWidget(widget, row,1)
             row += 1
@@ -202,17 +203,20 @@ class ExchangeDockWidget(QtGui.QDockWidget, ErrorHandling):
         self.widget.setLayout(layout)
         self.setWidget(self.widget)
 
-        self.refresh_timer = QtCore.QTimer(self)
-        self.refresh_timer.timeout.connect(self.exchange.refresh_ticker)
-
-        self.exchange.exchange_error_signal.connect(self.exchange_error_handler)
-
         self.enable_exchange_action = QtGui.QAction(title, parent)
         self.enable_exchange_action.setCheckable(True)
         self.enable_exchange_action.triggered.connect(self.enable_exchange)
 
+    def set_signal_connection_state(self, state):
+        ticker_proxy = self.exchange.get_ticker_proxy(self.remote_market)
+        if state:
+            self.exchange.exchange_error_signal.connect(
+                self.exchange_error_handler)
+            ticker_proxy.ask_signal.connect(self.ask_widget.setValue)
+            ticker_proxy.last_signal.connect(self.last_widget.setValue)
+            ticker_proxy.bid_signal.connect(self.bid_widget.setValue)
+
     def closeEvent(self, event):
-        # TODO is close event ever called?
         self.enable_exchange(False)
         self.enable_exchange_action.setChecked(False)
         event.accept()
@@ -220,42 +224,20 @@ class ExchangeDockWidget(QtGui.QDockWidget, ErrorHandling):
     def enable_exchange(self, enable):
         self.setEnabled(enable)
         self.setVisible(enable)
-        self._enable_timer(enable)
-        #self.enable_exchange_action.setChecked(enable)
-
+        self.set_signal_connection_state(enable)
+        self.exchange.set_ticker_stream_state(enable, self.remote_market)
 
         market_item = self.exchange_item.child(0, self.exchange_item.MARKETS)
         enable_item = market_item.child(self.market_row,
                                         self.exchange_item.MARKET_ENABLE)
-        #TODO try str(enable)
         if enable:
             enable_item.setText("true")
         else:
             enable_item.setText("false")
 
-
-    def _enable_timer(self, enable):
-        # TODO test if this works
-        self.setVisible(enable)
-        self.setEnabled(enable)
-        if enable and self.isEnabled():
-            self.exchange.refresh_ticker()
-            refresh_rate = self.exchange_item.child(
-                0, self.exchange_item.REFRESH_RATE).text()
-            if not refresh_rate:
-                refresh_rate = 10000
-            else:
-                refresh_rate = int(refresh_rate) * 1000
-            self.refresh_timer.start(refresh_rate)
-        else:
-            self.refresh_timer.stop()
-
     def add_account_widget(self, widget):
         self.account_widget = widget
         self.account_layout.addWidget(widget)
-
-    def set_refresh_rate(self, rate):
-        self.refresh_timer.start(rate * 1000)
 
 
 class AccountWidget(QtGui.QWidget, ErrorHandling):
@@ -263,13 +245,13 @@ class AccountWidget(QtGui.QWidget, ErrorHandling):
     #TODO funds signals should connect to multiple account widgets,
     # where accounts and commodities are the same
 
-    def __init__(self, account_object, remote_pair, parent):
+    def __init__(self, account_object, remote_market, parent):
         super(AccountWidget, self).__init__(parent)
 
-        self.remote_pair = str(remote_pair)
+        self.remote_market = str(remote_market)
         #TODO this will break if pair does not have 3 character codes
-        base = self.remote_pair[:3]
-        counter = self.remote_pair[-3:]
+        base = self.remote_market[:3]
+        counter = self.remote_market[-3:]
 
         # Data
         self.account = account_object
@@ -382,8 +364,8 @@ class AccountWidget(QtGui.QWidget, ErrorHandling):
                      self.ask_price_spin,self.bid_price_spin):
             spin.setMaximum(999999)
 
-        self.ask_model = self.account.get_ask_orders_model(self.remote_pair)
-        self.bid_model = self.account.get_bid_orders_model(self.remote_pair)
+        self.ask_model = self.account.get_ask_orders_model(self.remote_market)
+        self.bid_model = self.account.get_bid_orders_model(self.remote_market)
         self.ask_model.setHorizontalHeaderLabels(("id", "ask", "amount"))
         self.bid_model.setHorizontalHeaderLabels(("id", "bid", "amount"))
 
@@ -436,7 +418,7 @@ class AccountWidget(QtGui.QWidget, ErrorHandling):
         self.account.trade_commission_signal.connect(self.set_commission)
 
         # Check if ready to order
-        signal = getattr(self.account, self.remote_pair + '_ready_signal')
+        signal = getattr(self.account, self.remote_market + '_ready_signal')
         if hasattr(self.account, 'place_ask_limit_order'):
             signal.connect(ask_limit_action.setEnabled)
             signal.connect(bid_limit_action.setEnabled)
@@ -454,41 +436,41 @@ class AccountWidget(QtGui.QWidget, ErrorHandling):
     def enable_account(self, enable):
         if enable:
             # TODO sometimes redundant to refresh() and refresh_orders()
-            self.account.check_order_status(self.remote_pair)
+            self.account.check_order_status(self.remote_market)
             self.account.refresh_funds()
             self.account.refresh_orders()
 
     def _ask_limit(self):
         amount = self.ask_base_amount_spin.decimal_value()
         price = self.ask_price_spin.decimal_value()
-        self.account.place_ask_limit_order(self.remote_pair, amount, price)
+        self.account.place_ask_limit_order(self.remote_market, amount, price)
 
     def _bid_limit(self):
         amount = self.bid_base_amount_spin.decimal_value()
         price = self.bid_price_spin.decimal_value()
-        self.account.place_bid_limit_order(self.remote_pair, amount, price)
+        self.account.place_bid_limit_order(self.remote_market, amount, price)
 
     def _ask_market(self):
         amount = self.ask_base_amount_spin.decimal_value()
-        self.account.place_ask_market_order(self.remote_pair, amount)
+        self.account.place_ask_market_order(self.remote_market, amount)
 
     def _bid_market(self):
         amount = self.bid_base_amount_spin.decimal_value()
-        self.account.place_bid_market_order(self.remote_pair, amount)
+        self.account.place_bid_market_order(self.remote_market, amount)
 
     def _cancel_ask(self):
         row = self.ask_orders_view.currentIndex().row()
         item = self.ask_model.item(row, self.bid_model.ORDER_ID)
         if item:
             order_id = item.text()
-            self.account.cancel_ask_order(self.remote_pair, item.text())
+            self.account.cancel_ask_order(self.remote_market, item.text())
 
     def _cancel_bid(self):
         row = self.bid_orders_view.currentIndex().row()
         item = self.bid_model.item(row, self.bid_model.ORDER_ID)
         if item:
             order_id = item.text()
-            self.account.cancel_bid_order(self.remote_pair, item.text())
+            self.account.cancel_bid_order(self.remote_market, item.text())
 
     def set_commission(self, commission):
         self.commission_label.setText(

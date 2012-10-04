@@ -14,10 +14,11 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-import decimal
 import heapq
 import json
 import logging
+from decimal import Decimal
+
 from PyQt4 import QtCore, QtGui, QtNetwork
 
 import tulpenmanie.exchange
@@ -38,7 +39,7 @@ def _reply_has_errors(reply):
 def _object_pairs_hook(pairs):
     dct = dict()
     for key, value in pairs:
-        dct[key] = decimal.Decimal(value)
+        dct[key] = Decimal(value)
     return dct
 
 
@@ -48,7 +49,7 @@ class CampbxExchangeItem(tulpenmanie.exchange.ExchangeItem):
 
     COLUMNS = 4
     MARKETS, REFRESH_RATE, ACCOUNT_USERNAME, ACCOUNT_PASSWORD = range(COLUMNS)
-    mappings = (("refresh rate", REFRESH_RATE),
+    mappings = (("refresh rate (seconds)", REFRESH_RATE),
                 ("username", ACCOUNT_USERNAME),
                 ("password", ACCOUNT_PASSWORD),)
     markets = ('BTC_USD',)
@@ -87,7 +88,7 @@ class _CampbxRequest(tulpenmanie.network.ExchangePOSTRequest):
             if logger.isEnabledFor(logging.INFO):
                 logger.info("received reply to %s", self.url.toString())
             raw_reply = str(self.reply.readAll())
-            data = json.loads(raw_reply)
+            data = json.loads(raw_reply, parse_float=Decimal, parse_int=Decimal)
 
             if 'Error' in data:
                 self._handle_error(data['Error'])
@@ -110,11 +111,7 @@ class CampbxExchangeMarket(_Campbx, tulpenmanie.exchange.Exchange):
 
     _xticker_url = QtCore.QUrl(_BASE_URL + "xticker.php")
 
-    ask_signal = QtCore.pyqtSignal(decimal.Decimal)
-    last_signal = QtCore.pyqtSignal(decimal.Decimal)
-    bid_signal = QtCore.pyqtSignal(decimal.Decimal)
-
-    def __init__(self, remote_market, network_manager=None, parent=None):
+    def __init__(self, network_manager=None, parent=None):
         if network_manager is None:
             network_manager = tulpenmanie.network.get_network_manager()
         super(CampbxExchangeMarket, self).__init__(parent)
@@ -125,17 +122,53 @@ class CampbxExchangeMarket(_Campbx, tulpenmanie.exchange.Exchange):
             HOSTNAME, 500)
         self.requests = list()
         self.replies = set()
+        self._ticker_proxy = tulpenmanie.data.ticker.TickerProxy(self)
+        self._ticker_clients = 0
+        self._ticker_timer = QtCore.QTimer(self)
+        self._ticker_timer.timeout.connect(self.refresh_ticker)
+        search = tulpenmanie.exchange.model.findItems(self.exchange_name,
+                                                      QtCore.Qt.MatchExactly)
+        self._model_item = search[0]
 
-    def refresh_ticker(self):
+    def get_ticker_proxy(self, remote_market):
+        return self._ticker_proxy
+
+    def refresh_ticker(self, remote_market=None):
         CampbxTickerRequest(self._xticker_url, self)
+
+    def set_ticker_stream_state(self, state, remote_market=None):
+        if state is True:
+            self._ticker_clients += 1
+            refresh_rate = self._model_item.child(
+                0, self._model_item.REFRESH_RATE).text()
+            if not refresh_rate:
+                refresh_rate = 10000
+            else:
+                refresh_rate = float(refresh_rate) * 1000
+            if self._ticker_timer.isActive():
+                self._ticker_timer.setInterval(refresh_rate)
+                return
+            logger.info(QtCore.QCoreApplication.translate(
+                'CampbxExchangeMarket', "starting ticker stream"))
+            self._ticker_timer.start(refresh_rate)
+        else:
+            if self._ticker_clients >1:
+                self._ticker_clients -= 1
+                return
+            if self._ticker_clients == 0:
+                return
+            self._ticker_clients = 0
+            logger.info(QtCore.QCoreApplication.translate(
+                'CampbxExchangeMarket', "stopping ticker stream"))
+            self._ticker_timer.stop()
 
 
 class CampbxTickerRequest(_CampbxRequest):
     def _handle_reply(self, data):
         logger.debug(data)
-        self.parent.ask_signal.emit(decimal.Decimal(data['Best Ask']))
-        self.parent.last_signal.emit(decimal.Decimal(data['Last Trade']))
-        self.parent.bid_signal.emit(decimal.Decimal(data['Best Bid']))
+        self.parent._ticker_proxy.ask_signal.emit(Decimal(data['Best Ask']))
+        self.parent._ticker_proxy.last_signal.emit(Decimal(data['Last Trade']))
+        self.parent._ticker_proxy.bid_signal.emit(Decimal(data['Best Bid']))
 
 
 class CampbxAccount(_Campbx, tulpenmanie.exchange.ExchangeAccount):
@@ -147,13 +180,13 @@ class CampbxAccount(_Campbx, tulpenmanie.exchange.ExchangeAccount):
     _getbtcaddr_url = QtCore.QUrl(_BASE_URL + "getbtcaddr.php")
     _sendbtc_url = QtCore.QUrl(_BASE_URL + "sendbtc.php")
 
-    trade_commission_signal = QtCore.pyqtSignal(decimal.Decimal)
+    trade_commission_signal = QtCore.pyqtSignal(Decimal)
 
-    BTC_funds_signal = QtCore.pyqtSignal(decimal.Decimal)
-    USD_funds_signal = QtCore.pyqtSignal(decimal.Decimal)
+    BTC_funds_signal = QtCore.pyqtSignal(Decimal)
+    USD_funds_signal = QtCore.pyqtSignal(Decimal)
 
-    BTC_balance_changed_signal = QtCore.pyqtSignal(decimal.Decimal)
-    USD_balance_changed_signal = QtCore.pyqtSignal(decimal.Decimal)
+    BTC_balance_changed_signal = QtCore.pyqtSignal(Decimal)
+    USD_balance_changed_signal = QtCore.pyqtSignal(Decimal)
 
     BTC_USD_ready_signal = QtCore.pyqtSignal(bool)
 
@@ -246,9 +279,9 @@ class CampbxAccount(_Campbx, tulpenmanie.exchange.ExchangeAccount):
 class CampbxFundsRequest(_CampbxRequest):
     def _handle_reply(self, data):
         logger.debug(data)
-        self.parent.BTC_funds_signal.emit(decimal.Decimal(data['Liquid BTC']))
-        self.parent.USD_funds_signal.emit(decimal.Decimal(data['Liquid USD']))
-        self.parent.trade_commission_signal.emit(decimal.Decimal('0.55'))
+        self.parent.BTC_funds_signal.emit(Decimal(data['Liquid BTC']))
+        self.parent.USD_funds_signal.emit(Decimal(data['Liquid USD']))
+        self.parent.trade_commission_signal.emit(Decimal('0.55'))
 
 class CampbxOrdersRequest(_CampbxRequest):
     def _handle_reply(self, data):
@@ -282,7 +315,7 @@ class CampbxTradeRequest(_CampbxRequest):
                 self.parent.ask_orders_model.append_order(order_id,
                                                           price, amount)
             self.parent.BTC_balance_changed_signal.emit(
-                -decimal.Decimal(data['Quantity']))
+                -Decimal(data['Quantity']))
         elif data['TradeMode'][-3:] == 'Buy':
             if order_id:
                 logger.info("bid order %s in place", order_id)
@@ -293,8 +326,8 @@ class CampbxTradeRequest(_CampbxRequest):
                     'CampbxTradeRequest', "market", "at market price")
             else:
                 self.parent.USD_balance_changed_signal.emit(
-                    -(decimal.Decimal(data['Quantity']) *
-                      decimal.Decimal(data['Price'])))
+                    -(Decimal(data['Quantity']) *
+                      Decimal(data['Price'])))
 
 
 class CampbxCancelOrderRequest(_CampbxRequest):

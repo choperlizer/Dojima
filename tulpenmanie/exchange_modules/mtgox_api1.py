@@ -15,7 +15,6 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import base64
-import decimal
 import heapq
 import hashlib
 import hmac
@@ -23,6 +22,7 @@ import json
 import logging
 import random
 import time
+from decimal import Decimal
 
 from PyQt4 import QtCore, QtGui, QtNetwork
 
@@ -41,7 +41,7 @@ _BASE_URL = "https://" + HOSTNAME + "/api/1/"
 
 def _object_hook(dct):
     if 'value' in dct:
-        return decimal.Decimal(dct['value'])
+        return Decimal(dct['value'])
     else:
         return dct
 
@@ -82,37 +82,85 @@ class MtgoxPublicRequest(tulpenmanie.network.ExchangePOSTRequest):
     pass
 
 
-class MtgoxExchange(QtCore.QObject, _Mtgox):
+class MtgoxExchangeMarket(QtCore.QObject, _Mtgox):
     # BAD redundant
     exchange_error_signal = QtCore.pyqtSignal(str)
 
-    ask_signal = QtCore.pyqtSignal(decimal.Decimal)
-    last_signal = QtCore.pyqtSignal(decimal.Decimal)
-    bid_signal = QtCore.pyqtSignal(decimal.Decimal)
     trades_signal = QtCore.pyqtSignal(tuple)
     depth_signal = QtCore.pyqtSignal(tuple)
 
-    def __init__(self, remote_market, network_manager=None, parent=None):
+    def __init__(self, network_manager=None, parent=None):
         if not network_manager:
             network_manager = tulpenmanie.network.get_network_manager()
-        super(MtgoxExchange, self).__init__(parent)
+        super(MtgoxExchangeMarket, self).__init__(parent)
         self.network_manager = network_manager
         self.host_queue = self.network_manager.get_host_request_queue(
             HOSTNAME, 5000)
         self.requests = list()
         self.replies = set()
-        self._ticker_url = QtCore.QUrl(_BASE_URL + remote_market + '/ticker')
-        self._trades_url = QtCore.QUrl(_BASE_URL + remote_market + '/trades')
-        self._depth_url = QtCore.QUrl(_BASE_URL + remote_market + '/depth')
+        self._ticker_proxies = dict()
+        self._ticker_clients = dict()
+        self._ticker_timer = QtCore.QTimer(self)
+        self._ticker_timer.timeout.connect(self._refresh_tickers)
+        search = tulpenmanie.exchange.model.findItems(self.exchange_name,
+                                                      QtCore.Qt.MatchExactly)
+        self._model_item = search[0]
 
-    def refresh_ticker(self):
-        MtgoxTickerRequest(self._ticker_url, self)
+    def get_ticker_proxy(self, remote_market):
+        if remote_market not in self._ticker_proxies:
+            ticker_proxy = tulpenmanie.data.ticker.TickerProxy(self)
+            self._ticker_proxies[remote_market] = ticker_proxy
+            return ticker_proxy
+        return self._ticker_proxies[remote_market]
 
-    def refresh_trade_data(self):
-        MtgoxTradesRequest(self._trades_url, self)
+    def set_ticker_stream_state(self, state, remote_market):
+        if state is True:
+            if not remote_market in self._ticker_clients:
+                self._ticker_clients[remote_market] = 1
+            else:
+                self._ticker_clients[remote_market] += 1
+            refresh_rate = self._model_item.child(
+                0, self._model_item.REFRESH_RATE).text()
+            if not refresh_rate:
+                refresh_rate = 10000
+            else:
+                refresh_rate = float(refresh_rate) * 1000
+            if self._ticker_timer.isActive():
+                self._ticker_timer.setInterval(refresh_rate)
+                return
+            logger.info(QtCore.QCoreApplication.translate(
+                'MtgoxExchangeMarketMarket', "starting ticker stream"))
+            self._ticker_timer.start(refresh_rate)
+        else:
+            if remote_market in self._ticker_clients:
+                market_clients = self._ticker_clients[remote_market]
+                if market_clients > 1:
+                    self._ticker_clients[remote_market] -= 1
+                    return
+                if market_clients == 1:
+                    self._ticker_clients.pop(remote_market)
 
-    def refresh_depth_data(self):
-        MtgoxDepthRequest(self._depth_url, self)
+            if sum(self._ticker_clients.values()) == 0:
+                logger.info(QtCore.QCoreApplication.translate(
+                    'MtgoxExchangeMarketMarket', "stopping ticker stream"))
+                self._ticker_timer.stop()
+
+    def refresh_ticker(self, remote_market):
+        ticker_url = QtCore.QUrl(_BASE_URL + remote_market + '/ticker')
+        MtgoxTickerRequest(ticker_url, self)
+
+    def _refresh_tickers(self):
+        for remote_market in self._ticker_clients.keys():
+            ticker_url = QtCore.QUrl(_BASE_URL + remote_market + "/ticker")
+            MtgoxTickerRequest(ticker_url, self)
+
+    def refresh_trade_data(self, remote_market):
+        trades_url = QtCore.QUrl(_BASE_URL + remote_market + '/trades')
+        MtgoxTradesRequest(trades_url, self)
+
+    def refresh_depth_data(self, remote_market):
+        depth_url = QtCore.QUrl(_BASE_URL + remote_market + '/depth')
+        MtgoxDepthRequest(depth_url, self)
 
 
 class MtgoxTickerRequest(tulpenmanie.network.ExchangePOSTRequest):
@@ -122,11 +170,14 @@ class MtgoxTickerRequest(tulpenmanie.network.ExchangePOSTRequest):
         data = json.loads(raw, object_hook=_object_hook)
         if data['result'] != u'success':
             self._handle_error(data['error'])
-        else:
-            data = data['return']
-            self.parent.ask_signal.emit(data['sell'])
-            self.parent.last_signal.emit(data['last_local'])
-            self.parent.bid_signal.emit(data['buy'])
+            return
+        data = data['return']
+        path = self.url.path().split('/')
+        remote_market = path[3]
+        proxy = self.parent._ticker_proxies[remote_market]
+        proxy.ask_signal.emit(data['buy'])
+        proxy.last_signal.emit(data['last'])
+        proxy.bid_signal.emit(data['sell'])
 
 
 class MtgoxTradesRequest(MtgoxPublicRequest):
@@ -189,43 +240,43 @@ class MtgoxAccount(QtCore.QObject, _Mtgox, tulpenmanie.exchange.ExchangeAccount)
                 'BTCPLN', 'BTCRUB', 'BTCSEK', 'BTCSGD', 'BTCTHB',
                 'BTCUSD' )
 
-    trade_commission_signal = QtCore.pyqtSignal(decimal.Decimal)
+    trade_commission_signal = QtCore.pyqtSignal(Decimal)
 
-    AUD_funds_signal = QtCore.pyqtSignal(decimal.Decimal)
-    BTC_funds_signal = QtCore.pyqtSignal(decimal.Decimal)
-    CAD_funds_signal = QtCore.pyqtSignal(decimal.Decimal)
-    CHF_funds_signal = QtCore.pyqtSignal(decimal.Decimal)
-    CNY_funds_signal = QtCore.pyqtSignal(decimal.Decimal)
-    DKK_funds_signal = QtCore.pyqtSignal(decimal.Decimal)
-    EUR_funds_signal = QtCore.pyqtSignal(decimal.Decimal)
-    GBP_funds_signal = QtCore.pyqtSignal(decimal.Decimal)
-    HKD_funds_signal = QtCore.pyqtSignal(decimal.Decimal)
-    JPY_funds_signal = QtCore.pyqtSignal(decimal.Decimal)
-    NZD_funds_signal = QtCore.pyqtSignal(decimal.Decimal)
-    PLN_funds_signal = QtCore.pyqtSignal(decimal.Decimal)
-    RUB_funds_signal = QtCore.pyqtSignal(decimal.Decimal)
-    SEK_funds_signal = QtCore.pyqtSignal(decimal.Decimal)
-    SGD_funds_signal = QtCore.pyqtSignal(decimal.Decimal)
-    THB_funds_signal = QtCore.pyqtSignal(decimal.Decimal)
-    USD_funds_signal = QtCore.pyqtSignal(decimal.Decimal)
+    AUD_funds_signal = QtCore.pyqtSignal(Decimal)
+    BTC_funds_signal = QtCore.pyqtSignal(Decimal)
+    CAD_funds_signal = QtCore.pyqtSignal(Decimal)
+    CHF_funds_signal = QtCore.pyqtSignal(Decimal)
+    CNY_funds_signal = QtCore.pyqtSignal(Decimal)
+    DKK_funds_signal = QtCore.pyqtSignal(Decimal)
+    EUR_funds_signal = QtCore.pyqtSignal(Decimal)
+    GBP_funds_signal = QtCore.pyqtSignal(Decimal)
+    HKD_funds_signal = QtCore.pyqtSignal(Decimal)
+    JPY_funds_signal = QtCore.pyqtSignal(Decimal)
+    NZD_funds_signal = QtCore.pyqtSignal(Decimal)
+    PLN_funds_signal = QtCore.pyqtSignal(Decimal)
+    RUB_funds_signal = QtCore.pyqtSignal(Decimal)
+    SEK_funds_signal = QtCore.pyqtSignal(Decimal)
+    SGD_funds_signal = QtCore.pyqtSignal(Decimal)
+    THB_funds_signal = QtCore.pyqtSignal(Decimal)
+    USD_funds_signal = QtCore.pyqtSignal(Decimal)
 
-    AUD_balance_changed_signal = QtCore.pyqtSignal(decimal.Decimal)
-    BTC_balance_changed_signal = QtCore.pyqtSignal(decimal.Decimal)
-    CAD_balance_changed_signal = QtCore.pyqtSignal(decimal.Decimal)
-    CHF_balance_changed_signal = QtCore.pyqtSignal(decimal.Decimal)
-    CNY_balance_changed_signal = QtCore.pyqtSignal(decimal.Decimal)
-    DKK_balance_changed_signal = QtCore.pyqtSignal(decimal.Decimal)
-    EUR_balance_changed_signal = QtCore.pyqtSignal(decimal.Decimal)
-    GBP_balance_changed_signal = QtCore.pyqtSignal(decimal.Decimal)
-    HKD_balance_changed_signal = QtCore.pyqtSignal(decimal.Decimal)
-    JPY_balance_changed_signal = QtCore.pyqtSignal(decimal.Decimal)
-    NZD_balance_changed_signal = QtCore.pyqtSignal(decimal.Decimal)
-    PLN_balance_changed_signal = QtCore.pyqtSignal(decimal.Decimal)
-    RUB_balance_changed_signal = QtCore.pyqtSignal(decimal.Decimal)
-    SEK_balance_changed_signal = QtCore.pyqtSignal(decimal.Decimal)
-    SGD_balance_changed_signal = QtCore.pyqtSignal(decimal.Decimal)
-    THB_balance_changed_signal = QtCore.pyqtSignal(decimal.Decimal)
-    USD_balance_changed_signal = QtCore.pyqtSignal(decimal.Decimal)
+    AUD_balance_changed_signal = QtCore.pyqtSignal(Decimal)
+    BTC_balance_changed_signal = QtCore.pyqtSignal(Decimal)
+    CAD_balance_changed_signal = QtCore.pyqtSignal(Decimal)
+    CHF_balance_changed_signal = QtCore.pyqtSignal(Decimal)
+    CNY_balance_changed_signal = QtCore.pyqtSignal(Decimal)
+    DKK_balance_changed_signal = QtCore.pyqtSignal(Decimal)
+    EUR_balance_changed_signal = QtCore.pyqtSignal(Decimal)
+    GBP_balance_changed_signal = QtCore.pyqtSignal(Decimal)
+    HKD_balance_changed_signal = QtCore.pyqtSignal(Decimal)
+    JPY_balance_changed_signal = QtCore.pyqtSignal(Decimal)
+    NZD_balance_changed_signal = QtCore.pyqtSignal(Decimal)
+    PLN_balance_changed_signal = QtCore.pyqtSignal(Decimal)
+    RUB_balance_changed_signal = QtCore.pyqtSignal(Decimal)
+    SEK_balance_changed_signal = QtCore.pyqtSignal(Decimal)
+    SGD_balance_changed_signal = QtCore.pyqtSignal(Decimal)
+    THB_balance_changed_signal = QtCore.pyqtSignal(Decimal)
+    USD_balance_changed_signal = QtCore.pyqtSignal(Decimal)
 
     BTCAUD_ready_signal = QtCore.pyqtSignal(bool)
     BTCCAD_ready_signal = QtCore.pyqtSignal(bool)
@@ -396,7 +447,7 @@ class MtgoxInfoRequest(MtgoxPrivateRequest):
             else:
                 logger.warning("unknown commodity %s found in balances", symbol)
         self.parent.trade_commission_signal.emit(
-            decimal.Decimal(str(data['return']['Trade_Fee'])))
+            Decimal(str(data['return']['Trade_Fee'])))
 
 
 class MtgoxOrdersRequest(MtgoxPrivateRequest):
@@ -452,7 +503,7 @@ class MtgoxPlaceOrderRequest(MtgoxPrivateRequest):
             base_signal.emit(-amount)
         elif order_type == 'bid':
             if price:
-                counter_signal.emit(-decimal.Decimal(amount * price))
+                counter_signal.emit(-Decimal(amount * price))
             else:
                 price = QtCore.QCoreApplication.translate(
                     'MtgoxPlaceOrderRequest', "market", "at market price")
@@ -494,6 +545,6 @@ class MtgoxWithdrawBitcoinRequest(MtgoxPrivateRequest):
         self.parent.withdraw_bitcoin_reply_signal.emit(str(data))
 """
 
-tulpenmanie.exchange.register_exchange(MtgoxExchange)
+tulpenmanie.exchange.register_exchange(MtgoxExchangeMarket)
 tulpenmanie.exchange.register_account(MtgoxAccount)
 tulpenmanie.exchange.register_exchange_model_item(MtgoxExchangeItem)

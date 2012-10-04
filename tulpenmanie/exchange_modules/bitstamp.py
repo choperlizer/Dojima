@@ -14,13 +14,16 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-import decimal
+
 import heapq
 import json
 import logging
+from decimal import Decimal
+
 from PyQt4 import QtCore, QtGui, QtNetwork
 
 import tulpenmanie.exchange
+import tulpenmanie.data.ticker
 import tulpenmanie.network
 import tulpenmanie.orders
 
@@ -38,7 +41,7 @@ class BitstampExchangeItem(tulpenmanie.exchange.ExchangeItem):
 
     COLUMNS = 4
     MARKETS, REFRESH_RATE, ACCOUNT_USERNAME, ACCOUNT_PASSWORD = range(COLUMNS)
-    mappings = (("refresh rate", REFRESH_RATE),
+    mappings = (("ticker refresh rate (seconds)", REFRESH_RATE),
                 ("customer ID", ACCOUNT_USERNAME),
                 ("password", ACCOUNT_PASSWORD),)
     markets = ('BTC_USD',)
@@ -64,12 +67,9 @@ class BitstampExchangeMarket(_Bitstamp):
     _ticker_url = QtCore.QUrl(_BASE_URL + 'ticker/')
     _transactions_url = QtCore.QUrl(_BASE_URL + 'transactions/')
 
-    ask_signal = QtCore.pyqtSignal(decimal.Decimal)
-    last_signal = QtCore.pyqtSignal(decimal.Decimal)
-    bid_signal = QtCore.pyqtSignal(decimal.Decimal)
     trades_signal = QtCore.pyqtSignal(tuple)
 
-    def __init__(self, remote_market, network_manager=None, parent=None):
+    def __init__(self, network_manager=None, parent=None):
         if network_manager is None:
             network_manager = tulpenmanie.network.get_network_manager()
         super(BitstampExchangeMarket, self).__init__(parent)
@@ -79,11 +79,47 @@ class BitstampExchangeMarket(_Bitstamp):
             HOSTNAME, 500)
         self.requests = list()
         self.replies = set()
+        self._ticker_proxy = tulpenmanie.data.ticker.TickerProxy(self)
+        self._ticker_clients = 0
+        self._ticker_timer = QtCore.QTimer(self)
+        self._ticker_timer.timeout.connect(self.refresh_ticker)
+        search = tulpenmanie.exchange.model.findItems(self.exchange_name,
+                                                      QtCore.Qt.MatchExactly)
+        self._model_item = search[0]
 
-    def refresh_ticker(self):
+    def get_ticker_proxy(self, remote_market=None):
+        return self._ticker_proxy
+
+    def refresh_ticker(self, remote_market=None):
         BitstampTickerRequest(self._ticker_url, self)
 
-    def refresh_trade_data(self):
+    def set_ticker_stream_state(self, state, remote_market=None):
+        if state is True:
+            self._ticker_clients += 1
+            refresh_rate = self._model_item.child(
+                0, self._model_item.REFRESH_RATE).text()
+            if not refresh_rate:
+                refresh_rate = 10000
+            else:
+                refresh_rate = float(refresh_rate) * 1000
+            if self._ticker_timer.isActive():
+                self._ticker_timer.setInterval(refresh_rate)
+                return
+            logger.info(QtCore.QCoreApplication.translate(
+                'BitstampExchangeMarket', "starting ticker stream"))
+            self._ticker_timer.start(refresh_rate)
+        else:
+            if self._ticker_clients >1:
+                self._ticker_clients -= 1
+                return
+            if self._ticker_clients == 0:
+                return
+            self._ticker_clients = 0
+            logger.info(QtCore.QCoreApplication.translate(
+                'BitstampExchangeMarket', "stopping ticker stream"))
+            self._ticker_timer.stop()
+
+    def refresh_trade_data(self, remote_market=None):
         BitstampTransactionsRequest(self._transactions_url, self)
 
 
@@ -91,17 +127,19 @@ class BitstampTickerRequest(tulpenmanie.network.ExchangeGETRequest):
 
     def _handle_reply(self, raw):
         logger.debug(raw)
-        data = json.loads(raw)
-        self.parent.ask_signal.emit(decimal.Decimal(data['ask']))
-        self.parent.last_signal.emit(decimal.Decimal(data['last']))
-        self.parent.bid_signal.emit(decimal.Decimal(data['bid']))
+        data = json.loads(raw, parse_float=Decimal)
+        self.parent._ticker_proxy.ask_signal.emit(Decimal(data['ask']))
+        self.parent._ticker_proxy.last_signal.emit(Decimal(data['last']))
+        self.parent._ticker_proxy.bid_signal.emit(Decimal(data['bid']))
 
 
 class BitstampTransactionsRequest(tulpenmanie.network.ExchangeGETRequest):
 
     def _handle_reply(self, raw):
         logger.debug(raw)
-        trade_list = json.loads(raw, object_hook=self._object_hook)
+        trade_list = json.loads(raw,
+                                parse_float=Decimal,
+                                object_hook=self._object_hook)
         dates = list()
         prices = list()
         amounts = list()
@@ -134,13 +172,13 @@ class BitstampAccount(_Bitstamp, tulpenmanie.exchange.ExchangeAccount):
 
     exchange_error_signal = QtCore.pyqtSignal(str)
 
-    trade_commission_signal = QtCore.pyqtSignal(decimal.Decimal)
+    trade_commission_signal = QtCore.pyqtSignal(Decimal)
 
-    BTC_funds_signal = QtCore.pyqtSignal(decimal.Decimal)
-    USD_funds_signal = QtCore.pyqtSignal(decimal.Decimal)
+    BTC_funds_signal = QtCore.pyqtSignal(Decimal)
+    USD_funds_signal = QtCore.pyqtSignal(Decimal)
 
-    BTC_balance_changed_signal = QtCore.pyqtSignal(decimal.Decimal)
-    USD_balance_changed_signal = QtCore.pyqtSignal(decimal.Decimal)
+    BTC_balance_changed_signal = QtCore.pyqtSignal(Decimal)
+    USD_balance_changed_signal = QtCore.pyqtSignal(Decimal)
 
     BTC_USD_ready_signal = QtCore.pyqtSignal(bool)
 
@@ -205,10 +243,9 @@ class BitstampAccount(_Bitstamp, tulpenmanie.exchange.ExchangeAccount):
     def place_bid_limit_order(self, pair, amount, price):
         self._place_limit_order(amount, price, self._buy_limit_url)
 
-    # TODO these could both be advanced
     def _place_limit_order(self, amount, price, url):
         query = {'amount': amount,
-                 'price': price}
+                 'price': str(price).rstrip('0')}
         data = {'query': query}
 
         BitstampPlaceOrderRequest(url, self, data)
@@ -260,13 +297,11 @@ class BitstampBalanceRequest(BitstampPrivateRequest):
 
     def _handle_reply(self, raw):
         logger.debug(raw)
-        data = json.loads(raw)
-        self.parent.BTC_funds_signal.emit(
-            decimal.Decimal(data['btc_available']))
-        self.parent.USD_funds_signal.emit(
-            decimal.Decimal(data['usd_available']))
-        self.parent.trade_commission_signal.emit(
-            decimal.Decimal(data['fee'].rstrip('0')))
+        data = json.loads(raw, parse_float=Decimal)
+        self.parent.BTC_funds_signal.emit(Decimal(data['btc_available']))
+        self.parent.USD_funds_signal.emit(Decimal(data['usd_available']))
+        fee = data['fee'].rstrip('0')
+        self.parent.trade_commission_signal.emit(Decimal(fee))
 
 
 class BitstampOpenOrdersRequest(BitstampPrivateRequest):
@@ -274,7 +309,7 @@ class BitstampOpenOrdersRequest(BitstampPrivateRequest):
 
     def _handle_reply(self, raw):
         logger.debug(raw)
-        data = json.loads(raw)
+        data = json.loads(raw, parse_float=Decimal)
         if data:
             self.parent.process_orders(data)
 
@@ -284,11 +319,14 @@ class BitstampPlaceOrderRequest(BitstampPrivateRequest):
 
     def _handle_reply(self, raw):
         logger.debug(raw)
-        data = json.loads(raw)
+        data = json.loads(raw, parse_float=Decimal)
+        if 'error' in data:
+            self._handle_error(str(data['error']))
+            return
 
         order_id = int(data['id'])
-        amount = decimal.Decimal(data['amount'])
-        price = decimal.Decimal(data['price'])
+        amount = Decimal(data['amount'])
+        price = Decimal(data['price'])
         # type - buy or sell (0 - buy; 1 - sell)
         if data['type'] == 0:
             logger.info("bid order %s in place", order_id)
@@ -306,7 +344,7 @@ class BitstampCancelOrderRequest(BitstampPrivateRequest):
 
     def _handle_reply(self, raw):
         logger.debug(raw)
-        data = json.loads(raw)
+        data = json.loads(raw, parse_float=Decimal)
 
         if data:
             order_id = self.data['query']['id']

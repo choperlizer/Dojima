@@ -75,8 +75,6 @@ class MainWindow(QtGui.QMainWindow):
         for uuid in self.markets.keys():
             if not tulpenmanie.market.model.findItems(
                     uuid, QtCore.Qt.MatchExactly, tulpenmanie.market.model.UUID):
-                for value in self.markets[uuid].values():
-                    value.deleteLater()
                 self.markets.pop(uuid)
 
         for market_row in range(tulpenmanie.market.model.rowCount()):
@@ -165,10 +163,6 @@ class MainWindow(QtGui.QMainWindow):
                     enable = False
                 exchange_dock.enable_exchange(enable)
                 exchange_dock.enable_exchange_action.setChecked(enable)
-                refresh_rate = exchange_item.child(
-                    0, exchange_item.REFRESH_RATE).text()
-                if refresh_rate and enable:
-                    exchange_dock.set_refresh_rate(float(refresh_rate))
 
                 account_widget = exchange_dock.account_widget
                 if not account_widget and account_object:
