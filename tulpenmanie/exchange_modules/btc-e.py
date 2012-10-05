@@ -25,6 +25,7 @@ from decimal import Decimal
 from PyQt4 import QtCore, QtGui, QtNetwork
 
 import tulpenmanie.exchange
+import tulpenmanie.data.orders
 import tulpenmanie.data.ticker
 import tulpenmanie.network
 
@@ -284,11 +285,17 @@ class BtceAccount(_Btce, tulpenmanie.exchange.ExchangeAccount):
             HOSTNAME, 5000)
         self.requests = list()
         self.replies = set()
+        self._orders_proxies = dict()
 
-        self.ask_orders = dict()
-        self.bid_orders = dict()
         # TODO maybe divide smaller
         self.nonce = int(time.time() / 2)
+
+    def get_orders_proxy(self, remote_market):
+        if remote_market not in self._orders_proxies:
+            orders_proxy = tulpenmanie.data.orders.OrdersProxy(self)
+            self._orders_proxies[remote_market] = orders_proxy
+            return orders_proxy
+        return self._orders_proxies[remote_market]
 
     def pop_request(self):
         request = heapq.heappop(self.requests)[1]
@@ -318,10 +325,10 @@ class BtceAccount(_Btce, tulpenmanie.exchange.ExchangeAccount):
 
     def _orderlist_handler(self, data):
         data = data['return']
-        if data:
-            for models in self.ask_orders, self.bid_orders:
-                for model in models.values():
-                    model.clear_orders()
+        if not data:
+            return
+        asks = dict()
+        bids = dict()
         for order_id, order in data.items():
             price = order['rate']
             amount = order['amount']
@@ -329,16 +336,22 @@ class BtceAccount(_Btce, tulpenmanie.exchange.ExchangeAccount):
             pair = order['pair']
 
             if order_type == u'sell':
-                self.ask_orders[pair].append_order(order_id, price, amount)
+                if pair not in asks:
+                    asks[pair] = list()
+                asks[pair].append((order_id, price, amount,))
             elif order_type == u'buy':
-                self.bid_orders_model[pair].append_order(order_id, price, amount)
+                if pair not in bids:
+                    bids[pair] = list()
+                bids[pair].append((order_id, price, amount,))
             else:
-                logger.error("unknown order type: %s", order_type)
-                return
+                logger.warning("unknown order type: %s", order_type)
 
-            for models in self.ask_orders, self.bid_orders:
-                for model in models.values():
-                    model.sort(1, QtCore.Qt.DescendingOrder)
+        for pair, orders in asks.items():
+            if pair in self._orders_proxies:
+                self._orders_proxies[pair].asks.emit(orders)
+        for pair, orders in bids.items():
+            if pair in self._orders_proxies:
+                self._orders_proxies[pair].bids.emit(orders)
 
     def place_ask_limit_order(self, remote, amount, price):
         self._place_order(remote, 'sell', amount, price)
@@ -363,10 +376,12 @@ class BtceAccount(_Btce, tulpenmanie.exchange.ExchangeAccount):
         order_type = data['query']['type']
         if order_type == 'sell':
             logger.info("ask order %s in place", order_id)
-            self.ask_orders[pair].append_order(order_id, price, amount)
+            if pair in self._orders_proxies:
+                self.orders_proxies[pair].ask.emit((order_id, price, amount,))
         elif order_type == 'buy':
             logger.info("bid order %s in place", order_id)
-            self.bid_orders[pair].append_order(order_id, price, amount)
+            if pair in self._orders_proxies:
+                self.orders_proxies[pair].bid.emit((order_id, price, amount,))
         self._emit_funds(data['return']['funds'])
 
     def cancel_ask_order(self, pair, order_id):
@@ -389,9 +404,11 @@ class BtceAccount(_Btce, tulpenmanie.exchange.ExchangeAccount):
         pair = data['pair']
         order_type = data['type']
         if order_type == 'ask':
-            self.ask_orders[pair].remove_order(order_id)
+            if pair in self._orders_proxies:
+                self.orders_proxies[pair].ask_cancelled(order_id)
         elif order_type == 'bid':
-            self.bid_orders[pair].remove_order(order_id)
+            if pair in self._orders_proxies:
+                self.orders_proxies[pair].bid_cancelled(order_id)
         self._emit_funds(data['return']['funds'])
 
     def _emit_funds(self, data):

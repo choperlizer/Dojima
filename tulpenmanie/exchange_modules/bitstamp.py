@@ -23,9 +23,9 @@ from decimal import Decimal
 from PyQt4 import QtCore, QtGui, QtNetwork
 
 import tulpenmanie.exchange
+import tulpenmanie.data.orders
 import tulpenmanie.data.ticker
 import tulpenmanie.network
-import tulpenmanie.orders
 
 
 logger = logging.getLogger(__name__)
@@ -196,10 +196,11 @@ class BitstampAccount(_Bitstamp, tulpenmanie.exchange.ExchangeAccount):
             HOSTNAME, 500)
         self.requests = list()
         self.replies = set()
-
-        self.ask_orders_model = tulpenmanie.orders.OrdersModel()
-        self.bid_orders_model = tulpenmanie.orders.OrdersModel()
         self._bitcoin_deposit_address = None
+        self._orders_proxy = tulpenmanie.data.orders.OrdersProxy(self)
+
+    def get_orders_proxy(self, remote_market=None):
+        return self._orders_proxy
 
     def set_credentials(self, credentials):
         self.base_query.addQueryItem('user', credentials[0])
@@ -208,34 +209,11 @@ class BitstampAccount(_Bitstamp, tulpenmanie.exchange.ExchangeAccount):
     def check_order_status(self, remote_pair):
         self.BTC_USD_ready_signal.emit(True)
 
-    def get_ask_orders_model(self, remote_pair):
-        return self.ask_orders_model
-
-    def get_bid_orders_model(self, remote_pair):
-        return self.bid_orders_model
-
     def refresh_funds(self):
         BitstampBalanceRequest(self._balance_url, self)
 
     def refresh_orders(self):
         BitstampOpenOrdersRequest(self._open_orders_url, self)
-
-    def process_orders(self, orders):
-        for model in self.ask_orders_model, self.bid_orders_model:
-            model.clear_orders()
-
-        for order in orders:
-            order_id = order['id']
-            price = order['price']
-            amount = order['amount']
-            # type - buy or sell (0 - buy; 1 - sell)
-            if order['type'] == 0:
-                self.bid_orders_model.append_order(order_id, price, amount)
-            elif order['type'] == 1:
-                self.ask_orders_model.append_order(order_id, price, amount)
-
-        for model in self.ask_orders_model, self.bid_orders_model:
-            model.sort(1, QtCore.Qt.DescendingOrder)
 
     def place_ask_limit_order(self, pair, amount, price):
         self._place_limit_order(amount, price, self._sell_limit_url)
@@ -251,10 +229,10 @@ class BitstampAccount(_Bitstamp, tulpenmanie.exchange.ExchangeAccount):
         BitstampPlaceOrderRequest(url, self, data)
 
     def cancel_ask_order(self, pair, order_id):
-        self._cancel_order(order_id, 0)
+        self._cancel_order(order_id, 1)
 
     def cancel_bid_order(self, pair, order_id):
-        self._cancel_order(order_id, 1)
+        self._cancel_order(order_id, 0)
 
     def _cancel_order(self, order_id, order_type):
         data = {'type': order_type,
@@ -310,8 +288,24 @@ class BitstampOpenOrdersRequest(BitstampPrivateRequest):
     def _handle_reply(self, raw):
         logger.debug(raw)
         data = json.loads(raw, parse_float=Decimal)
-        if data:
-            self.parent.process_orders(data)
+        if not data:
+            return
+        ask_orders, bid_orders = [], []
+        for order in data:
+            order_id = order['id']
+            price = order['price']
+            amount = order['amount']
+            # type - buy or sell (0 - buy; 1 - sell)
+            if order['type'] == 0:
+                bid_orders.append((order_id, price, amount,))
+            elif order['type'] == 1:
+                ask_orders.append((order_id, price, amount,))
+            else:
+                logger.warning('unknown order type %s, WTF!!', order['type'])
+        if ask_orders:
+            self.parent.orders_proxy.asks.emit(ask_orders)
+        if bid_orders:
+            self.parent.orders_proxy.bids.emit(bid_orders)
 
 
 class BitstampPlaceOrderRequest(BitstampPrivateRequest):
@@ -324,18 +318,18 @@ class BitstampPlaceOrderRequest(BitstampPrivateRequest):
             self._handle_error(str(data['error']))
             return
 
-        order_id = int(data['id'])
-        amount = Decimal(data['amount'])
-        price = Decimal(data['price'])
+        order_id = data['id']
+        amount = data['amount']
+        price = data['price']
         # type - buy or sell (0 - buy; 1 - sell)
         if data['type'] == 0:
             logger.info("bid order %s in place", order_id)
-            self.parent.bid_orders_model.append_order(order_id, price, amount)
+            self.parent.orders_proxy.bid.emit((order_id, price, amount,))
             self.parent.USD_balance_changed_signal.emit( -(amount * price))
 
         elif data['type'] == 1:
             logger.info("ask order %s in place", order_id)
-            self.parent.ask_orders_model.append_order(order_id, price, amount)
+            self.parent.orders_proxy.ask.emit((order_id, price, amount,))
             self.parent.BTC_balance_changed_signal.emit( -amount)
 
 
@@ -344,22 +338,15 @@ class BitstampCancelOrderRequest(BitstampPrivateRequest):
 
     def _handle_reply(self, raw):
         logger.debug(raw)
-        data = json.loads(raw, parse_float=Decimal)
+        data = json.loads(raw)
 
         if data:
-            order_id = self.data['query']['id']
-            if not self.data['type']:
-                items = self.parent.ask_orders_model.findItems(
-                    order_id, QtCore.Qt.MatchExactly, 0)
-                if items:
-                    row = items[0].row()
-                    self.parent.ask_orders_model.removeRow(row)
+            order_id = int(self.data['query']['id'])
+            # type - buy or sell (0 - buy; 1 - sell)
+            if self.data['type'] == 1:
+                self.parent.orders_proxy.ask_canceled.emit(order_id)
             else:
-                items = self.parent.bid_orders_model.findItems(
-                    order_id, QtCore.Qt.MatchExactly, 0)
-                if items:
-                    row = items[0].row()
-                    self.parent.bid_orders_model.removeRow(row)
+                self.parent.orders_proxy.bid_canceled.emit(order_id)
             logger.info("order %s canceled", order_id)
 
 

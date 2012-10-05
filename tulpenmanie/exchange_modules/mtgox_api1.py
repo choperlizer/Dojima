@@ -27,6 +27,8 @@ from decimal import Decimal
 from PyQt4 import QtCore, QtGui, QtNetwork
 
 import tulpenmanie.exchange
+import tulpenmanie.data.orders
+import tulpenmanie.data.ticker
 import tulpenmanie.network
 
 logger = logging.getLogger(__name__)
@@ -320,8 +322,7 @@ class MtgoxAccount(QtCore.QObject, _Mtgox, tulpenmanie.exchange.ExchangeAccount)
         self.requests = list()
         self.replies = set()
         self.set_credentials(credentials)
-        self.ask_orders = dict()
-        self.bid_orders = dict()
+        self._orders_proxies = dict()
         self._bitcoin_deposit_address = None
         self.nonce = int(time.time() / 2)
 
@@ -329,6 +330,13 @@ class MtgoxAccount(QtCore.QObject, _Mtgox, tulpenmanie.exchange.ExchangeAccount)
         self._key = str(credentials[0])
         self._secret = base64.b64decode(credentials[1])
 
+    def get_orders_proxy(self, remote_market):
+        if remote_market not in self._orders_proxies:
+            orders_proxy = tulpenmanie.data.orders.OrdersProxy(self)
+            self._orders_proxies[remote_market] = orders_proxy
+            return orders_proxy
+        return self._orders_proxies[remote_market]     
+        
     def check_order_status(self, remote_pair):
         # This can probaly call for BTC info twice at
         # startup but whatever
@@ -457,30 +465,34 @@ class MtgoxOrdersRequest(MtgoxPrivateRequest):
         logger.debug(raw)
         data = json.loads(raw, object_hook=_object_hook)
         data = data['return']
-        if data:
-            for models in self.parent.ask_orders, self.parent.bid_orders:
-                for model in models.values():
-                    model.clear_orders()
-            for order in data:
-                pair = order['item'] + order['currency']
-                order_id = order['oid']
-                price = order['price']
-                amount = order['amount']
-                order_type = order['type']
+        if not data:
+            return
+        asks = dict()
+        bids = dict()
+        for order in data:
+            pair = order['item'] + order['currency']
+            order_id = order['oid']
+            price = order['price']
+            amount = order['amount']
+            order_type = order['type']
 
-                if order_type == u'ask':
-                    self.parent.ask_orders[pair].append_order(
-                        order_id, price, amount)
-                elif order_type == u'bid':
-                    self.parent.bid_orders[pair].append_order(
-                        order_id, price, amount)
-                else:
-                    logger.warning("unknown order type: %s", order_type)
-                    continue
+            if order_type == u'ask':
+                if pair not in asks:
+                    asks[pair] = list()
+                ask[pair].append((order_id, price, amount,))
+            elif order_type == u'bid':
+                if pair not in bids:
+                    bids[pair] = list()
+                bids[pair].append((order_id, price, amount,))
+            else:
+                logger.warning("unknown order type: %s", order_type)
 
-            for models in self.parent.ask_orders, self.parent.bid_orders:
-                for model in models.values():
-                    model.sort(1, QtCore.Qt.DescendingOrder)
+        for pair, orders in asks.items():
+            if pair in self._orders_proxies:
+                self._orders_proxies[pair].asks.emit(orders)
+        for pair, orders in bids.items():
+            if pair in self._orders_proxies:
+                self._orders_proxies[pair].bids.emit(orders)
 
 
 class MtgoxPlaceOrderRequest(MtgoxPrivateRequest):

@@ -22,8 +22,9 @@ from decimal import Decimal
 from PyQt4 import QtCore, QtGui, QtNetwork
 
 import tulpenmanie.exchange
-import tulpenmanie.orders
-
+import tulpenmanie.data.orders
+import tulpenmanie.data.ticker
+import tulpenmanie.network
 
 logger = logging.getLogger(__name__)
 
@@ -204,9 +205,7 @@ class CampbxAccount(_Campbx, tulpenmanie.exchange.ExchangeAccount):
             HOSTNAME, 500)
         self.requests = list()
         self.replies = set()
-
-        self.ask_orders_model = tulpenmanie.orders.OrdersModel()
-        self.bid_orders_model = tulpenmanie.orders.OrdersModel()
+        self._orders_proxy = tulpenmanie.data.orders.OrdersProxy(self)
 
         self._bitcoin_deposit_address = None
 
@@ -214,14 +213,11 @@ class CampbxAccount(_Campbx, tulpenmanie.exchange.ExchangeAccount):
         self.base_query.addQueryItem('user', credentials[0])
         self.base_query.addQueryItem('pass', credentials[1])
 
+    def get_orders_proxy(self, remote_market=None):
+        return self._orders_proxy
+
     def check_order_status(self, remote_pair):
         self.BTC_USD_ready_signal.emit(True)
-
-    def get_ask_orders_model(self, remote_pair):
-        return self.ask_orders_model
-
-    def get_bid_orders_model(self, remote_pair):
-        return self.bid_orders_model
 
     def refresh_ticker(self):
         self._refresh_funds()
@@ -286,19 +282,18 @@ class CampbxFundsRequest(_CampbxRequest):
 class CampbxOrdersRequest(_CampbxRequest):
     def _handle_reply(self, data):
         logger.debug(data)
-        for model, array, in ((self.parent.ask_orders_model, 'Sell'),
-                              (self.parent.bid_orders_model, 'Buy') ):
-            model.clear_orders()
-            for order in data[array]:
-                if 'Info' in order:
-                    break
+        asks = list()
+        bids = list()
+        for order, orders in ((data['Sell'], asks),
+                              (data['Buy'], bids)):
+            orders.append((order['Order ID'],
+                           order['Price'],
+                           order['Quantity']))
+        if asks:
+            self.parent._orders_proxy.asks.emit(asks)
+        if bids:
+            self.parent._orders_proxy.asks.emit(bids)
 
-                order_id = order['Order ID']
-                price = order['Price']
-                amount = order['Quantity']
-
-                model.append_order(order_id, price, amount)
-            model.sort(1, QtCore.Qt.DescendingOrder)
 
 class CampbxTradeRequest(_CampbxRequest):
     priority = 1
@@ -310,17 +305,15 @@ class CampbxTradeRequest(_CampbxRequest):
         price = data['Price']
 
         if data['TradeMode'][-4:] == 'Sell':
-            if order_id:
-                logger.info("ask order %s in place", order_id)
-                self.parent.ask_orders_model.append_order(order_id,
-                                                          price, amount)
             self.parent.BTC_balance_changed_signal.emit(
                 -Decimal(data['Quantity']))
+            if order_id:
+                logger.info("ask order %s in place", order_id)
+                self.parent._orders_proxy.ask.emit((order_id, price, amount))
         elif data['TradeMode'][-3:] == 'Buy':
             if order_id:
                 logger.info("bid order %s in place", order_id)
-                self.parent.bid_orders_model.append_order(order_id,
-                                                          price, amount)
+                self.parent._orders_proxy.bid.emit(order_id, price, amount)
             if price == 'Market':
                 price = QtCore.QCoreApplication.translate(
                     'CampbxTradeRequest', "market", "at market price")
@@ -338,19 +331,12 @@ class CampbxCancelOrderRequest(_CampbxRequest):
         order_id = words[2]
         order_type = self.data['query']['Type']
         if order_type == 'Sell':
-            items = self.parent.ask_orders_model.findItems(
-                order_id, QtCore.Qt.MatchExactly, 0)
-            if items:
-                row = items[0].row()
-                self.parent.ask_orders_model.removeRow(row)
-                logger.debug("Trimmed ask order %s from a model", order_id)
+            self.parent._orders_proxy.ask_canceled.emit(order_id)
+            logger.info("ask order %s canceled", order_id)
         elif order_type == 'Buy':
-            items = self.parent.bid_orders_model.findItems(
-                order_id, QtCore.Qt.MatchExactly, 0)
-            if items:
-                row = items[0].row()
-                self.parent.bid_orders_model.removeRow(row)
-                logger.debug("Trimmed bid order %s from a model", order_id)
+            self.parent._orders_proxy.bid_canceled.emit(order_id)
+            logger.debug("bid order %s canceled", order_id)
+
 
 class CampbxBitcoinAddressRequest(_CampbxRequest):
     priority = 2
@@ -359,6 +345,7 @@ class CampbxBitcoinAddressRequest(_CampbxRequest):
         address = data['Success']
         self.parent._bitcoin_deposit_address = address
         self.parent.bitcoin_deposit_address_signal.emit(address)
+
 
 class CampbxWithdrawBitcoinRequest(_CampbxRequest):
     priority = 2

@@ -19,7 +19,7 @@ import logging
 from PyQt4 import QtCore, QtGui
 
 import tulpenmanie.exchange
-
+import tulpenmanie.model.order
 
 logger =  logging.getLogger(__name__)
 
@@ -259,7 +259,20 @@ class AccountWidget(QtGui.QWidget, ErrorHandling):
         self.commission_multiplier = 0
         self.commission_display = QtCore.QCoreApplication.translate(
             'AccountWidget', "%1%")
-
+        self.asks_model = tulpenmanie.model.order.OrdersModel()
+        self.bids_model = tulpenmanie.model.order.OrdersModel()
+        self.asks_model.setHorizontalHeaderLabels(
+            ("id",
+             QtCore.QCoreApplication.translate('AccountWidget',
+                                               "ask", "ask price"),
+             QtCore.QCoreApplication.translate('AccountWidget',
+                                               "amount", "ask amount")))
+        self.bids_model.setHorizontalHeaderLabels(
+            ("id",
+             QtCore.QCoreApplication.translate('AccountWidget',
+                                               "bid", "bid price"),
+             QtCore.QCoreApplication.translate('AccountWidget',
+                                               "amount", "bid amount")))
         # Create UI
         layout = QtGui.QGridLayout()
 
@@ -364,18 +377,13 @@ class AccountWidget(QtGui.QWidget, ErrorHandling):
                      self.ask_price_spin,self.bid_price_spin):
             spin.setMaximum(999999)
 
-        self.ask_model = self.account.get_ask_orders_model(self.remote_market)
-        self.bid_model = self.account.get_bid_orders_model(self.remote_market)
-        self.ask_model.setHorizontalHeaderLabels(("id", "ask", "amount"))
-        self.bid_model.setHorizontalHeaderLabels(("id", "bid", "amount"))
-
         # TODO these views should prefix/suffix price and amounts
         self.ask_orders_view = QtGui.QTableView()
-        self.ask_orders_view.setModel(self.ask_model)
+        self.ask_orders_view.setModel(self.asks_model)
         layout.addWidget(self.ask_orders_view, 3,0, 1,3)
 
         self.bid_orders_view = QtGui.QTableView()
-        self.bid_orders_view.setModel(self.bid_model)
+        self.bid_orders_view.setModel(self.bids_model)
         layout.addWidget(self.bid_orders_view, 3,3, 1,3)
 
         for view in self.ask_orders_view, self.bid_orders_view:
@@ -417,6 +425,14 @@ class AccountWidget(QtGui.QWidget, ErrorHandling):
         self.account.exchange_error_signal.connect(self.exchange_error_handler)
         self.account.trade_commission_signal.connect(self.set_commission)
 
+        orders_proxy = self.account.get_orders_proxy(self.remote_market)
+        orders_proxy.asks.connect(self.new_asks)
+        orders_proxy.bids.connect(self.new_bids)
+        orders_proxy.ask.connect(self.new_ask)
+        orders_proxy.bid.connect(self.new_bid)
+        orders_proxy.ask_canceled.connect(self.ask_canceled)
+        orders_proxy.bid_canceled.connect(self.bid_canceled)
+
         # Check if ready to order
         signal = getattr(self.account, self.remote_market + '_ready_signal')
         if hasattr(self.account, 'place_ask_limit_order'):
@@ -440,6 +456,22 @@ class AccountWidget(QtGui.QWidget, ErrorHandling):
             self.account.refresh_funds()
             self.account.refresh_orders()
 
+    def new_asks(self, orders):
+        self.asks_model.clear_orders()
+        for order in orders:
+            self.asks_model.append_order(order)
+
+    def new_ask(self, order):
+        self.asks_model.append_order(order)
+
+    def new_bids(self, orders):
+        self.bids_model.clear_orders()
+        for order in orders:
+            self.bids_model.append_order(order)
+            
+    def new_bid(self, order):
+        self.bids_model.append_order(order)
+
     def _ask_limit(self):
         amount = self.ask_base_amount_spin.decimal_value()
         price = self.ask_price_spin.decimal_value()
@@ -460,17 +492,27 @@ class AccountWidget(QtGui.QWidget, ErrorHandling):
 
     def _cancel_ask(self):
         row = self.ask_orders_view.currentIndex().row()
-        item = self.ask_model.item(row, self.bid_model.ORDER_ID)
+        item = self.asks_model.item(row, self.ask_model.ORDER_ID)
         if item:
             order_id = item.text()
-            self.account.cancel_ask_order(self.remote_market, item.text())
+            self.account.cancel_ask_order(self.remote_market, order_id)
+
+    def ask_canceled(self, order_id):
+        items = self.asks_model.findItems(order_id, QtCore.Qt.MatchExactly, 0)
+        for item in items:
+            self.asks_model.removeRow(item.row())
 
     def _cancel_bid(self):
         row = self.bid_orders_view.currentIndex().row()
-        item = self.bid_model.item(row, self.bid_model.ORDER_ID)
+        item = self.bids_model.item(row, self.bid_model.ORDER_ID)
         if item:
             order_id = item.text()
-            self.account.cancel_bid_order(self.remote_market, item.text())
+            self.account.cancel_bid_order(self.remote_market, order_id)
+
+    def bid_canceled(self, order_id):
+        items = self.bids_model.findItems(order_id, QtCore.Qt.MatchExactly, 0)
+        for item in items:
+            self.parent.bids_orders_model.removeRow(item.row())
 
     def set_commission(self, commission):
         self.commission_label.setText(
