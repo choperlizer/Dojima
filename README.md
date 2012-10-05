@@ -6,7 +6,6 @@ A graphical speculation platform in PyQt4
    and instruments.
  - Present a modular interface optimized for multi-monitor and tiling window 
    managers.
- - Place orders faster and lighter than in-browser trading.
  - Hasten the obsolesence of legal tender and repressive financial regulation.
 
 ## Supported Exchanges
