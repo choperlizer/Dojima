@@ -453,11 +453,11 @@ class MtgoxOrdersRequest(MtgoxPrivateRequest):
                 logger.warning("unknown order type: %s", order_type)
 
         for pair, orders in asks.items():
-            if pair in self._orders_proxies:
-                self._orders_proxies[pair].asks.emit(orders)
+            if pair in self.parent._orders_proxies:
+                self.parent._orders_proxies[pair].asks.emit(orders)
         for pair, orders in bids.items():
-            if pair in self._orders_proxies:
-                self._orders_proxies[pair].bids.emit(orders)
+            if pair in self.parent._orders_proxies:
+                self.parent._orders_proxies[pair].bids.emit(orders)
 
 
 class MtgoxPlaceOrderRequest(MtgoxPrivateRequest):

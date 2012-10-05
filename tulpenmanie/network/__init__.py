@@ -95,7 +95,7 @@ class NetworkRequest(QtNetwork.QNetworkRequest):
         super(NetworkRequest, self).__init__(url)
         # BAD hardcoding
         # TODO get this from QApplication
-        self.setRawHeader("User-Agent", "tulpenmanie/0.6.0")
+        self.setRawHeader("User-Agent", "tulpenmanie/0.6.1")
 
 
 class ExchangeRequest(object):
