@@ -147,7 +147,7 @@ class Exchange:
         request.send()
         self._replies.add(request)
 
-        
+
 class ExchangeAccount:
 
     def pop_request(self):
@@ -155,18 +155,16 @@ class ExchangeAccount:
         request.send()
         self._replies.add(request)
 
-    def get_ask_orders_model(self, remote_pair):
-        if remote_pair in self.ask_orders.keys():
-            return self.ask_orders[remote_pair]
-        else:
-            model = tulpenmanie.model.order.OrdersModel()
-            self.ask_orders[remote_pair] = model
-            return model
+    def get_funds_proxy(self, symbol):
+        if symbol not in self._funds_proxies:
+            proxy = tulpenmanie.data.funds.FundsProxy(self)
+            self._funds_proxies[symbol] = proxy
+            return proxy
+        return self._funds_proxies[symbol]
 
-    def get_bid_orders_model(self, remote_pair):
-        if remote_pair in self.bid_orders.keys():
-            return self.bid_orders[remote_pair]
-        else:
-            model = tulpenmanie.model.order.OrdersModel()
-            self.bid_orders[remote_pair] = model
-            return model
+    def get_orders_proxy(self, remote_market):
+        if remote_market not in self._orders_proxies:
+            orders_proxy = tulpenmanie.data.orders.OrdersProxy(self)
+            self._orders_proxies[remote_market] = orders_proxy
+            return orders_proxy
+        return self._orders_proxies[remote_market]

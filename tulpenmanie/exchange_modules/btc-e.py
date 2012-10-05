@@ -25,6 +25,7 @@ from decimal import Decimal
 from PyQt4 import QtCore, QtGui, QtNetwork
 
 import tulpenmanie.exchange
+import tulpenmanie.data.funds
 import tulpenmanie.data.orders
 import tulpenmanie.data.ticker
 import tulpenmanie.network
@@ -262,12 +263,6 @@ class BtceAccount(_Btce, tulpenmanie.exchange.ExchangeAccount):
 
     trade_commission_signal = QtCore.pyqtSignal(Decimal)
 
-    btc_funds_signal = QtCore.pyqtSignal(Decimal)
-    ltc_funds_signal = QtCore.pyqtSignal(Decimal)
-    nmc_funds_signal = QtCore.pyqtSignal(Decimal)
-    rur_funds_signal = QtCore.pyqtSignal(Decimal)
-    usd_funds_signal = QtCore.pyqtSignal(Decimal)
-
     btc_usd_ready_signal = QtCore.pyqtSignal(bool)
     btc_rur_ready_signal = QtCore.pyqtSignal(bool)
     ltc_btc_ready_signal = QtCore.pyqtSignal(bool)
@@ -285,17 +280,11 @@ class BtceAccount(_Btce, tulpenmanie.exchange.ExchangeAccount):
             HOSTNAME, 5000)
         self.requests = list()
         self.replies = set()
+        self._funds_proxies = dict()
         self._orders_proxies = dict()
 
         # TODO maybe divide smaller
         self.nonce = int(time.time() / 2)
-
-    def get_orders_proxy(self, remote_market):
-        if remote_market not in self._orders_proxies:
-            orders_proxy = tulpenmanie.data.orders.OrdersProxy(self)
-            self._orders_proxies[remote_market] = orders_proxy
-            return orders_proxy
-        return self._orders_proxies[remote_market]
 
     def pop_request(self):
         request = heapq.heappop(self.requests)[1]
@@ -377,11 +366,11 @@ class BtceAccount(_Btce, tulpenmanie.exchange.ExchangeAccount):
         if order_type == 'sell':
             logger.info("ask order %s in place", order_id)
             if pair in self._orders_proxies:
-                self.orders_proxies[pair].ask.emit((order_id, price, amount,))
+                self._orders_proxies[pair].ask.emit((order_id, price, amount,))
         elif order_type == 'buy':
             logger.info("bid order %s in place", order_id)
             if pair in self._orders_proxies:
-                self.orders_proxies[pair].bid.emit((order_id, price, amount,))
+                self._orders_proxies[pair].bid.emit((order_id, price, amount,))
         self._emit_funds(data['return']['funds'])
 
     def cancel_ask_order(self, pair, order_id):
@@ -400,25 +389,24 @@ class BtceAccount(_Btce, tulpenmanie.exchange.ExchangeAccount):
         self.host_queue.enqueue(self, 0)
 
     def _cancelorder_handler(self, data):
-        order_id = data['return']['order_id']
+        order_id = str(data['return']['order_id'])
         pair = data['pair']
         order_type = data['type']
         if order_type == 'ask':
             if pair in self._orders_proxies:
-                self.orders_proxies[pair].ask_cancelled(order_id)
+                self._orders_proxies[pair].ask_cancelled.emit(order_id)
         elif order_type == 'bid':
             if pair in self._orders_proxies:
-                self.orders_proxies[pair].bid_cancelled(order_id)
+                self._orders_proxies[pair].bid_cancelled.emit(order_id)
         self._emit_funds(data['return']['funds'])
 
     def _emit_funds(self, data):
         self.trade_commission_signal.emit(Decimal('0.2'))
-        for commodity, balance in data.items():
-            signal = getattr(self, commodity + '_funds_signal', None)
-            if signal:
-                signal.emit(Decimal(balance))
+        for symbol, balance in data.items():
+            if symbol in self._funds_proxies:
+                self._funds_proxies[symbol].balance.emit(Decimal(balance))
             else:
-                logger.warning("unknown commodity %s", commodity)
+                logger.info("ignoring %s balance", symbol)
 
 tulpenmanie.exchange.register_exchange(BtceExchange)
 tulpenmanie.exchange.register_account(BtceAccount)

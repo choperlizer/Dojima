@@ -14,16 +14,12 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+from decimal import Decimal
+
 from PyQt4 import QtCore
 
 
-class OrdersProxy(QtCore.QObject):
+class FundsProxy(QtCore.QObject):
 
-    asks = QtCore.pyqtSignal(list)
-    bids = QtCore.pyqtSignal(list)
-
-    ask = QtCore.pyqtSignal(tuple)
-    bid = QtCore.pyqtSignal(tuple)
-
-    ask_cancelled = QtCore.pyqtSignal(str)
-    bid_cancelled = QtCore.pyqtSignal(str)
+    balance = QtCore.pyqtSignal(Decimal)
+    balance_changed = QtCore.pyqtSignal(Decimal)

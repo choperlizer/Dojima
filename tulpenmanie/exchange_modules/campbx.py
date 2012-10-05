@@ -22,6 +22,7 @@ from decimal import Decimal
 from PyQt4 import QtCore, QtGui, QtNetwork
 
 import tulpenmanie.exchange
+import tulpenmanie.data.funds
 import tulpenmanie.data.orders
 import tulpenmanie.data.ticker
 import tulpenmanie.network
@@ -183,12 +184,6 @@ class CampbxAccount(_Campbx, tulpenmanie.exchange.ExchangeAccount):
 
     trade_commission_signal = QtCore.pyqtSignal(Decimal)
 
-    BTC_funds_signal = QtCore.pyqtSignal(Decimal)
-    USD_funds_signal = QtCore.pyqtSignal(Decimal)
-
-    BTC_balance_changed_signal = QtCore.pyqtSignal(Decimal)
-    USD_balance_changed_signal = QtCore.pyqtSignal(Decimal)
-
     BTC_USD_ready_signal = QtCore.pyqtSignal(bool)
 
     bitcoin_deposit_address_signal = QtCore.pyqtSignal(str)
@@ -205,6 +200,7 @@ class CampbxAccount(_Campbx, tulpenmanie.exchange.ExchangeAccount):
             HOSTNAME, 500)
         self.requests = list()
         self.replies = set()
+        self._funds_proxies = dict()
         self._orders_proxy = tulpenmanie.data.orders.OrdersProxy(self)
 
         self._bitcoin_deposit_address = None
@@ -275,8 +271,10 @@ class CampbxAccount(_Campbx, tulpenmanie.exchange.ExchangeAccount):
 class CampbxFundsRequest(_CampbxRequest):
     def _handle_reply(self, data):
         logger.debug(data)
-        self.parent.BTC_funds_signal.emit(Decimal(data['Liquid BTC']))
-        self.parent.USD_funds_signal.emit(Decimal(data['Liquid USD']))
+        self.parent._funds_proxies['BTC'].balance.emit(
+            Decimal(data['Liquid BTC']))
+        self.parent._funds_proxies['USD'].balance.emit(
+            Decimal(data['Liquid USD']))
         self.parent.trade_commission_signal.emit(Decimal('0.55'))
 
 class CampbxOrdersRequest(_CampbxRequest):
@@ -284,28 +282,31 @@ class CampbxOrdersRequest(_CampbxRequest):
         logger.debug(data)
         asks = list()
         bids = list()
-        for order, orders in ((data['Sell'], asks),
-                              (data['Buy'], bids)):
-            orders.append((order['Order ID'],
-                           order['Price'],
-                           order['Quantity']))
+        for raw_orders, processed_orders in ((data['Sell'], asks),
+                                             (data['Buy'], bids)):
+            if 'Info' in raw_orders[0]:
+                continue
+            for order in raw_orders:
+                processed_orders.append((order['Order ID'],
+                                         order['Price'],
+                                         order['Quantity']))
         if asks:
             self.parent._orders_proxy.asks.emit(asks)
         if bids:
-            self.parent._orders_proxy.asks.emit(bids)
+            self.parent._orders_proxy.bids.emit(bids)
 
 
 class CampbxTradeRequest(_CampbxRequest):
     priority = 1
     def _handle_reply(self, data):
         logger.debug(data)
-        order_id = int(data['Success'])
+        order_id = str(data['Success'])
         data = self.data['query']
         amount = data['Quantity']
         price = data['Price']
 
         if data['TradeMode'][-4:] == 'Sell':
-            self.parent.BTC_balance_changed_signal.emit(
+            self.parent._funds_proxies['BTC'].balance_changed.emit(
                 -Decimal(data['Quantity']))
             if order_id:
                 logger.info("ask order %s in place", order_id)
@@ -313,12 +314,12 @@ class CampbxTradeRequest(_CampbxRequest):
         elif data['TradeMode'][-3:] == 'Buy':
             if order_id:
                 logger.info("bid order %s in place", order_id)
-                self.parent._orders_proxy.bid.emit(order_id, price, amount)
+                self.parent._orders_proxy.bid.emit((order_id, price, amount,))
             if price == 'Market':
                 price = QtCore.QCoreApplication.translate(
                     'CampbxTradeRequest', "market", "at market price")
             else:
-                self.parent.USD_balance_changed_signal.emit(
+                self.parent._funds_proxies['USD'].balance_changed.emit(
                     -(Decimal(data['Quantity']) *
                       Decimal(data['Price'])))
 
@@ -331,11 +332,11 @@ class CampbxCancelOrderRequest(_CampbxRequest):
         order_id = words[2]
         order_type = self.data['query']['Type']
         if order_type == 'Sell':
-            self.parent._orders_proxy.ask_canceled.emit(order_id)
-            logger.info("ask order %s canceled", order_id)
+            self.parent._orders_proxy.ask_cancelled.emit(order_id)
+            logger.info("ask order %s cancelled", order_id)
         elif order_type == 'Buy':
-            self.parent._orders_proxy.bid_canceled.emit(order_id)
-            logger.debug("bid order %s canceled", order_id)
+            self.parent._orders_proxy.bid_cancelled.emit(order_id)
+            logger.debug("bid order %s cancelled", order_id)
 
 
 class CampbxBitcoinAddressRequest(_CampbxRequest):

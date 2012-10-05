@@ -244,42 +244,6 @@ class MtgoxAccount(QtCore.QObject, _Mtgox, tulpenmanie.exchange.ExchangeAccount)
 
     trade_commission_signal = QtCore.pyqtSignal(Decimal)
 
-    AUD_funds_signal = QtCore.pyqtSignal(Decimal)
-    BTC_funds_signal = QtCore.pyqtSignal(Decimal)
-    CAD_funds_signal = QtCore.pyqtSignal(Decimal)
-    CHF_funds_signal = QtCore.pyqtSignal(Decimal)
-    CNY_funds_signal = QtCore.pyqtSignal(Decimal)
-    DKK_funds_signal = QtCore.pyqtSignal(Decimal)
-    EUR_funds_signal = QtCore.pyqtSignal(Decimal)
-    GBP_funds_signal = QtCore.pyqtSignal(Decimal)
-    HKD_funds_signal = QtCore.pyqtSignal(Decimal)
-    JPY_funds_signal = QtCore.pyqtSignal(Decimal)
-    NZD_funds_signal = QtCore.pyqtSignal(Decimal)
-    PLN_funds_signal = QtCore.pyqtSignal(Decimal)
-    RUB_funds_signal = QtCore.pyqtSignal(Decimal)
-    SEK_funds_signal = QtCore.pyqtSignal(Decimal)
-    SGD_funds_signal = QtCore.pyqtSignal(Decimal)
-    THB_funds_signal = QtCore.pyqtSignal(Decimal)
-    USD_funds_signal = QtCore.pyqtSignal(Decimal)
-
-    AUD_balance_changed_signal = QtCore.pyqtSignal(Decimal)
-    BTC_balance_changed_signal = QtCore.pyqtSignal(Decimal)
-    CAD_balance_changed_signal = QtCore.pyqtSignal(Decimal)
-    CHF_balance_changed_signal = QtCore.pyqtSignal(Decimal)
-    CNY_balance_changed_signal = QtCore.pyqtSignal(Decimal)
-    DKK_balance_changed_signal = QtCore.pyqtSignal(Decimal)
-    EUR_balance_changed_signal = QtCore.pyqtSignal(Decimal)
-    GBP_balance_changed_signal = QtCore.pyqtSignal(Decimal)
-    HKD_balance_changed_signal = QtCore.pyqtSignal(Decimal)
-    JPY_balance_changed_signal = QtCore.pyqtSignal(Decimal)
-    NZD_balance_changed_signal = QtCore.pyqtSignal(Decimal)
-    PLN_balance_changed_signal = QtCore.pyqtSignal(Decimal)
-    RUB_balance_changed_signal = QtCore.pyqtSignal(Decimal)
-    SEK_balance_changed_signal = QtCore.pyqtSignal(Decimal)
-    SGD_balance_changed_signal = QtCore.pyqtSignal(Decimal)
-    THB_balance_changed_signal = QtCore.pyqtSignal(Decimal)
-    USD_balance_changed_signal = QtCore.pyqtSignal(Decimal)
-
     BTCAUD_ready_signal = QtCore.pyqtSignal(bool)
     BTCCAD_ready_signal = QtCore.pyqtSignal(bool)
     BTCCHF_ready_signal = QtCore.pyqtSignal(bool)
@@ -322,6 +286,7 @@ class MtgoxAccount(QtCore.QObject, _Mtgox, tulpenmanie.exchange.ExchangeAccount)
         self.requests = list()
         self.replies = set()
         self.set_credentials(credentials)
+        self._funds_proxies = dict()
         self._orders_proxies = dict()
         self._bitcoin_deposit_address = None
         self.nonce = int(time.time() / 2)
@@ -335,8 +300,8 @@ class MtgoxAccount(QtCore.QObject, _Mtgox, tulpenmanie.exchange.ExchangeAccount)
             orders_proxy = tulpenmanie.data.orders.OrdersProxy(self)
             self._orders_proxies[remote_market] = orders_proxy
             return orders_proxy
-        return self._orders_proxies[remote_market]     
-        
+        return self._orders_proxies[remote_market]
+
     def check_order_status(self, remote_pair):
         # This can probaly call for BTC info twice at
         # startup but whatever
@@ -448,12 +413,12 @@ class MtgoxInfoRequest(MtgoxPrivateRequest):
         logger.debug(raw)
         data = json.loads(raw, object_hook=_object_hook)
         for symbol, dict_ in data['return']['Wallets'].items():
-            signal = getattr(self.parent, symbol + '_funds_signal', None)
-            if signal:
+            if symbol in self.parent._funds_proxies:
+                signal = self.parent._funds_proxies[symbol].balance
                 balance = dict_['Balance'] -  dict_['Open_Orders']
                 signal.emit(balance)
             else:
-                logger.warning("unknown commodity %s found in balances", symbol)
+                logger.info("ignoring %s balance", symbol)
         self.parent.trade_commission_signal.emit(
             Decimal(str(data['return']['Trade_Fee'])))
 
@@ -507,11 +472,11 @@ class MtgoxPlaceOrderRequest(MtgoxPrivateRequest):
         pair = self.data['pair']
         order_type = self.data['query']['type']
 
-        base_signal = self.parent.BTC_balance_changed_signal
-        counter_signal = getattr(self.parent,
-                                 pair[-3:] + '_balance_changed_signal')
+        base_signal = self.parent._funds_proxies['BTC'].balance_changed
+        counter_signal = self.parent._funds_proxies[pair[-3:]].balance_changed
         if order_type == 'ask':
-            self.parent.ask_orders[pair].append_order(order_id, price, amount)
+            self.parent._orders_proxies[pair].ask.emit(
+                (order_id, price, amount,))
             base_signal.emit(-amount)
         elif order_type == 'bid':
             if price:
@@ -519,7 +484,9 @@ class MtgoxPlaceOrderRequest(MtgoxPrivateRequest):
             else:
                 price = QtCore.QCoreApplication.translate(
                     'MtgoxPlaceOrderRequest', "market", "at market price")
-            self.parent.bid_orders[pair].append_order(order_id, price, amount)
+            self.parent._orders_proxies[pair].bid.emit(
+                (order_id, price, amount,))
+
 
 
 class MtgoxCancelOrderRequest(MtgoxPrivateRequest):
@@ -529,13 +496,13 @@ class MtgoxCancelOrderRequest(MtgoxPrivateRequest):
         logger.debug(raw)
         self.data.update(json.loads(raw, object_hook=_object_hook))
         pair = self.data['pair']
-        order_id = self.data['query']['oid']
+        order_id = str(self.data['query']['oid'])
         order_type = self.data['query']['type']
 
         if order_type == 1:
-            self.parent.ask_orders[pair].remove_order(order_id)
+            self.parent._orders_proxies[pair].ask_cancelled.emit(order_id)
         elif order_type == 2:
-            self.parent.bid_orders[pair].remove_order(order_id)
+            self.parent._orders_proxies[pair].bid_cancelled.emit(order_id)
 
 class MtgoxBitcoinDepositAddressRequest(MtgoxPrivateRequest):
     priority = 2

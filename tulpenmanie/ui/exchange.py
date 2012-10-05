@@ -410,17 +410,15 @@ class AccountWidget(QtGui.QWidget, ErrorHandling):
         self.bid_orders_view.addAction(refresh_orders_action)
 
         # Connect to account
-        signal = getattr(self.account, counter + '_funds_signal')
-        signal.connect(counter_funds_label.setValue)
-        signal = getattr(self.account, counter + '_funds_changed_signal', None)
-        if signal:
-            signal.connect(counter_funds_label.change_value)
+        base_funds_proxy = self.account.get_funds_proxy(base)
+        base_funds_proxy.balance.connect(base_funds_label.setValue)
+        base_funds_proxy.balance_changed.connect(
+            base_funds_label.change_value)
 
-        signal = getattr(self.account, base + '_funds_signal')
-        signal.connect(base_funds_label.setValue)
-        signal = getattr(self.account, base + '_funds_changed_signal', None)
-        if signal:
-            signal.connect(base_funds_label.change_value)
+        counter_funds_proxy = self.account.get_funds_proxy(counter)
+        counter_funds_proxy.balance.connect(counter_funds_label.setValue)
+        counter_funds_proxy.balance_changed.connect(
+            counter_funds_label.change_value)
 
         self.account.exchange_error_signal.connect(self.exchange_error_handler)
         self.account.trade_commission_signal.connect(self.set_commission)
@@ -430,8 +428,8 @@ class AccountWidget(QtGui.QWidget, ErrorHandling):
         orders_proxy.bids.connect(self.new_bids)
         orders_proxy.ask.connect(self.new_ask)
         orders_proxy.bid.connect(self.new_bid)
-        orders_proxy.ask_canceled.connect(self.ask_canceled)
-        orders_proxy.bid_canceled.connect(self.bid_canceled)
+        orders_proxy.ask_cancelled.connect(self.ask_cancelled)
+        orders_proxy.bid_cancelled.connect(self.bid_cancelled)
 
         # Check if ready to order
         signal = getattr(self.account, self.remote_market + '_ready_signal')
@@ -459,18 +457,18 @@ class AccountWidget(QtGui.QWidget, ErrorHandling):
     def new_asks(self, orders):
         self.asks_model.clear_orders()
         for order in orders:
-            self.asks_model.append_order(order)
+            self.asks_model.append_order(order[0], order[1], order[2])
 
     def new_ask(self, order):
-        self.asks_model.append_order(order)
+        self.asks_model.append_order(order[0], order[1], order[2])
 
     def new_bids(self, orders):
         self.bids_model.clear_orders()
         for order in orders:
-            self.bids_model.append_order(order)
-            
+            self.bids_model.append_order(order[0], order[1], order[2])
+
     def new_bid(self, order):
-        self.bids_model.append_order(order)
+        self.bids_model.append_order(order[0], order[1], order[2])
 
     def _ask_limit(self):
         amount = self.ask_base_amount_spin.decimal_value()
@@ -492,27 +490,27 @@ class AccountWidget(QtGui.QWidget, ErrorHandling):
 
     def _cancel_ask(self):
         row = self.ask_orders_view.currentIndex().row()
-        item = self.asks_model.item(row, self.ask_model.ORDER_ID)
+        item = self.asks_model.item(row, self.asks_model.ORDER_ID)
         if item:
             order_id = item.text()
             self.account.cancel_ask_order(self.remote_market, order_id)
 
-    def ask_canceled(self, order_id):
+    def ask_cancelled(self, order_id):
         items = self.asks_model.findItems(order_id, QtCore.Qt.MatchExactly, 0)
         for item in items:
             self.asks_model.removeRow(item.row())
 
     def _cancel_bid(self):
         row = self.bid_orders_view.currentIndex().row()
-        item = self.bids_model.item(row, self.bid_model.ORDER_ID)
+        item = self.bids_model.item(row, self.bids_model.ORDER_ID)
         if item:
             order_id = item.text()
             self.account.cancel_bid_order(self.remote_market, order_id)
 
-    def bid_canceled(self, order_id):
+    def bid_cancelled(self, order_id):
         items = self.bids_model.findItems(order_id, QtCore.Qt.MatchExactly, 0)
         for item in items:
-            self.parent.bids_orders_model.removeRow(item.row())
+            self.bids_model.removeRow(item.row())
 
     def set_commission(self, commission):
         self.commission_label.setText(
