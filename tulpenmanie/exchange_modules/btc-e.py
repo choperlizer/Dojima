@@ -249,7 +249,7 @@ class BtceTickerRequest(tulpenmanie.network.ExchangeGETRequest):
         data = json.loads(raw, parse_float=Decimal, parse_int=Decimal)
         data = data['ticker']
         path = self.url.path().split('/')
-        remote_market = path[3]
+        remote_market = str(path[3])
         proxy = self.parent._ticker_proxies[remote_market]
         proxy.ask_signal.emit(data['buy'])
         proxy.last_signal.emit(data['last'])
@@ -280,8 +280,8 @@ class BtceAccount(_Btce, tulpenmanie.exchange.ExchangeAccount):
             HOSTNAME, 5000)
         self.requests = list()
         self.replies = set()
-        self._funds_proxies = dict()
-        self._orders_proxies = dict()
+        self.funds_proxies = dict()
+        self.orders_proxies = dict()
 
         # TODO maybe divide smaller
         self.nonce = int(time.time() / 2)
@@ -336,11 +336,11 @@ class BtceAccount(_Btce, tulpenmanie.exchange.ExchangeAccount):
                 logger.warning("unknown order type: %s", order_type)
 
         for pair, orders in asks.items():
-            if pair in self._orders_proxies:
-                self._orders_proxies[pair].asks.emit(orders)
+            if pair in self.orders_proxies:
+                self.orders_proxies[pair].asks.emit(orders)
         for pair, orders in bids.items():
-            if pair in self._orders_proxies:
-                self._orders_proxies[pair].bids.emit(orders)
+            if pair in self.orders_proxies:
+                self.orders_proxies[pair].bids.emit(orders)
 
     def place_ask_limit_order(self, remote, amount, price):
         self._place_order(remote, 'sell', amount, price)
@@ -365,12 +365,12 @@ class BtceAccount(_Btce, tulpenmanie.exchange.ExchangeAccount):
         order_type = data['query']['type']
         if order_type == 'sell':
             logger.info("ask order %s in place", order_id)
-            if pair in self._orders_proxies:
-                self._orders_proxies[pair].ask.emit((order_id, price, amount,))
+            if pair in self.orders_proxies:
+                self.orders_proxies[pair].ask.emit((order_id, price, amount,))
         elif order_type == 'buy':
             logger.info("bid order %s in place", order_id)
-            if pair in self._orders_proxies:
-                self._orders_proxies[pair].bid.emit((order_id, price, amount,))
+            if pair in self.orders_proxies:
+                self.orders_proxies[pair].bid.emit((order_id, price, amount,))
         self._emit_funds(data['return']['funds'])
 
     def cancel_ask_order(self, pair, order_id):
@@ -393,18 +393,18 @@ class BtceAccount(_Btce, tulpenmanie.exchange.ExchangeAccount):
         pair = data['pair']
         order_type = data['type']
         if order_type == 'ask':
-            if pair in self._orders_proxies:
-                self._orders_proxies[pair].ask_cancelled.emit(order_id)
+            if pair in self.orders_proxies:
+                self.orders_proxies[pair].ask_cancelled.emit(order_id)
         elif order_type == 'bid':
-            if pair in self._orders_proxies:
-                self._orders_proxies[pair].bid_cancelled.emit(order_id)
+            if pair in self.orders_proxies:
+                self.orders_proxies[pair].bid_cancelled.emit(order_id)
         self._emit_funds(data['return']['funds'])
 
     def _emit_funds(self, data):
         self.trade_commission_signal.emit(Decimal('0.2'))
         for symbol, balance in data.items():
-            if symbol in self._funds_proxies:
-                self._funds_proxies[symbol].balance.emit(Decimal(balance))
+            if symbol in self.funds_proxies:
+                self.funds_proxies[symbol].balance.emit(Decimal(balance))
             else:
                 logger.info("ignoring %s balance", symbol)
 

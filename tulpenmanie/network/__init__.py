@@ -107,7 +107,7 @@ class ExchangeRequest(object):
         self.parent = parent
         self.data = data
         self.reply = None
-        parent.requests.append( (self.priority, self) )
+        parent.requests.append( (self.priority, self,) )
         parent.host_queue.enqueue(self.parent, self.host_priority)
 
     def __del__(self):

@@ -178,11 +178,9 @@ class MainWindow(QtGui.QMainWindow):
         dialog.exec_()
         self.parse_models()
 
+    # TODO make the edit dialog do this
     def closeEvent(self, event):
-        #TODO maybe a market model could store
-        #commodities items in a second place
         tulpenmanie.commodity.model.save()
         tulpenmanie.market.model.save()
         tulpenmanie.exchange.model.save()
-
         event.accept()

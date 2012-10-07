@@ -14,307 +14,418 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-"""
-{"result":{"1":{"instrumentID":"1","symbol":"EUR\/SLL","longCurrency":"EUR","shortCurrency":"SLL","decimals":"1","commissionRate":"0.039","commissionRateMkt":"0.029","commissionConstMkt":"50"},"2":{"instrumentID":"2","symbol":"GBP\/SLL","longCurrency":"GBP","shortCurrency":"SLL","decimals":"1","commissionRate":"0.039","commissionRateMkt":"0.029","commissionConstMkt":"50"},"3":{"instrumentID":"3","symbol":"CHF\/SLL","longCurrency":"CHF","shortCurrency":"SLL","decimals":"1","commissionRate":"0.039","commissionRateMkt":"0.029","commissionConstMkt":"50"},"4":{"instrumentID":"4","symbol":"USD\/SLL","longCurrency":"USD","shortCurrency":"SLL","decimals":"1","commissionRate":"0.039","commissionRateMkt":"0.029","commissionConstMkt":"50"},"5":{"instrumentID":"5","symbol":"SLL\/OMC","longCurrency":"SLL","shortCurrency":"OMC","decimals":"3","commissionRate":"0.039","commissionRateMkt":"0.019","commissionConstMkt":"25"},"6":{"instrumentID":"6","symbol":"EUR\/OMC","longCurrency":"EUR","shortCurrency":"OMC","decimals":"1","commissionRate":"0.039","commissionRateMkt":"0.029","commissionConstMkt":"50"},"7":{"instrumentID":"7","symbol":"USD\/OMC","longCurrency":"USD","shortCurrency":"OMC","decimals":"1","commissionRate":"0.039","commissionRateMkt":"0.019","commissionConstMkt":"50"},"8":{"instrumentID":"8","symbol":"SLL\/ACD","longCurrency":"SLL","shortCurrency":"ACD","decimals":"3","commissionRate":"0.039","commissionRateMkt":"0.039","commissionConstMkt":"25"},"9":{"instrumentID":"9","symbol":"EUR\/ACD","longCurrency":"EUR","shortCurrency":"ACD","decimals":"1","commissionRate":"0.039","commissionRateMkt":"0.039","commissionConstMkt":"50"},"10":{"instrumentID":"10","symbol":"USD\/ACD","longCurrency":"USD","shortCurrency":"ACD","decimals":"1","commissionRate":"0.039","commissionRateMkt":"0.039","commissionConstMkt":"50"},"11":{"instrumentID":"11","symbol":"BTC\/SLL","longCurrency":"BTC","shortCurrency":"SLL","decimals":"1","commissionRate":"0.039","commissionRateMkt":"0.029","commissionConstMkt":"50"}},"error":null,"id":null}
-"""
-
-import decimal
+import hashlib
 import heapq
+import hmac
 import json
 import logging
+import time
+from decimal import Decimal
+
 from PyQt4 import QtCore, QtGui, QtNetwork
 
 import tulpenmanie.exchange
-import tulpenmanie.providers
-import tulpenmanie.orders
+import tulpenmanie.data.funds
+import tulpenmanie.data.orders
+import tulpenmanie.data.ticker
+import tulpenmanie.network
 
 
 logger = logging.getLogger(__name__)
 
-EXCHANGE_NAME = 'VirWoX'
-HOSTNAME = 'api.virwox.com'
-_API_URL =  HOSTNAME + '/api/json.php'
+EXCHANGE_NAME = "VirWoX"
+HOSTNAME = "api.virwox.com"
+PUBLIC_URL = 'http://' + HOSTNAME + '/api/json.php'
+public_request = QtNetwork.QNetworkRequest(QtCore.QUrl(PUBLIC_URL))
+public_request.setHeader(QtNetwork.QNetworkRequest.ContentTypeHeader,
+                         'application/json')
+PRIVATE_URL = 'https://' + HOSTNAME + ':8000/api/trading.php'
+private_request = QtNetwork.QNetworkRequest(QtCore.QUrl(PRIVATE_URL))
+private_request.setHeader(QtNetwork.QNetworkRequest.ContentTypeHeader,
+                         'application/json')
 
+def escape_market(remote_market):
+    #return str(remote_market).replace('/',"""\/""")
+    return str(remote_market)
 
-class VirwoxError(Exception):
+class _VirwoxRequest(QtCore.QObject):
 
-    def __init__(self, value):
-        self.value = value
-
-    def __str__(self):
-        error_msg= repr(self.value)
-        logger.error(error_msg)
-        return error_msg
-
-
-class _VirwoxRequest(object):
-
-    def __init__(self, method, handler, parent, data=None):
-        self.method = method
-        self.handler = handler
-        self.parent = parent
-        self.data = data
-        self.reply = None
-
-        self.request = tulpenmanie.network.NetworkRequest(self.url)
-        # The upstream API says don't use this header if you JSON encode
-        self.request.setHeader(QtNetwork.QNetworkRequest.ContentTypeHeader,
-                               "application/x-www-form-urlencoded")
-        query = parent.base_query
-        query.addQueryItem('method', self.method)
-        for key, value in data['query'].items():
-            query.addQueryItem(key, str(value))
-        query.addQueryItem('id', QtCore.QUuid.createUuid())
-        self.query = query.encodedQuery()
-
-    def send(self):
-        if logger.isEnabledFor(logging.DEBUG):
-            logger.debug("POST to %s", self.url.toString())
-        self.reply = self.parent.network_manager.post(self.request,
-                                                      self.query)
-        self.reply.finished.connect(self._process_reply)
-        self.reply.error.connect(self._process_reply)
-
-    def _process_reply(self):
+    def parse_reply(self):
         if self.reply.error():
             logger.error(self.reply.errorString())
         else:
-            if logger.isEnabledFor(logging.INFO):
-                logger.debug("received reply to %s", self.reply.url().toString())
-            data = json.loads(str(self.reply.readAll()))
-            print data
-            if self.data:
-                self.data.update(data)
-                self.handler(self.data)
+            raw = str(self.reply.readAll())
+            if logger.isEnabledFor(logging.DEBUG):
+                logger.debug("received reply: %s", raw)
+            response = json.loads(raw, parse_float=Decimal)
+            if response['error']:
+                logger.error(response['error'])
+                self.parent.exchange_error_signal.emit(response['error'])
             else:
-                self.handler(data)
+                self.handle_result(response['result'])
         self.reply.deleteLater()
-        self.parent._replies.remove(self)
-
-class VirwoxRequestPublic(_VirwoxRequest):
-    url = QtCore.QUrl('http://' + _API_URL)
-
-class VirwoxRequestPrivate(_VirwoxRequest):
-    url = QtCore.QUrl('https://' + _API_URL)
+        #self.parent.replies.remove(self)
 
 
-class _Bitstamp(QtCore.QObject):
+class VirwoxPublicRequest(_VirwoxRequest):
 
-    provider_name = EXCHANGE_NAME
+    def __init__(self, data, parent):
+        super(VirwoxPublicRequest, self).__init__(parent)
+        self.parent = parent
+        self.data = data
+        self.reply = None
+        self.parent.requests.append(self)
+        self.parent.host_queue.enqueue(self.parent, None)
+
+    def post(self):
+        payload = json.dumps({'method': self.method, 'params': self.data,
+                              'id': str(QtCore.QUuid.createUuid().toString())})
+        if logger.isEnabledFor(logging.DEBUG):
+            logger.debug("POSTing %s to %s", self.data, PUBLIC_URL)
+        self.reply = self.parent.network_manager.post(public_request, payload)
+        self.reply.finished.connect(self.parse_reply)
+
+
+class VirwoxInstrumentsRequest(QtCore.QObject):
+    method = 'getInstruments'
+
+    def __init__(self, item, parent=None):
+        super(VirwoxInstrumentsRequest, self).__init__(parent)
+        self.item = item
+        data = {'method': self.method,
+                'id': str(QtCore.QUuid.createUuid().toString())}
+        network_manager = tulpenmanie.network.get_network_manager()
+        self.reply = network_manager.post(public_request, json.dumps(data))
+        self.reply.finished.connect(self.receive_markets)
+
+    def receive_markets(self):
+        if self.reply.error():
+            logger.error(self.reply.errorString())
+            self.reply.deleteLater()
+            return
+        raw = str(self.reply.readAll())
+        if logger.isEnabledFor(logging.DEBUG):
+            logger.debug("received reply to %s : %s", PUBLIC_URL, raw)
+        data = json.loads(raw, parse_float=Decimal)
+        if data['error']:
+            logger.warning(data['error'])
+        for instrument in data['result'].values():
+            self.item.markets.add(instrument['symbol'])
+        self.item.reload()
+        self.reply.deleteLater()
+        self.deleteLater()
+
+
+class VirwoxProviderItem(tulpenmanie.exchange.DynamicExchangeItem):
+
+    exchange_name = EXCHANGE_NAME
+
+    COLUMNS = 5
+    MARKETS, REFRESH_RATE, ACCOUNT_APP_KEY, ACCOUNT_USERNAME, ACCOUNT_PASSWORD, = range(COLUMNS)
+    mappings = (("refresh rate (seconds)", REFRESH_RATE),
+                ("app key", ACCOUNT_APP_KEY),
+                ("username", ACCOUNT_USERNAME),
+                ("password", ACCOUNT_PASSWORD),)
+    numeric_settings = (REFRESH_RATE,)
+    boolean_settings = ()
+    required_account_settings = (ACCOUNT_APP_KEY,
+                                 ACCOUNT_USERNAME, ACCOUNT_PASSWORD)
+    hidden_settings = (ACCOUNT_PASSWORD,)
+    markets = set()
+
+    def new_markets_request(self):
+        self.markets_request = VirwoxInstrumentsRequest(self)
+
+class _Virwox(QtCore.QObject):
+
+    exchange_name = EXCHANGE_NAME
     exchange_error_signal = QtCore.pyqtSignal(str)
 
-    def pop_request(self):
-        request = heapq.heappop(self._requests)
-        request.send()
-        self._replies.add(request)
+class VirwoxExchangeMarket(_Virwox):
 
-
-class BitstampExchangeMarket(_Bitstamp):
-
-
-    _ticker_url = QtCore.QUrl(_BASE_URL + "ticker/")
-
-    ask = QtCore.pyqtSignal(decimal.Decimal)
-    last = QtCore.pyqtSignal(decimal.Decimal)
-    bid = QtCore.pyqtSignal(decimal.Decimal)
-    high = QtCore.pyqtSignal(decimal.Decimal)
-    low = QtCore.pyqtSignal(decimal.Decimal)
-
-    def __init__(self, remote_market, network_manager=None, parent=None):
-        if network_manager is None:
-            network_manager = tulpenmanie.network.get_network_manager
-        super(BitstampExchangeMarket, self).__init__(parent)
-        # These must be the same length
-        self.stats = ('ask', 'last', 'bid', 'high', 'low')
-        self.is_counter = (True, True, True, True, True)
-        self.signals = dict()
-        for i in range(len(self.stats)):
-            signal = getattr(self, self.stats[i])
-            self.signals[self.stats[i]] = signal
-
-        self.base_query = QtCore.QUrl()
+    def __init__(self, network_manager=None, parent=None):
+        if not network_manager:
+            network_manager = tulpenmanie.network.get_network_manager()
+        super(VirwoxExchangeMarket, self).__init__(parent)
         self.network_manager = network_manager
-        self._request_queue = self.network_manager.get_host_request_queue(
-            HOSTNAME, 500)
-        self._requests = list()
-        self._replies = set()
+        self.host_queue = self.network_manager.get_host_request_queue(
+            HOSTNAME, 1000)
+        self.requests = list()
+        self.ticker_proxies = dict()
+        self.ticker_clients = dict()
+        self.ticker_timer = QtCore.QTimer(self)
+        self.ticker_timer.timeout.connect(self._refresh_tickers)
+        search = tulpenmanie.exchange.model.findItems(self.exchange_name,
+                                                      QtCore.Qt.MatchExactly)
+        self._model_item = search[0]
 
-    def refresh(self):
-        request = BitstampGETRequest(self._ticker_url,
-                                     self._ticker_handler, self)
-        self._requests.append(request)
-        self._request_queue.enqueue(self)
+    def get_ticker_proxy(self, remote_market):
+        remote_market = escape_market(remote_market)
+        if remote_market not in self.ticker_proxies:
+            ticker_proxy = tulpenmanie.data.ticker.TickerProxy(self)
+            self.ticker_proxies[remote_market] = ticker_proxy
+            return ticker_proxy
+        return self.ticker_proxies[remote_market]
 
-    def _ticker_handler(self, data):
-        for key, value in data.items():
-            if self.signals.has_key(key):
-                signal =  self.signals[key]
-                signal.emit(decimal.Decimal(value))
+    def set_ticker_stream_state(self, state, remote_market):
+        remote_market = escape_market(remote_market)
+        if state is True:
+            if not remote_market in self.ticker_clients:
+                self.ticker_clients[remote_market] = 1
+            else:
+                self.ticker_clients[remote_market] += 1
+            refresh_rate = self._model_item.child(
+                0, self._model_item.REFRESH_RATE).text()
+            if not refresh_rate:
+                refresh_rate = 10000
+            else:
+                refresh_rate = float(refresh_rate) * 1000
+            if self.ticker_timer.isActive():
+                self.ticker_timer.setInterval(refresh_rate)
+                return
+            logger.info(QtCore.QCoreApplication.translate(
+                'BteExchange', "starting ticker stream"))
+            self.ticker_timer.start(refresh_rate)
+        else:
+            if remote_market in self.ticker_clients:
+                market_clients = self.ticker_clients[remote_market]
+                if market_clients > 1:
+                    self.ticker_clients[remote_market] -= 1
+                    return
+                if market_clients == 1:
+                    self.ticker_clients.pop(remote_market)
+
+            if sum(self.ticker_clients.values()) == 0:
+                logger.info(QtCore.QCoreApplication.translate(
+                    'VirwoxExchange', "stopping ticker stream"))
+                self.ticker_timer.stop()
+
+    def refresh_ticker(self, remote_market):
+        remote_market = escape_market(remote_market)
+        symbols = set(self.ticker_clients.keys())
+        symbols.add(remote_market)
+        VirwoxTickerRequest({'symbols': symbols}, self)
+
+    def _refresh_tickers(self):
+        symbols = self.ticker_clients.keys()
+        VirwoxTickerRequest({'symbols': symbols}, self)
+
+    def pop_request(self):
+        request = heapq.heappop(self.requests)
+        request.post()
 
 
-class BitstampAccount(_Bitstamp, tulpenmanie.exchange.ExchangeAccount):
-    _balance_url = QtCore.QUrl(_BASE_URL + 'balance/')
-    _open_orders_url = QtCore.QUrl(_BASE_URL + 'open_orders/')
-    _cancel_orders_url = QtCore.QUrl(_BASE_URL + 'cancel_order/')
-    _buy_limit_url = QtCore.QUrl(_BASE_URL + 'buy/')
-    _sell_limit_url = QtCore.QUrl(_BASE_URL + 'sell/')
+class VirwoxTickerRequest(VirwoxPublicRequest):
+    method = 'getBestPrices'
 
-    BTC_funds_signal = QtCore.pyqtSignal(decimal.Decimal)
-    USD_funds_signal = QtCore.pyqtSignal(decimal.Decimal)
+    def handle_result(self, result):
+        for instrument in result:
+            proxy = self.parent.ticker_proxies[instrument['symbol']]
+            proxy.ask_signal.emit(Decimal(instrument['bestSellPrice']))
+            proxy.bid_signal.emit(Decimal(instrument['bestBuyPrice']))
 
-    BTC_balance_changed_signal = QtCore.pyqtSignal(decimal.Decimal)
-    USD_balance_changed_signal = QtCore.pyqtSignal(decimal.Decimal)
 
-    BTC_USD_limit_ready_signal = QtCore.pyqtSignal(bool)
+class VirwoxAccount(_Virwox, tulpenmanie.exchange.ExchangeAccount):
+
+    trade_commission_signal = QtCore.pyqtSignal(Decimal)
+
+    # TODO get rid of this crap
+    EUR_OMC_ready_signal = QtCore.pyqtSignal(bool)
+    BTC_SLL_ready_signal = QtCore.pyqtSignal(bool)
+    USD_OMC_ready_signal = QtCore.pyqtSignal(bool)
+    USD_SLL_ready_signal = QtCore.pyqtSignal(bool)
+    SLL_ACD_ready_signal = QtCore.pyqtSignal(bool)
+    CHF_SLL_ready_signal = QtCore.pyqtSignal(bool)
+    EUR_SLL_ready_signal = QtCore.pyqtSignal(bool)
+    USD_ACD_ready_signal = QtCore.pyqtSignal(bool)
+    GBP_SLL_ready_signal = QtCore.pyqtSignal(bool)
+    SLL_OMC_ready_signal = QtCore.pyqtSignal(bool)
+    EUR_ACD_ready_signal = QtCore.pyqtSignal(bool)
 
     def __init__(self, credentials, network_manager=None, parent=None):
         if network_manager is None:
-            network_manager = tulpenmanie.network.get_network_manager
-        super(BitstampAccount, self).__init__(parent)
-        self.base_query = QtCore.QUrl()
+            network_manager = tulpenmanie.network.get_network_manager()
+        super(VirwoxAccount, self).__init__(parent)
+        self._credentials = dict()
         self.set_credentials(credentials)
         self.network_manager = network_manager
-        self._request_queue = self.network_manager.get_host_request_queue(
-            HOSTNAME, 500)
-        self._requests = list()
-        self._replies = set()
+        self.host_queue = self.network_manager.get_host_request_queue(
+            HOSTNAME, 1000)
+        self.requests = list()
+        self.replies = set()
+        self.funds_proxies = dict()
+        self.orders_proxies = dict()
 
-        self.ask_orders_model = tulpenmanie.orders.OrdersModel()
-        self.bid_orders_model = tulpenmanie.orders.OrdersModel()
+
+    def pop_request(self):
+        request = heapq.heappop(self.requests)[1]
+        request.post()
+        self.replies.add(request)
 
     def set_credentials(self, credentials):
-        self.base_query.addQueryItem('user', credentials[0])
-        self.base_query.addQueryItem('password', credentials[1])
+        self._credentials = {'key': str(credentials[0]),
+                             'user': str(credentials[1]),
+                             'pass': str(credentials[2])}
 
     def check_order_status(self, remote_pair):
-        self.BTC_USD_limit_ready_signal.emit(True)
+        signal = getattr(self, remote_pair + "_ready_signal")
+        signal.emit(True)
 
-    def get_ask_orders_model(self, remote_pair):
-        return self.ask_orders_model
-
-    def get_bid_orders_model(self, remote_pair):
-        return self.bid_orders_model
-
-    def refresh(self):
-        self._refresh_funds()
-
-    def _refresh_funds(self):
-        request = BitstampPOSTRequest(self._balance_url,
-                                      self._balance_handler, self)
-        self._requests.append(request)
-        self._request_queue.enqueue(self, 2)
-
-    def _balance_handler(self, data):
-        #TODO maybe not emit 'Total' but rather available
-        self.BTC_funds_signal.emit(decimal.Decimal(data['btc_available']))
-        self.USD_funds_signal.emit(decimal.Decimal(data['usd_available']))
+    def refresh_funds(self):
+        VirwoxGetBalancesRequest(self)
 
     def refresh_orders(self):
-        request = BitstampPOSTRequest(self._open_orders_url,
-                                      self._open_orders_handler, self)
-        self._requests.append(request)
-        self._request_queue.enqueue(self, 2)
+        params = {'query': {'selection':'OPEN'}}
+        VirwoxGetOrdersRequest(self, params)
 
-    def _open_orders_handler(self, data):
-        for model in self.ask_orders_model, self.bid_orders_model:
-            model.clear_orders()
-        for order in data:
-            order_id = order['id']
-            price = order['price']
-            amount = order['amount']
-            # type - buy or sell (0 - buy; 1 - sell)
-            if order['type'] == 0:
-                self.bid_orders_model.append_order(order_id, price, amount)
-            elif order['type'] == 1:
-                self.ask_orders_model.append_order(order_id, price, amount)
-        for model in self.ask_orders_model, self.bid_orders_model:
-            model.sort(1, QtCore.Qt.DescendingOrder)
+    def place_ask_limit_order(self, remote, amount, price):
+        self._place_order(remote, 'SELL', amount, price)
 
-    def place_ask_limit_order(self, pair, amount, price):
-        self._place_limit_order(amount, price, self.sell_limit_url)
+    def place_bid_limit_order(self, remote, amount, price):
+        self._place_order(remote, 'BUY', amount, price)
 
-    def place_bid_limit_order(self, pair, amount, price):
-        self._place_limit_order(amount, price, self._buy_limit_url)
+    def place_ask_market_order(self, remote, amount):
+        self._place_order(remote, 'SELL', amount, 0)
 
-    def place_ask_market_order(self, pair, amount):
-        pass
+    def place_bid_market_order(self, remote, amount):
+        self._place_order(remote, 'BUY', amount, 0)
 
-    def place_bid_market_order(self, pair, amount):
-        pass
-
-    # TODO these could both be advanced
-    def _place_limit_order(self, amount, price, url):
-        query = {'ammount': amount,
-                 'price': price}
-        data = {'query': query}
-        request = BitstampPOSTRequest(url, self._place_order_handler,
-                                      self, data)
-        self._requests.append(request)
-        self._request_queue.enqueue(self, 1)
-
-    def _place_order_handler(self, data):
-        order_id = int(data['id'])
-        amount = decimal.Decimal(data['amount'])
-        price = decimal.Decimal(data['price'])
-        # type - buy or sell (0 - buy; 1 - sell)
-        if data['type'] == 0:
-            logger.info("bid order %s in place", order_id)
-            self.bid_orders_model.append_order(order_id, price, amount)
-            self.USD_balance_changed_signal.emit( -(amount * price))
-
-        elif data['type'] == 1:
-            logger.info("ask order %s in place", order_id)
-            self.ask_orders_model.append_order(order_id, price, amount)
-            self.BTC_balance_changed_signal.emit( -amount)
+    def _place_order(self, remote_market, order_type, amount, price):
+        params = {'query': {'instrument': remote_market, 'orderType': order_type,
+                            'price': str(price), 'amount': str(amount)}}
+        VirwoxPlaceOrderRequest(self, params)
 
     def cancel_ask_order(self, pair, order_id):
-        self._cancel_order(order_id)
+        self._cancel_order(pair, order_id, 0)
 
     def cancel_bid_order(self, pair, order_id):
-        self._cancel_order(order_id)
+        self._cancel_order(pair, order_id, 1)
 
-    def _cancel_order(self, order_id):
-        data = {'query':{ 'id': order_id }}
-        request = BitstampPOSTRequest(self._cancel_order_url,
-                                      self._cancel_order_handler,
-                                      self, data)
-        self._requests.append(request)
-        self._request_queue.enqueue(self, 0)
+    def _cancel_order(self, pair, order_id, order_type):
+        params = {'pair':pair, 'type': order_type,
+                  'query': {'orderID' : str(order_id)}}
+        VirwoxCancelOrderRequest(self, params)
 
-    def _cancel_order_handler(self, data):
-        if data == 'true':
-            order_id = data['query']['id']
-            items = self.ask_orders_model.findItems(order_id,
-                                                    QtCore.Qt.MatchExactly, 0)
-            if items:
-                row = items[0].row()
-                self.ask_orders_model.removeRow(row)
+
+class VirwoxPrivateRequest(_VirwoxRequest):
+    priority = 2
+
+    def __init__(self, parent, params=None):
+        super(VirwoxPrivateRequest, self).__init__(parent)
+        self.parent = parent
+        if params is None:
+            self.params = {'query': self.parent._credentials}
+        else:
+            self.params = params
+            self.params['query'].update(self.parent._credentials)
+        self.reply = None
+        self.parent.requests.append( (self.priority, self,) )
+        self.parent.host_queue.enqueue(self.parent, self.priority,)
+
+    def post(self):
+        payload = json.dumps({'method': self.method,
+                              'params': self.params['query'],
+                              'id': str(QtCore.QUuid.createUuid().toString())})
+        if logger.isEnabledFor(logging.DEBUG):
+            logger.debug("POSTing %s to %s", self.params, PRIVATE_URL)
+        self.reply = self.parent.network_manager.post(private_request, payload)
+        self.parent.network_manager.sslErrors.connect(self.reply.ignoreSslErrors)
+        self.reply.finished.connect(self.parse_reply)
+
+
+class VirwoxGetBalancesRequest(VirwoxPrivateRequest):
+    method = 'getBalances'
+
+    def handle_result(self, result):
+        if not result['accountList']:
+            return
+        for account in result['accountList']:
+            symbol = account['currency']
+            if symbol in self.parent.funds_proxies:
+                self.parent.funds_proxies[symbol].balance.emit(
+                    Decimal(account['balance']))
+
+
+class VirwoxCommissionRequest(VirwoxPrivateRequest):
+    method = u'getCommissionDiscount'
+
+
+class VirwoxGetOrdersRequest(VirwoxPrivateRequest):
+    method = u'getOrders'
+
+    def handle_result(self, result):
+        if result['errorCode'] != 'OK':
+            self.parent.exchange_error_signal.emit(result['errorCode'])
+            return
+        if not result['orders']:
+            return
+        asks = dict()
+        bids = dict()
+        for order in result['orders']:
+            order_id = order['orderID']
+            pair = order['instrument']
+            order_type = order['orderType']
+            price = order['price']
+            amount = order['amountOpen']
+
+            if order_type == u'SELL':
+                if pair not in asks:
+                    asks[pair] = list()
+                asks[pair].append((order_id, price, amount,))
+            elif order_type == u'BUY':
+                if pair not in bids:
+                    bids[pair] = list()
+                bids[pair].append((order_id, price, amount,))
             else:
-                items = self.bid_orders_model.findItems(order_id,
-                                                        QtCore.Qt.MatchExactly,
-                                                        0)
-                row = items[0].row()
-                self.bid_orders_model.removeRow(row)
-            logger.info("order %s canceled", order_id)
+                logger.warning("unknown order type: %s", order_type)
+
+        for pair, orders in asks.items():
+            if pair in self.parent.orders_proxies:
+                self.parent.orders_proxies[pair].asks.emit(orders)
+        for pair, orders in bids.items():
+            if pair in self.parent.orders_proxies:
+                self.parent.orders_proxies[pair].bids.emit(orders)
 
 
-class BitstampExchangeItem(tulpenmanie.exchange.ExchangeItem):
+class VirwoxPlaceOrderRequest(VirwoxPrivateRequest):
+    method = 'placeOrder'
+    priority = 1
 
-    provider_name = EXCHANGE_NAME
+    def handle_result(self, result):
+        if result['errorCode'] != 'OK':
+            self.parent.exchange_error_signal.emit(result['errorCode'])
+            return
+        query = self.params['query']
+        order_id = result['orderID']
+        price = query['price']
+        amount = query['amount']
+        proxy = self.parent.orders_proxies[query['instrument']]
+        if query['orderType'] == 'SELL':
+            proxy.ask.emit((order_id, price, amount,))
+        else:
+            proxy.bid.emit((order_id, price, amount,))
 
-    COLUMNS = 4
-    MARKETS, REFRESH_RATE, ACCOUNT_USERNAME, ACCOUNT_PASSWORD = range(COLUMNS)
-    mappings = (("refresh rate", REFRESH_RATE),
-                ("customer ID", ACCOUNT_USERNAME),
-                ("password", ACCOUNT_PASSWORD),)
-    markets = ('BTC_USD',)
 
-    numeric_settings = (REFRESH_RATE,)
-    boolean_settings = ()
-    required_account_settings = (ACCOUNT_USERNAME, ACCOUNT_PASSWORD,)
-    hidden_settings = (ACCOUNT_PASSWORD,)
+class VirwoxCancelOrderRequest(VirwoxPrivateRequest):
+    method = 'cancelOrder'
+    priority = 0
+
+    def handle_result(self, result):
+        if result['errorCode'] != 'OK':
+            self.parent.exchange_error_signal.emit(result['errorCode'])
+            return
+        order_id = self.params['query']['orderID']
+        pair = self.params['pair']
+        order_type = self.params['type']
+        if order_type == 0:
+            if pair in self.parent.orders_proxies:
+                self.parent.orders_proxies[pair].ask_cancelled.emit(order_id)
+        elif order_type == 'bid':
+            if pair in self.parent.orders_proxies:
+                self.parent.orders_proxies[pair].bid_cancelled.emit(order_id)
 
 
-tulpenmanie.providers.register_exchange(BitstampExchangeMarket)
-tulpenmanie.providers.register_account(BitstampAccount)
-tulpenmanie.providers.register_exchange_model_item(BitstampExchangeItem)
+
+tulpenmanie.exchange.register_exchange(VirwoxExchangeMarket)
+tulpenmanie.exchange.register_account(VirwoxAccount)
+tulpenmanie.exchange.register_exchange_model_item(VirwoxProviderItem)

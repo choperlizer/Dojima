@@ -76,58 +76,61 @@ class ExchangeItem(QtGui.QStandardItem):
 
     def __init__(self):
         super(ExchangeItem, self).__init__(self.exchange_name)
-        self.settings = QtCore.QSettings()
-        self.settings.beginGroup(self.exchange_name)
+        settings = QtCore.QSettings()
+        settings.beginGroup(self.exchange_name)
         self.setColumnCount(self.COLUMNS)
 
         logger.debug("loading %s settings", self.exchange_name)
         if self.mappings:
             for setting, column in self.mappings:
-                value = self.settings.value(setting)
+                value = settings.value(setting)
                 if value:
                     item = QtGui.QStandardItem(value)
                 else:
                     item = QtGui.QStandardItem()
                 self.setChild(0, column, item)
 
-        if self.markets:
-            logger.debug("loading %s markets", self.exchange_name)
-            self.markets_item = QtGui.QStandardItem()
-            self.setChild(0, self.MARKETS, self.markets_item)
-            self.settings.beginGroup('markets')
-            for remote_pair in self.markets:
-                items = [ QtGui.QStandardItem(remote_pair) ]
-                self.settings.beginGroup(remote_pair)
-                for setting, column in self.market_mappings:
-                    value = self.settings.value(setting)
-                    if value:
-                        items.append(QtGui.QStandardItem(value))
-                    else:
-                        items.append(QtGui.QStandardItem())
-                self.markets_item.appendRow(items)
-                self.settings.endGroup()
-            self.settings.endGroup()
+        logger.debug("loading %s markets", self.exchange_name)
+        self.markets_item = QtGui.QStandardItem()
+        self.setChild(0, self.MARKETS, self.markets_item)
+        settings.beginGroup('markets')
+
+        for remote_string in settings.childGroups():
+            settings.beginGroup(remote_string)
+            remote_market = str(QtCore.QUrl.fromPercentEncoding(
+                remote_string.toUtf8()))
+            items = [ QtGui.QStandardItem(remote_market) ]
+            for setting, column in self.market_mappings:
+                value = settings.value(setting)
+                if not value: value = ''
+                items.append(QtGui.QStandardItem(value))
+            self.markets_item.appendRow(items)
+            settings.endGroup()
+        self.markets_item.sortChildren(self.MARKET_REMOTE)
 
     def save(self):
         logger.debug("saving %s settings", self.exchange_name)
+        settings = QtCore.QSettings()
+        settings.beginGroup(self.exchange_name)
         if self.mappings:
             #!!!TODO wont save refresh rate
             for setting, column in self.mappings:
                 value = self.child(0, column).text()
-                self.settings.setValue(setting, value)
+                settings.setValue(setting, value)
 
         logger.debug("saving %s markets", self.exchange_name)
         # wipe out account information format from previous version
-        self.settings.remove("accounts")
-        self.settings.beginGroup('markets')
+        settings.remove("accounts")
+        settings.beginGroup('markets')
         for row in range(self.markets_item.rowCount()):
-            remote_pair = self.markets_item.child(row, 0).text()
-            self.settings.beginGroup(remote_pair)
+            remote_string = self.markets_item.child(row, 0).text()
+            remote_string = str(QtCore.QUrl.toPercentEncoding(remote_string))
+            settings.beginGroup(remote_string)
             for setting, column in self.market_mappings:
                 value = self.markets_item.child(row, column).text()
-                self.settings.setValue(setting, value)
-            self.settings.endGroup()
-        self.settings.endGroup()
+                settings.setValue(setting, value)
+            settings.endGroup()
+        settings.endGroup()
 
     def new_account(self):
         columns = self.ACCOUNT_COLUMNS
@@ -137,6 +140,62 @@ class ExchangeItem(QtGui.QStandardItem):
             columns -= 1
         self.accounts_item.appendRow(items)
         return items[0].index()
+
+class DynamicExchangeItem(ExchangeItem):
+
+    def __init__(self):
+        super(ExchangeItem, self).__init__(self.exchange_name)
+        settings = QtCore.QSettings()
+        settings.beginGroup(self.exchange_name)
+        self.setColumnCount(self.COLUMNS)
+
+        logger.debug("loading %s settings", self.exchange_name)
+        if self.mappings:
+            for setting, column in self.mappings:
+                value = settings.value(setting)
+                if value:
+                    item = QtGui.QStandardItem(value)
+                else:
+                    item = QtGui.QStandardItem()
+                self.setChild(0, column, item)
+
+        logger.debug("loading %s markets", self.exchange_name)
+        self.markets_item = QtGui.QStandardItem()
+        self.setChild(0, self.MARKETS, self.markets_item)
+        settings.beginGroup('markets')
+
+        for remote_string in settings.childGroups():
+            settings.beginGroup(remote_string)
+            remote_string = QtCore.QUrl.fromPercentEncoding(
+                remote_string.toUtf8())
+            items = [ QtGui.QStandardItem(remote_string) ]
+            for setting, column in self.market_mappings:
+                value = settings.value(setting)
+                if not value: value = ''
+                items.append(QtGui.QStandardItem(value))
+            self.markets_item.appendRow(items)
+            settings.endGroup()
+        self.markets_item.sortChildren(self.MARKET_REMOTE)
+        self.new_markets_request()
+
+    def reload(self):
+        print "the markets:", self.markets
+        for market in self.markets:
+            print "searching for market:", market
+            if not self.in_markets(market):
+                items = [ QtGui.QStandardItem(market) ]
+                columns = self.MARKET_COLUMNS
+                while columns:
+                    columns -= 1
+                    items.append(QtGui.QStandardItem())
+                self.markets_item.appendRow(items)
+
+    def in_markets(self, market):
+        for row in range(self.markets_item.rowCount()):
+            if str(market).strip() == str(self.markets_item.child(0).text()).strip():
+                return True
+        return False
+
 
 #TODO decorate the functions below with @required_function
 
@@ -156,15 +215,15 @@ class ExchangeAccount:
         self._replies.add(request)
 
     def get_funds_proxy(self, symbol):
-        if symbol not in self._funds_proxies:
+        if symbol not in self.funds_proxies:
             proxy = tulpenmanie.data.funds.FundsProxy(self)
-            self._funds_proxies[symbol] = proxy
+            self.funds_proxies[symbol] = proxy
             return proxy
-        return self._funds_proxies[symbol]
+        return self.funds_proxies[symbol]
 
     def get_orders_proxy(self, remote_market):
-        if remote_market not in self._orders_proxies:
+        if remote_market not in self.orders_proxies:
             orders_proxy = tulpenmanie.data.orders.OrdersProxy(self)
-            self._orders_proxies[remote_market] = orders_proxy
+            self.orders_proxies[remote_market] = orders_proxy
             return orders_proxy
-        return self._orders_proxies[remote_market]
+        return self.orders_proxies[remote_market]

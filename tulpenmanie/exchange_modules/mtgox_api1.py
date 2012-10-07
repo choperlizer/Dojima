@@ -175,7 +175,7 @@ class MtgoxTickerRequest(tulpenmanie.network.ExchangePOSTRequest):
             return
         data = data['return']
         path = self.url.path().split('/')
-        remote_market = path[3]
+        remote_market = str(path[3])
         proxy = self.parent._ticker_proxies[remote_market]
         proxy.ask_signal.emit(data['buy'])
         proxy.last_signal.emit(data['last'])
@@ -286,8 +286,8 @@ class MtgoxAccount(QtCore.QObject, _Mtgox, tulpenmanie.exchange.ExchangeAccount)
         self.requests = list()
         self.replies = set()
         self.set_credentials(credentials)
-        self._funds_proxies = dict()
-        self._orders_proxies = dict()
+        self.funds_proxies = dict()
+        self.orders_proxies = dict()
         self._bitcoin_deposit_address = None
         self.nonce = int(time.time() / 2)
 
@@ -296,11 +296,11 @@ class MtgoxAccount(QtCore.QObject, _Mtgox, tulpenmanie.exchange.ExchangeAccount)
         self._secret = base64.b64decode(credentials[1])
 
     def get_orders_proxy(self, remote_market):
-        if remote_market not in self._orders_proxies:
+        if remote_market not in self.orders_proxies:
             orders_proxy = tulpenmanie.data.orders.OrdersProxy(self)
-            self._orders_proxies[remote_market] = orders_proxy
+            self.orders_proxies[remote_market] = orders_proxy
             return orders_proxy
-        return self._orders_proxies[remote_market]
+        return self.orders_proxies[remote_market]
 
     def check_order_status(self, remote_pair):
         # This can probaly call for BTC info twice at
@@ -413,8 +413,8 @@ class MtgoxInfoRequest(MtgoxPrivateRequest):
         logger.debug(raw)
         data = json.loads(raw, object_hook=_object_hook)
         for symbol, dict_ in data['return']['Wallets'].items():
-            if symbol in self.parent._funds_proxies:
-                signal = self.parent._funds_proxies[symbol].balance
+            if symbol in self.parent.funds_proxies:
+                signal = self.parent.funds_proxies[symbol].balance
                 balance = dict_['Balance'] -  dict_['Open_Orders']
                 signal.emit(balance)
             else:
@@ -453,11 +453,11 @@ class MtgoxOrdersRequest(MtgoxPrivateRequest):
                 logger.warning("unknown order type: %s", order_type)
 
         for pair, orders in asks.items():
-            if pair in self.parent._orders_proxies:
-                self.parent._orders_proxies[pair].asks.emit(orders)
+            if pair in self.parent.orders_proxies:
+                self.parent.orders_proxies[pair].asks.emit(orders)
         for pair, orders in bids.items():
-            if pair in self.parent._orders_proxies:
-                self.parent._orders_proxies[pair].bids.emit(orders)
+            if pair in self.parent.orders_proxies:
+                self.parent.orders_proxies[pair].bids.emit(orders)
 
 
 class MtgoxPlaceOrderRequest(MtgoxPrivateRequest):
@@ -472,10 +472,10 @@ class MtgoxPlaceOrderRequest(MtgoxPrivateRequest):
         pair = self.data['pair']
         order_type = self.data['query']['type']
 
-        base_signal = self.parent._funds_proxies['BTC'].balance_changed
-        counter_signal = self.parent._funds_proxies[pair[-3:]].balance_changed
+        base_signal = self.parent.funds_proxies['BTC'].balance_changed
+        counter_signal = self.parent.funds_proxies[pair[-3:]].balance_changed
         if order_type == 'ask':
-            self.parent._orders_proxies[pair].ask.emit(
+            self.parent.orders_proxies[pair].ask.emit(
                 (order_id, price, amount,))
             base_signal.emit(-amount)
         elif order_type == 'bid':
@@ -484,7 +484,7 @@ class MtgoxPlaceOrderRequest(MtgoxPrivateRequest):
             else:
                 price = QtCore.QCoreApplication.translate(
                     'MtgoxPlaceOrderRequest', "market", "at market price")
-            self.parent._orders_proxies[pair].bid.emit(
+            self.parent.orders_proxies[pair].bid.emit(
                 (order_id, price, amount,))
 
 
@@ -500,9 +500,9 @@ class MtgoxCancelOrderRequest(MtgoxPrivateRequest):
         order_type = self.data['query']['type']
 
         if order_type == 1:
-            self.parent._orders_proxies[pair].ask_cancelled.emit(order_id)
+            self.parent.orders_proxies[pair].ask_cancelled.emit(order_id)
         elif order_type == 2:
-            self.parent._orders_proxies[pair].bid_cancelled.emit(order_id)
+            self.parent.orders_proxies[pair].bid_cancelled.emit(order_id)
 
 class MtgoxBitcoinDepositAddressRequest(MtgoxPrivateRequest):
     priority = 2

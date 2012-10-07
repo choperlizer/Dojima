@@ -73,7 +73,6 @@ class EditWidget(QtGui.QWidget):
                 mapper.setSubmitPolicy(QtGui.QDataWidgetMapper.AutoSubmit)
                 self.mappers.append(mapper)
 
-
                 check_state = bool(markets_item.child(
                     row, exchange_item.MARKET_ENABLE).text())
                 remote_label = QtGui.QLabel(
@@ -118,7 +117,6 @@ class EditWidget(QtGui.QWidget):
         row = exchange_index.row()
         self.stacked_widget.setCurrentIndex(row)
 
-
 class ErrorHandling(object):
 
     def exchange_error_handler(self, message):
@@ -134,8 +132,8 @@ class ExchangeDockWidget(QtGui.QDockWidget, ErrorHandling):
         exchange_name = exchange_item.text()
         market_uuid = exchange_item.markets_item.child(
             exchange_market_row, exchange_item.MARKET_LOCAL).text()
-        self.remote_market = exchange_item.markets_item.child(
-            exchange_market_row, exchange_item.MARKET_REMOTE).text()
+        self.remote_market = str(exchange_item.markets_item.child(
+            exchange_market_row, exchange_item.MARKET_REMOTE).text())
         title = exchange_name + ' ' + self.remote_market
         super(ExchangeDockWidget, self).__init__(title, parent)
 
@@ -432,7 +430,9 @@ class AccountWidget(QtGui.QWidget, ErrorHandling):
         orders_proxy.bid_cancelled.connect(self.bid_cancelled)
 
         # Check if ready to order
-        signal = getattr(self.account, self.remote_market + '_ready_signal')
+        # TODO this sucks, it must go
+        signal_name = self.remote_market.replace('/', '_') + '_ready_signal'
+        signal = getattr(self.account, signal_name)
         if hasattr(self.account, 'place_ask_limit_order'):
             signal.connect(ask_limit_action.setEnabled)
             signal.connect(bid_limit_action.setEnabled)
@@ -450,7 +450,8 @@ class AccountWidget(QtGui.QWidget, ErrorHandling):
     def enable_account(self, enable):
         if enable:
             # TODO sometimes redundant to refresh() and refresh_orders()
-            self.account.check_order_status(self.remote_market)
+            remote_market = self.remote_market.replace('/', '_')
+            self.account.check_order_status(remote_market)
             self.account.refresh_funds()
             self.account.refresh_orders()
 

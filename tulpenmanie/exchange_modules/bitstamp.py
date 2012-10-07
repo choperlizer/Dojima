@@ -189,11 +189,11 @@ class BitstampAccount(_Bitstamp, tulpenmanie.exchange.ExchangeAccount):
         self.requests = list()
         self.replies = set()
         self._bitcoin_deposit_address = None
-        self._funds_proxies = dict()
-        self._orders_proxy = tulpenmanie.data.orders.OrdersProxy(self)
+        self.funds_proxies = dict()
+        self.orders_proxy = tulpenmanie.data.orders.OrdersProxy(self)
 
     def get_orders_proxy(self, remote_market=None):
-        return self._orders_proxy
+        return self.orders_proxy
 
     def set_credentials(self, credentials):
         self.base_query.addQueryItem('user', credentials[0])
@@ -268,9 +268,9 @@ class BitstampBalanceRequest(BitstampPrivateRequest):
     def _handle_reply(self, raw):
         logger.debug(raw)
         data = json.loads(raw, parse_float=Decimal, parse_int=Decimal)
-        self.parent._funds_proxies['BTC'].balance.emit(
+        self.parent.funds_proxies['BTC'].balance.emit(
             Decimal(data['btc_available']))
-        self.parent._funds_proxies['USD'].balance.emit(
+        self.parent.funds_proxies['USD'].balance.emit(
             Decimal(data['usd_available']))
         fee = data['fee'].rstrip('0')
         self.parent.trade_commission_signal.emit(Decimal(fee))
@@ -296,10 +296,8 @@ class BitstampOpenOrdersRequest(BitstampPrivateRequest):
                 ask_orders.append((order_id, price, amount,))
             else:
                 logger.warning('unknown order type %s, WTF!!', order['type'])
-        if ask_orders:
-            self.parent._orders_proxy.asks.emit(ask_orders)
-        if bid_orders:
-            self.parent._orders_proxy.bids.emit(bid_orders)
+        self.parent.orders_proxy.asks.emit(ask_orders)
+        self.parent.orders_proxy.bids.emit(bid_orders)
 
 
 class BitstampPlaceOrderRequest(BitstampPrivateRequest):
@@ -318,14 +316,14 @@ class BitstampPlaceOrderRequest(BitstampPrivateRequest):
         # type - buy or sell (0 - buy; 1 - sell)
         if data['type'] == 0:
             logger.info("bid order %s in place", order_id)
-            self.parent._orders_proxy.bid.emit((order_id, price, amount,))
-            self.parent._funds_proxies['USD'].balance_changed(
+            self.parent.orders_proxy.bid.emit((order_id, price, amount,))
+            self.parent.funds_proxies['USD'].balance_changed(
                 -(Decimal(amount) * price))
 
         elif data['type'] == 1:
             logger.info("ask order %s in place", order_id)
-            self.parent._orders_proxy.ask.emit((order_id, price, amount,))
-            self.parent._funds_proxies['BTC'].balance_changed.emit(
+            self.parent.orders_proxy.ask.emit((order_id, price, amount,))
+            self.parent.funds_proxies['BTC'].balance_changed.emit(
                 -Decimal(amount))
 
 
@@ -340,9 +338,9 @@ class BitstampCancelOrderRequest(BitstampPrivateRequest):
             order_id = self.data['query']['id']
             # type - buy or sell (0 - buy; 1 - sell)
             if self.data['type'] == 1:
-                self.parent._orders_proxy.ask_cancelled.emit(order_id)
+                self.parent.orders_proxy.ask_cancelled.emit(order_id)
             else:
-                self.parent._orders_proxy.bid_cancelled.emit(order_id)
+                self.parent.orders_proxy.bid_cancelled.emit(order_id)
             logger.info("order %s cancelled", order_id)
 
 
