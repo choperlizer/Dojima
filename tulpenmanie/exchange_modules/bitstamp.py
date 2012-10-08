@@ -286,14 +286,14 @@ class BitstampOpenOrdersRequest(BitstampPrivateRequest):
 
     def _handle_reply(self, raw):
         logger.debug(raw)
-        data = json.loads(raw, parse_float=Decimal)
+        data = json.loads(raw)
         if not data:
             return
         ask_orders, bid_orders = [], []
         for order in data:
             order_id = order['id']
-            price = order['price']
-            amount = order['amount']
+            price = Decimal(order['price'])
+            amount = Decimal(order['amount'])
             # type - buy or sell (0 - buy; 1 - sell)
             if order['type'] == 0:
                 bid_orders.append((order_id, price, amount,))
@@ -316,20 +316,18 @@ class BitstampPlaceOrderRequest(BitstampPrivateRequest):
             return
 
         order_id = data['id']
-        amount = data['amount']
-        price = data['price']
+        amount = Decimal(data['amount'])
+        price = Decimal(data['price'])
         # type - buy or sell (0 - buy; 1 - sell)
         if data['type'] == 0:
             logger.info("bid order %s in place", order_id)
             self.parent.orders_proxy.bid.emit((order_id, price, amount,))
-            self.parent.funds_proxies['USD'].balance_changed(
-                -(Decimal(amount) * price))
+            self.parent.funds_proxies['USD'].balance_changed( -(amount) * price)
 
         elif data['type'] == 1:
             logger.info("ask order %s in place", order_id)
             self.parent.orders_proxy.ask.emit((order_id, price, amount,))
-            self.parent.funds_proxies['BTC'].balance_changed.emit(
-                -Decimal(amount))
+            self.parent.funds_proxies['BTC'].balance_changed.emit( -amount)
 
 
 class BitstampCancelOrderRequest(BitstampPrivateRequest):

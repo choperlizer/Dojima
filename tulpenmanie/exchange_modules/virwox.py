@@ -304,8 +304,10 @@ class VirwoxAccount(_Virwox, tulpenmanie.exchange.ExchangeAccount):
         self._place_order(remote, 'BUY', amount, 0)
 
     def _place_order(self, remote_market, order_type, amount, price):
-        params = {'query': {'instrument': remote_market, 'orderType': order_type,
-                            'price': str(price), 'amount': str(amount)}}
+        params = {'amount': amount,'price': price,
+                  'query': {'instrument': remote_market,
+                            'orderType': order_type,
+                            'price': str(price), 'amount': str(amount)} }
         VirwoxPlaceOrderRequest(self, params)
 
     def cancel_ask_order(self, pair, order_id):
@@ -397,8 +399,8 @@ class VirwoxGetOrdersRequest(VirwoxPrivateRequest):
             order_id = order['orderID']
             pair = order['instrument']
             order_type = order['orderType']
-            price = order['price']
-            amount = order['amountOpen']
+            price = Decimal(order['price'])
+            amount = Decimal(order['amountOpen'])
 
             if order_type == u'SELL':
                 if pair not in asks:
@@ -430,8 +432,8 @@ class VirwoxPlaceOrderRequest(VirwoxPrivateRequest):
             return
         query = self.params['query']
         order_id = result['orderID']
-        price = query['price']
-        amount = query['amount']
+        price = self.params['price']
+        amount = self.params['amount']
         proxy = self.parent.orders_proxies[query['instrument']]
         if query['orderType'] == 'SELL':
             proxy.ask.emit((order_id, price, amount,))

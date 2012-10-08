@@ -254,8 +254,10 @@ class AccountWidget(QtGui.QWidget, ErrorHandling):
         # Data
         self.account = account_object
 
-        self.asks_model = tulpenmanie.model.order.OrdersModel()
-        self.bids_model = tulpenmanie.model.order.OrdersModel()
+        self.asks_model = tulpenmanie.model.order.OrdersModel(
+            parent.base_row, parent.counter_row, self)
+        self.bids_model = tulpenmanie.model.order.OrdersModel(
+            parent.base_row, parent.counter_row, self)
         self.asks_model.setHorizontalHeaderLabels(
             ("id",
              QtCore.QCoreApplication.translate('AccountWidget',
@@ -455,19 +457,17 @@ class AccountWidget(QtGui.QWidget, ErrorHandling):
 
     def new_asks(self, orders):
         self.asks_model.clear_orders()
-        for order in orders:
-            self.asks_model.append_order(order[0], order[1], order[2])
+        self.asks_model.append_orders(orders)
 
     def new_ask(self, order):
-        self.asks_model.append_order(order[0], order[1], order[2])
+        self.asks_model.append_orders( (order,) )
 
     def new_bids(self, orders):
         self.bids_model.clear_orders()
-        for order in orders:
-            self.bids_model.append_order(order[0], order[1], order[2])
+        self.bids_model.append_orders(orders)
 
     def new_bid(self, order):
-        self.bids_model.append_order(order[0], order[1], order[2])
+        self.bids_model.append_orders( (order,) )
 
     def _ask_limit(self):
         amount = self.ask_base_amount_spin.decimal_value()
