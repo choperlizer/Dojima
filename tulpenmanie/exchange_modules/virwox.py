@@ -323,8 +323,8 @@ class VirwoxAccount(_Virwox, tulpenmanie.exchange.ExchangeAccount):
         rates = self.commissions[remote_market]
         return (amount * rates['variable']) + rates['fixed']
 
+        # TODO find the discounted commission rate
         #VirwoxGetCommissionDiscountRequest(self)
-
 
 
 class VirwoxPrivateRequest(_VirwoxRequest):

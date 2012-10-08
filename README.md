@@ -13,6 +13,7 @@ A graphical speculation platform in PyQt4
  - [BTC-e](https://btc-e.com/)
  - [Campbx](https://campbx.com/)
  - [MtGox](https://mtgox.com/)
+ - [VirWox](https://www.virwox.com?r=180bd)
 
 ### Module notes
 #### CampBX
