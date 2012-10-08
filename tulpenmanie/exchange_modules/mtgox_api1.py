@@ -242,8 +242,6 @@ class MtgoxAccount(QtCore.QObject, _Mtgox, tulpenmanie.exchange.ExchangeAccount)
                 'BTCPLN', 'BTCRUB', 'BTCSEK', 'BTCSGD', 'BTCTHB',
                 'BTCUSD' )
 
-    trade_commission_signal = QtCore.pyqtSignal(Decimal)
-
     BTCAUD_ready_signal = QtCore.pyqtSignal(bool)
     BTCCAD_ready_signal = QtCore.pyqtSignal(bool)
     BTCCHF_ready_signal = QtCore.pyqtSignal(bool)
@@ -272,7 +270,6 @@ class MtgoxAccount(QtCore.QObject, _Mtgox, tulpenmanie.exchange.ExchangeAccount)
     _bitcoin_address_url = QtCore.QUrl(_BASE_URL + "generic/bitcoin/address")
     #_withdraw_bitcoin_url = QtCore.QUrl('https://' + HOSTNAME +
     #                                   '/api/0/withdraw.php')
-
     multipliers = dict()
 
     def __init__(self, credentials, network_manager=None, parent=None):
@@ -289,6 +286,7 @@ class MtgoxAccount(QtCore.QObject, _Mtgox, tulpenmanie.exchange.ExchangeAccount)
         self.funds_proxies = dict()
         self.orders_proxies = dict()
         self._bitcoin_deposit_address = None
+        self.commission = None
         self.nonce = int(time.time() / 2)
 
     def set_credentials(self, credentials):
@@ -383,6 +381,12 @@ class MtgoxAccount(QtCore.QObject, _Mtgox, tulpenmanie.exchange.ExchangeAccount)
                  'amount': amount}}
         MtgoxWithdrawBitcoinRequest(self._withdraw_bitcoin_url, self, data)
     """
+
+    def get_commission(self, amount, remote_market=None):
+        if self.commission is None:
+            return None
+        return amount * self.commission
+
 class MtgoxPrivateRequest(_MtgoxRequest):
     priority = 1
     host_priority = 0
@@ -419,8 +423,7 @@ class MtgoxInfoRequest(MtgoxPrivateRequest):
                 signal.emit(balance)
             else:
                 logger.info("ignoring %s balance", symbol)
-        self.parent.trade_commission_signal.emit(
-            Decimal(str(data['return']['Trade_Fee'])))
+        self.parent.commission = Decimal(str(data['return']['Trade_Fee'])) / 100
 
 
 class MtgoxOrdersRequest(MtgoxPrivateRequest):

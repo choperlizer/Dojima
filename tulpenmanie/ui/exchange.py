@@ -254,9 +254,6 @@ class AccountWidget(QtGui.QWidget, ErrorHandling):
         # Data
         self.account = account_object
 
-        self.commission_multiplier = 0
-        self.commission_display = QtCore.QCoreApplication.translate(
-            'AccountWidget', "%1%")
         self.asks_model = tulpenmanie.model.order.OrdersModel()
         self.bids_model = tulpenmanie.model.order.OrdersModel()
         self.asks_model.setHorizontalHeaderLabels(
@@ -276,7 +273,6 @@ class AccountWidget(QtGui.QWidget, ErrorHandling):
 
         base_funds_label = tulpenmanie.widget.FundsLabel(
             parent.base_row)
-        self.commission_label = QtGui.QLabel()
         counter_funds_label = tulpenmanie.widget.FundsLabel(
             parent.counter_row)
 
@@ -288,16 +284,14 @@ class AccountWidget(QtGui.QWidget, ErrorHandling):
         funds_font = QtGui.QFont()
         funds_font.setPointSize(13)
         for label in (base_funds_label,
-                      self.commission_label,
                       counter_funds_label):
             label.setAlignment(QtCore.Qt.AlignHCenter)
             label.setFont(funds_font)
             label.setContextMenuPolicy(QtCore.Qt.ActionsContextMenu)
             label.addAction(refresh_funds_action)
 
-        layout.addWidget(base_funds_label, 0,0, 1,2)
-        layout.addWidget(self.commission_label, 0,2, 1,2)
-        layout.addWidget(counter_funds_label, 0,4, 1,2)
+        layout.addWidget(base_funds_label, 0,0, 1,3)
+        layout.addWidget(counter_funds_label, 0,3, 1,3)
 
         self.ask_base_amount_spin = tulpenmanie.widget.CommoditySpinBox(
             parent.base_row)
@@ -319,7 +313,11 @@ class AccountWidget(QtGui.QWidget, ErrorHandling):
 
         self.ask_counter_amount_label = tulpenmanie.widget.CounterAmountLabel(
             parent.counter_row)
+        self.ask_counter_estimate_label = tulpenmanie.widget.CounterEstimateLabel(
+            parent.counter_row)
         self.bid_counter_amount_label = tulpenmanie.widget.CounterAmountLabel(
+            parent.counter_row)
+        self.bid_counter_estimate_label = tulpenmanie.widget.CounterEstimateLabel(
             parent.counter_row)
 
         ask_button = QtGui.QPushButton(
@@ -362,14 +360,16 @@ class AccountWidget(QtGui.QWidget, ErrorHandling):
         layout.addWidget(self.ask_base_amount_spin, 1,0)
         layout.addWidget(QtGui.QLabel(at_seperator), 1,1)
         layout.addWidget(self.ask_price_spin, 1,2)
-        layout.addWidget(self.ask_counter_amount_label, 2,0)
-        layout.addWidget(ask_button, 2,1, 1,2)
+        layout.addWidget(ask_button, 2,0, 2,1)
+        layout.addWidget(self.ask_counter_amount_label, 2,2,)
+        layout.addWidget(self.ask_counter_estimate_label, 3,2,)
 
         layout.addWidget(self.bid_base_amount_spin, 1,3)
         layout.addWidget(QtGui.QLabel(at_seperator), 1,4)
         layout.addWidget(self.bid_price_spin, 1,5)
-        layout.addWidget(self.bid_counter_amount_label, 2,3)
-        layout.addWidget(bid_button, 2,4, 1,2)
+        layout.addWidget(bid_button, 2,3, 2,1)
+        layout.addWidget(self.bid_counter_amount_label, 2,5)
+        layout.addWidget(self.bid_counter_estimate_label, 3,5)
 
         for spin in (self.ask_base_amount_spin, self.bid_base_amount_spin,
                      self.ask_price_spin,self.bid_price_spin):
@@ -378,11 +378,11 @@ class AccountWidget(QtGui.QWidget, ErrorHandling):
         # TODO these views should prefix/suffix price and amounts
         self.ask_orders_view = QtGui.QTableView()
         self.ask_orders_view.setModel(self.asks_model)
-        layout.addWidget(self.ask_orders_view, 3,0, 1,3)
+        layout.addWidget(self.ask_orders_view, 4,0, 1,3)
 
         self.bid_orders_view = QtGui.QTableView()
         self.bid_orders_view.setModel(self.bids_model)
-        layout.addWidget(self.bid_orders_view, 3,3, 1,3)
+        layout.addWidget(self.bid_orders_view, 4,3, 1,3)
 
         for view in self.ask_orders_view, self.bid_orders_view:
             view.setSelectionMode(QtGui.QListView.SingleSelection)
@@ -419,7 +419,6 @@ class AccountWidget(QtGui.QWidget, ErrorHandling):
             counter_funds_label.change_value)
 
         self.account.exchange_error_signal.connect(self.exchange_error_handler)
-        self.account.trade_commission_signal.connect(self.set_commission)
 
         orders_proxy = self.account.get_orders_proxy(self.remote_market)
         orders_proxy.asks.connect(self.new_asks)
@@ -452,8 +451,7 @@ class AccountWidget(QtGui.QWidget, ErrorHandling):
             # TODO sometimes redundant to refresh() and refresh_orders()
             remote_market = self.remote_market.replace('/', '_')
             self.account.check_order_status(remote_market)
-            self.account.refresh_funds()
-            self.account.refresh_orders()
+            self.account.refresh()
 
     def new_asks(self, orders):
         self.asks_model.clear_orders()
@@ -513,12 +511,6 @@ class AccountWidget(QtGui.QWidget, ErrorHandling):
         for item in items:
             self.bids_model.removeRow(item.row())
 
-    def set_commission(self, commission):
-        self.commission_label.setText(
-            self.commission_display.arg(str(commission)))
-        self.commission_multiplier = 1 - (commission / 100)
-        logger.debug("commission set to %s", self.commission_multiplier)
-
     def ask_base_amount_changed(self, base_amount):
         base_amount = decimal.Decimal(str(base_amount))
         if not base_amount:
@@ -528,7 +520,7 @@ class AccountWidget(QtGui.QWidget, ErrorHandling):
         if not price:
             self.ask_counter_amount_label.clear()
             return
-        self.change_ask_counter_amount(base_amount, price)
+        self.change_ask_counter(base_amount, price)
 
     def ask_price_changed(self, price):
         price = decimal.Decimal(str(price))
@@ -539,11 +531,17 @@ class AccountWidget(QtGui.QWidget, ErrorHandling):
         if not base_amount:
             self.ask_counter_amount_label.clear()
             return
-        self.change_ask_counter_amount(base_amount, price)
+        self.change_ask_counter(base_amount, price)
 
-    def change_ask_counter_amount(self, base_amount, price):
-        counter_amount = base_amount * price * self.commission_multiplier
+    def change_ask_counter(self, base_amount, price):
+        counter_amount = base_amount * price
         self.ask_counter_amount_label.setValue(counter_amount)
+        commission = self.account.get_commission(counter_amount,
+                                                 self.remote_market)
+        if commission:
+            self.ask_counter_estimate_label.setValue(counter_amount - commission)
+            return
+        self.ask_counter_estimate_label.clear()
 
     def bid_base_amount_changed(self, base_amount):
         base_amount = decimal.Decimal(str(base_amount))
@@ -554,7 +552,7 @@ class AccountWidget(QtGui.QWidget, ErrorHandling):
         if not price:
             self.bid_counter_amount_label.clear()
             return
-        self.change_bid_counter_amount(base_amount, price)
+        self.change_bid_counter(base_amount, price)
 
     def bid_price_changed(self, price):
         price = decimal.Decimal(str(price))
@@ -564,9 +562,15 @@ class AccountWidget(QtGui.QWidget, ErrorHandling):
         base_amount = self.bid_base_amount_spin.decimal_value()
         if not base_amount:
             self.bid_counter_amount_label.clear()
-            return
-        self.change_bid_counter_amount(base_amount, price)
+        else:
+            self.change_bid_counter(base_amount, price)
 
-    def change_bid_counter_amount(self, base_amount, price):
-        counter_amount = base_amount * price * self.commission_multiplier
+    def change_bid_counter(self, base_amount, price):
+        counter_amount = base_amount * price
         self.bid_counter_amount_label.setValue(counter_amount)
+        commission = self.account.get_commission(counter_amount,
+                                                 self.remote_market)
+        if commission:
+            self.bid_counter_estimate_label.setValue(counter_amount - commission)
+        else:
+            self.bid_counter_estimate_label.clear()

@@ -39,7 +39,7 @@ PUBLIC_URL = 'http://' + HOSTNAME + '/api/json.php'
 public_request = QtNetwork.QNetworkRequest(QtCore.QUrl(PUBLIC_URL))
 public_request.setHeader(QtNetwork.QNetworkRequest.ContentTypeHeader,
                          'application/json')
-PRIVATE_URL = 'https://' + HOSTNAME + ':8000/api/trading.php'
+PRIVATE_URL = 'https://' + HOSTNAME + '/api/trading.php'
 private_request = QtNetwork.QNetworkRequest(QtCore.QUrl(PRIVATE_URL))
 private_request.setHeader(QtNetwork.QNetworkRequest.ContentTypeHeader,
                          'application/json')
@@ -227,8 +227,6 @@ class VirwoxTickerRequest(VirwoxPublicRequest):
 
 class VirwoxAccount(_Virwox, tulpenmanie.exchange.ExchangeAccount):
 
-    trade_commission_signal = QtCore.pyqtSignal(Decimal)
-
     # TODO get rid of this crap
     EUR_OMC_ready_signal = QtCore.pyqtSignal(bool)
     BTC_SLL_ready_signal = QtCore.pyqtSignal(bool)
@@ -241,6 +239,19 @@ class VirwoxAccount(_Virwox, tulpenmanie.exchange.ExchangeAccount):
     GBP_SLL_ready_signal = QtCore.pyqtSignal(bool)
     SLL_OMC_ready_signal = QtCore.pyqtSignal(bool)
     EUR_ACD_ready_signal = QtCore.pyqtSignal(bool)
+
+    commissions = {'EUR/SLL': {'fixed':50, 'variable': Decimal('0.029')},
+                   'USD/SLL': {'fixed':50, 'variable': Decimal('0.029')},
+                   'GBP/SLL': {'fixed':50, 'variable': Decimal('0.029')},
+                   'CHF/SLL': {'fixed':50, 'variable': Decimal('0.029')},
+                   'EUR/ACD': {'fixed':50, 'variable': Decimal('0.039')},
+                   'USD/ACD': {'fixed':50, 'variable': Decimal('0.039')},
+                   'SLL/ACD': {'fixed':25, 'variable': Decimal('0.039')},
+                   'SLL/OMC': {'fixed':25, 'variable': Decimal('0.019')},
+                   'EUR/OMC': {'fixed':50, 'variable': Decimal('0.029')},
+                   'USD/OMC': {'fixed':50, 'variable': Decimal('0.019')},
+                   'BTC/SLL': {'fixed':50, 'variable': Decimal('0.029')}}
+
 
     def __init__(self, credentials, network_manager=None, parent=None):
         if network_manager is None:
@@ -270,6 +281,10 @@ class VirwoxAccount(_Virwox, tulpenmanie.exchange.ExchangeAccount):
     def check_order_status(self, remote_pair):
         signal = getattr(self, remote_pair + "_ready_signal")
         signal.emit(True)
+
+    def refresh(self):
+        self.refresh_funds()
+        self.refresh_orders()
 
     def refresh_funds(self):
         VirwoxGetBalancesRequest(self)
@@ -305,6 +320,13 @@ class VirwoxAccount(_Virwox, tulpenmanie.exchange.ExchangeAccount):
         params = {'pair':pair, 'type': order_type,
                   'query': {'orderID' : str(order_id)}}
         VirwoxCancelOrderRequest(self, params)
+
+    def get_commission(self, amount, remote_market):
+        rates = self.commissions[remote_market]
+        return (amount * rates['variable']) + rates['fixed']
+        
+        #VirwoxGetCommissionDiscountRequest(self)
+
 
 
 class VirwoxPrivateRequest(_VirwoxRequest):
@@ -346,8 +368,15 @@ class VirwoxGetBalancesRequest(VirwoxPrivateRequest):
                     Decimal(account['balance']))
 
 
-class VirwoxCommissionRequest(VirwoxPrivateRequest):
+class VirwoxGetCommissionDiscountRequest(VirwoxPrivateRequest):
     method = u'getCommissionDiscount'
+
+    def handle_result(self, result):
+        if result['errorCode'] != 'OK':
+            self.parent.exchange_error_signal.emit(result['errorCode'])
+            return
+        fee = result['commission']['total']
+        self.parent.trade_commission_signal.emit(Decimal(fee))
 
 
 class VirwoxGetOrdersRequest(VirwoxPrivateRequest):

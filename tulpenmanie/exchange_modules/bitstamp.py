@@ -173,7 +173,6 @@ class BitstampAccount(_Bitstamp, tulpenmanie.exchange.ExchangeAccount):
 
     BTC_USD_ready_signal = QtCore.pyqtSignal(bool)
     exchange_error_signal = QtCore.pyqtSignal(str)
-    trade_commission_signal = QtCore.pyqtSignal(Decimal)
     bitcoin_deposit_address_signal = QtCore.pyqtSignal(str)
     withdraw_bitcoin_reply_signal = QtCore.pyqtSignal(str)
 
@@ -191,6 +190,7 @@ class BitstampAccount(_Bitstamp, tulpenmanie.exchange.ExchangeAccount):
         self._bitcoin_deposit_address = None
         self.funds_proxies = dict()
         self.orders_proxy = tulpenmanie.data.orders.OrdersProxy(self)
+        self.commission = None
 
     def get_orders_proxy(self, remote_market=None):
         return self.orders_proxy
@@ -248,6 +248,11 @@ class BitstampAccount(_Bitstamp, tulpenmanie.exchange.ExchangeAccount):
         request = BitstampBitcoinWithdrawalRequest(
             self._bitcoin_withdrawal_url, self, data)
 
+    def get_commission(self, amount, remote_market=None):
+        if self.commission is None:
+            return None
+        return amount * self.commission
+
 
 class BitstampPrivateRequest(tulpenmanie.network.ExchangePOSTRequest):
 
@@ -273,7 +278,7 @@ class BitstampBalanceRequest(BitstampPrivateRequest):
         self.parent.funds_proxies['USD'].balance.emit(
             Decimal(data['usd_available']))
         fee = data['fee'].rstrip('0')
-        self.parent.trade_commission_signal.emit(Decimal(fee))
+        self.parent.commission = Decimal(fee) / 100
 
 
 class BitstampOpenOrdersRequest(BitstampPrivateRequest):

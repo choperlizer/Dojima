@@ -182,12 +182,12 @@ class CampbxAccount(_Campbx, tulpenmanie.exchange.ExchangeAccount):
     _getbtcaddr_url = QtCore.QUrl(_BASE_URL + "getbtcaddr.php")
     _sendbtc_url = QtCore.QUrl(_BASE_URL + "sendbtc.php")
 
-    trade_commission_signal = QtCore.pyqtSignal(Decimal)
-
     BTC_USD_ready_signal = QtCore.pyqtSignal(bool)
 
     bitcoin_deposit_address_signal = QtCore.pyqtSignal(str)
     withdraw_bitcoin_reply_signal = QtCore.pyqtSignal(str)
+
+    commission = Decimal('0.0055')
 
     def __init__(self, credentials, network_manager=None, parent=None):
         if network_manager is None:
@@ -267,6 +267,8 @@ class CampbxAccount(_Campbx, tulpenmanie.exchange.ExchangeAccount):
                  'BTCAmt': amount}}
         CampbxWithdrawBitcoinRequest(self._sendbtc_url, self, data)
 
+    def get_commission(self, amount, remote_market=None):
+        return amount * self.commission
 
 class CampbxFundsRequest(_CampbxRequest):
     def _handle_reply(self, data):
@@ -275,7 +277,7 @@ class CampbxFundsRequest(_CampbxRequest):
             Decimal(data['Liquid BTC']))
         self.parent.funds_proxies['USD'].balance.emit(
             Decimal(data['Liquid USD']))
-        self.parent.trade_commission_signal.emit(Decimal('0.55'))
+
 
 class CampbxOrdersRequest(_CampbxRequest):
     def _handle_reply(self, data):

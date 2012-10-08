@@ -261,13 +261,13 @@ class BtceAccount(_Btce, tulpenmanie.exchange.ExchangeAccount):
     # BAD rudunant
     markets = ( 'btc_usd', 'btc_rur', 'ltc_btc', 'nmc_btc', 'usd_rur' )
 
-    trade_commission_signal = QtCore.pyqtSignal(Decimal)
-
     btc_usd_ready_signal = QtCore.pyqtSignal(bool)
     btc_rur_ready_signal = QtCore.pyqtSignal(bool)
     ltc_btc_ready_signal = QtCore.pyqtSignal(bool)
     nmc_btc_ready_signal = QtCore.pyqtSignal(bool)
     usd_rur_ready_signal = QtCore.pyqtSignal(bool)
+
+    commission = Decimal('0.002')
 
     def __init__(self, credentials, network_manager=None, parent=None):
         if network_manager is None:
@@ -401,12 +401,15 @@ class BtceAccount(_Btce, tulpenmanie.exchange.ExchangeAccount):
         self._emit_funds(data['return']['funds'])
 
     def _emit_funds(self, data):
-        self.trade_commission_signal.emit(Decimal('0.2'))
         for symbol, balance in data.items():
             if symbol in self.funds_proxies:
                 self.funds_proxies[symbol].balance.emit(Decimal(balance))
             else:
                 logger.info("ignoring %s balance", symbol)
+
+    def get_commission(self, amount, remote_market=None):
+        return amount * self.commission
+
 
 tulpenmanie.exchange.register_exchange(BtceExchange)
 tulpenmanie.exchange.register_account(BtceAccount)

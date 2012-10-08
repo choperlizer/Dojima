@@ -179,9 +179,7 @@ class DynamicExchangeItem(ExchangeItem):
         self.new_markets_request()
 
     def reload(self):
-        print "the markets:", self.markets
         for market in self.markets:
-            print "searching for market:", market
             if not self.in_markets(market):
                 items = [ QtGui.QStandardItem(market) ]
                 columns = self.MARKET_COLUMNS
@@ -192,7 +190,7 @@ class DynamicExchangeItem(ExchangeItem):
 
     def in_markets(self, market):
         for row in range(self.markets_item.rowCount()):
-            if str(market).strip() == str(self.markets_item.child(0).text()).strip():
+            if market == self.markets_item.child(row).text():
                 return True
         return False
 
@@ -227,3 +225,7 @@ class ExchangeAccount:
             self.orders_proxies[remote_market] = orders_proxy
             return orders_proxy
         return self.orders_proxies[remote_market]
+
+    def refresh(self):
+        self.refresh_orders()
+        self.refresh_funds()

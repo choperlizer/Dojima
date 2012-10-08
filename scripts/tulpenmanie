@@ -18,7 +18,8 @@ os.umask(63)
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('-d', '--debug', action='store_true',
-                        help="print debugging messages to stderr")
+                        help="print debugging messages to stderr "
+                        "DEBUG LEVEL MAY PRINT PASSWORDS")
     parser.add_argument('-v', '--verbose', action='store_true',
                         help="print informative internal "
                         "messages to stderr")
