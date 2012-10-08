@@ -6,7 +6,7 @@ A graphical speculation platform in PyQt4
    and instruments.
  - Present a modular interface optimized for multi-monitor and tiling window 
    managers.
- - Hasten the obsolesence of legal tender and repressive financial regulation.
+ - Hasten the obsolescence of legal tender and repressive financial regulation.
 
 ## Supported Exchanges
  - [Bitstamp](https://www.bitstamp.net/)

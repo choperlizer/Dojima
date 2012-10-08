@@ -60,7 +60,8 @@ class _VirwoxRequest(QtCore.QObject):
             response = json.loads(raw, parse_float=Decimal)
             if response['error']:
                 logger.error(response['error'])
-                self.parent.exchange_error_signal.emit(response['error'])
+                self.parent.exchange_error_signal.emit(
+                    "VirWox " + response['error'])
             else:
                 self.handle_result(response['result'])
         self.reply.deleteLater()
@@ -120,16 +121,14 @@ class VirwoxProviderItem(tulpenmanie.exchange.DynamicExchangeItem):
 
     exchange_name = EXCHANGE_NAME
 
-    COLUMNS = 5
-    MARKETS, REFRESH_RATE, ACCOUNT_APP_KEY, ACCOUNT_USERNAME, ACCOUNT_PASSWORD, = range(COLUMNS)
+    COLUMNS = 4
+    MARKETS, REFRESH_RATE, ACCOUNT_USERNAME, ACCOUNT_PASSWORD, = range(COLUMNS)
     mappings = (("refresh rate (seconds)", REFRESH_RATE),
-                ("app key", ACCOUNT_APP_KEY),
                 ("username", ACCOUNT_USERNAME),
                 ("password", ACCOUNT_PASSWORD),)
     numeric_settings = (REFRESH_RATE,)
     boolean_settings = ()
-    required_account_settings = (ACCOUNT_APP_KEY,
-                                 ACCOUNT_USERNAME, ACCOUNT_PASSWORD)
+    required_account_settings = (ACCOUNT_USERNAME, ACCOUNT_PASSWORD)
     hidden_settings = (ACCOUNT_PASSWORD,)
     markets = set()
 
@@ -257,7 +256,7 @@ class VirwoxAccount(_Virwox, tulpenmanie.exchange.ExchangeAccount):
         if network_manager is None:
             network_manager = tulpenmanie.network.get_network_manager()
         super(VirwoxAccount, self).__init__(parent)
-        self._credentials = dict()
+        self._credentials = {'key':'0c7d341e237ae4aec4b1b7376ff702fe'}
         self.set_credentials(credentials)
         self.network_manager = network_manager
         self.host_queue = self.network_manager.get_host_request_queue(
@@ -274,9 +273,8 @@ class VirwoxAccount(_Virwox, tulpenmanie.exchange.ExchangeAccount):
         self.replies.add(request)
 
     def set_credentials(self, credentials):
-        self._credentials = {'key': str(credentials[0]),
-                             'user': str(credentials[1]),
-                             'pass': str(credentials[2])}
+        self._credentials['user'] = str(credentials[0])
+        self._credentials['pass'] = str(credentials[1])
 
     def check_order_status(self, remote_pair):
         signal = getattr(self, remote_pair + "_ready_signal")
@@ -324,7 +322,7 @@ class VirwoxAccount(_Virwox, tulpenmanie.exchange.ExchangeAccount):
     def get_commission(self, amount, remote_market):
         rates = self.commissions[remote_market]
         return (amount * rates['variable']) + rates['fixed']
-        
+
         #VirwoxGetCommissionDiscountRequest(self)
 
 
@@ -335,12 +333,11 @@ class VirwoxPrivateRequest(_VirwoxRequest):
     def __init__(self, parent, params=None):
         super(VirwoxPrivateRequest, self).__init__(parent)
         self.parent = parent
-        if params is None:
-            self.params = {'query': self.parent._credentials}
-        else:
+        if params:
             self.params = params
             self.params['query'].update(self.parent._credentials)
-        self.reply = None
+        else:
+            self.params = {'query':self.parent._credentials}
         self.parent.requests.append( (self.priority, self,) )
         self.parent.host_queue.enqueue(self.parent, self.priority,)
 
@@ -359,6 +356,10 @@ class VirwoxGetBalancesRequest(VirwoxPrivateRequest):
     method = 'getBalances'
 
     def handle_result(self, result):
+        if result['errorCode'] != 'OK':
+            self.parent.exchange_error_signal.emit(
+                "VirWox " + result['errorCode'])
+            return
         if not result['accountList']:
             return
         for account in result['accountList']:
@@ -373,7 +374,8 @@ class VirwoxGetCommissionDiscountRequest(VirwoxPrivateRequest):
 
     def handle_result(self, result):
         if result['errorCode'] != 'OK':
-            self.parent.exchange_error_signal.emit(result['errorCode'])
+            self.parent.exchange_error_signal.emit(
+                "VirWox " + result['errorCode'])
             return
         fee = result['commission']['total']
         self.parent.trade_commission_signal.emit(Decimal(fee))
@@ -384,7 +386,8 @@ class VirwoxGetOrdersRequest(VirwoxPrivateRequest):
 
     def handle_result(self, result):
         if result['errorCode'] != 'OK':
-            self.parent.exchange_error_signal.emit(result['errorCode'])
+            self.parent.exchange_error_signal.emit(
+                "VirWox " + result['errorCode'])
             return
         if not result['orders']:
             return
@@ -422,7 +425,8 @@ class VirwoxPlaceOrderRequest(VirwoxPrivateRequest):
 
     def handle_result(self, result):
         if result['errorCode'] != 'OK':
-            self.parent.exchange_error_signal.emit(result['errorCode'])
+            self.parent.exchange_error_signal.emit(
+                "VirWox " + result['errorCode'])
             return
         query = self.params['query']
         order_id = result['orderID']
@@ -441,7 +445,8 @@ class VirwoxCancelOrderRequest(VirwoxPrivateRequest):
 
     def handle_result(self, result):
         if result['errorCode'] != 'OK':
-            self.parent.exchange_error_signal.emit(result['errorCode'])
+            self.parent.exchange_error_signal.emit(
+                "VirWox " + result['errorCode'])
             return
         order_id = self.params['query']['orderID']
         pair = self.params['pair']
