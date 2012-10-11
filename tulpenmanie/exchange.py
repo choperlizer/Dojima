@@ -95,6 +95,8 @@ class ExchangeItem(QtGui.QStandardItem):
         self.setChild(0, self.MARKETS, self.markets_item)
         settings.beginGroup('markets')
 
+        remotes_in_model = list()
+
         for remote_string in settings.childGroups():
             settings.beginGroup(remote_string)
             remote_market = str(QtCore.QUrl.fromPercentEncoding(
@@ -105,7 +107,18 @@ class ExchangeItem(QtGui.QStandardItem):
                 if not value: value = ''
                 items.append(QtGui.QStandardItem(value))
             self.markets_item.appendRow(items)
+            remotes_in_model.append(remote_string)
             settings.endGroup()
+
+        for remote_market in self.markets:
+            if remote_market not in remotes_in_model:
+                items = [ QtGui.QStandardItem(remote_market) ]
+                columns_left = self.COLUMNS
+                while columns_left:
+                    columns_left -= 1
+                    items.append(QtGui.QStandardItem())
+                self.markets_item.appendRow(items)
+
         self.markets_item.sortChildren(self.MARKET_REMOTE)
 
     def save(self):

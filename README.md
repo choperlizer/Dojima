@@ -1,12 +1,7 @@
 # Tulpenmanie
-A graphical speculation platform in PyQt4
-
-## Objectives
- - Provide a normalized trading experience across disparate markets, exchanges, 
-   and instruments.
- - Present a modular interface optimized for multi-monitor and tiling window 
-   managers.
- - Hasten the obsolescence of legal tender and repressive financial regulation.
+A graphical speculation platform in PyQt4 that aims to provide a normalized 
+trading experience across disparate markets, exchanges, and assets, with a 
+GUI targeted at users with multi-monitor and tiling window managers.
 
 ## Supported Exchanges
  - [Bitstamp](https://www.bitstamp.net/)
@@ -15,19 +10,30 @@ A graphical speculation platform in PyQt4
  - [MtGox](https://mtgox.com/)
  - [VirWox](https://www.virwox.com?r=180bd)
 
+## Development Roadmap
+ - [Open Transactions](https://github.com/FellowTraveler/Open-Transactions) 
+   support
+ - Modular and extensible charting with [Matplotlib](http://matplotlib.org/)
+ - Websocket and Socket.IO streaming connections
+ - Start pushing things down into C++ and SIP wrappers
+
 ### Module notes
 #### CampBX
 If you open a CampBX account as a result of this program, support the 
 author and receive a 10% lifetime discount on commissions by using 
 this [referral url](https://campbx.com/register.php?r=P3hAnksjDmY).
-Do note that CampBX accounts do not not have API access enabled by default.
+Do note that a suppport ticket must be filed before API access enabled
+by default. (But look into it, last I looked they do those cheap Dwolla 
+transfers without the photo ID bullshit)
 
 #### MtGox
-The MtGox module uses HTTP POST methods rather than the streaming interface,
-support for streaming API's is in progress. You may also notice that the ask 
-and bid buttons are disabled when first starting the application, this is 
-because MtGox takes orders in whole integers, and the multiplication factor is
-requested at startup.
+The MtGox module uses HTTP POST methods rather than the streaming interface. 
+I've looked into the streaming API and it seems to use the underlying stream 
+transports in a reasonable manner would require a dependecy on WebKit and some 
+javascript tom-foolery, which isn't an high-priority of mine. You may also 
+notice that the ask and bid buttons are disabled when first starting the 
+application, this is because MtGox takes orders in whole integers, and the 
+multiplication factor isrequested at startup.
 
 ## Dependencies
  - Python-2.7
