@@ -45,24 +45,24 @@ the registry.
 
 ### Exchange Modules
 #### CampBX
-If you open a CampBX account as a result of this program, support the 
-author and receive a 10% lifetime discount on commissions by using 
+If you open a [CampBX](https://campbx.com/) account as a result of this program,
+ support the author and receive a 10% lifetime discount on commissions by using 
 this [referral url](https://campbx.com/register.php?r=P3hAnksjDmY).
 Do note that a support ticket must be filed before API access enabled
 by default. (But look into it, last I looked they do those cheap Dwolla 
 transfers without the photo ID bullshit)
 
 #### MtGox
-The MtGox module uses HTTP POST methods rather than the streaming interface, 
-streaming API support is planned, but not a high priority. You notice that the 
-ask and bid buttons are disabled when first starting the application, this is 
-because MtGox takes orders in whole integers, and the multiplication factor is 
-requested at startup rather than stored locally.
+The [MtGox](https://mtgox.com/) module uses HTTP POST methods rather than the 
+streaming interface, streaming API support is planned, but not a high priority. 
+You notice that the ask and bid buttons are disabled when first starting the 
+application, this is because MtGox takes orders in whole integers, and the 
+multiplication factor is requested at startup rather than stored locally.
 
 ### VirWoX
-I'd like to give VirWoX an honorable mention as the bicoin exchange with the 
-best API in my opinion. They make almost all relevant data is available over 
-the API and that means maintenance.
+I'd like to give [VirWoX](https://www.virwox.com?r=180bd) an honorable mention 
+as the bicoin exchange with the best API in my opinion. All relevant data is 
+available over the API and all replies are in a consistant JSON format.
 
 ## Development Roadmap
  - [Open Transactions](https://github.com/FellowTraveler/Open-Transactions) 
