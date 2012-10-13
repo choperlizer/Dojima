@@ -17,8 +17,8 @@
 import logging
 from PyQt4 import QtCore, QtGui
 
-import tulpenmanie.market
-import tulpenmanie.model.order
+import tulpenmanie.data.funds
+import tulpenmanie.data.orders
 
 
 logger = logging.getLogger(__name__)
