@@ -19,105 +19,18 @@ import logging
 from PyQt4 import QtCore, QtGui
 
 import tulpenmanie.exchange
-import tulpenmanie.model.order
+import tulpenmanie.ui.widget
+import tulpenmanie.model.orders
+from tulpenmanie.model.commodities import commodities_model
+from tulpenmanie.model.markets import markets_model
 
 logger =  logging.getLogger(__name__)
 
 
-class EditWidget(QtGui.QWidget):
-
-    def __init__(self, parent=None):
-        super(EditWidget, self).__init__(parent)
-
-        list_view = QtGui.QListView()
-        list_view.setModel(tulpenmanie.exchange.model)
-
-        self.stacked_widget = QtGui.QStackedWidget()
-        self.mappers = []
-        for row in range(tulpenmanie.exchange.model.rowCount()):
-            exchange_item = tulpenmanie.exchange.model.item(row)
-            exchange_layout = QtGui.QGridLayout()
-            grid_row = 0
-            mapper = QtGui.QDataWidgetMapper()
-            mapper.setModel(tulpenmanie.exchange.model)
-            mapper.setRootIndex(exchange_item.index())
-            mapper.setSubmitPolicy(QtGui.QDataWidgetMapper.AutoSubmit)
-            self.mappers.append(mapper)
-
-            for setting, column in exchange_item.mappings:
-                # TODO get required length if any and set that to
-                # the edit length, or make a validator
-                label = QtGui.QLabel(setting)
-                if column in exchange_item.numeric_settings:
-                    edit = QtGui.QDoubleSpinBox()
-                elif column in exchange_item.boolean_settings:
-                    edit = QtGui.QCheckBox()
-                else:
-                    edit = QtGui.QLineEdit()
-                    if column in exchange_item.hidden_settings:
-                        edit.setEchoMode(QtGui.QLineEdit.Password)
-                exchange_layout.addWidget(label, grid_row,0)
-                exchange_layout.addWidget(edit, grid_row,1)
-                grid_row += 1
-                mapper.addMapping(edit, column)
-            mapper.toFirst()
-            mapper.setCurrentIndex(row)
-
-            markets_item = exchange_item.child(0, exchange_item.MARKETS)
-            market_layout = QtGui.QGridLayout()
-            for row in range(markets_item.rowCount()):
-
-                mapper = QtGui.QDataWidgetMapper()
-                mapper.setModel(tulpenmanie.exchange.model)
-                mapper.setRootIndex(markets_item.index())
-                mapper.setSubmitPolicy(QtGui.QDataWidgetMapper.AutoSubmit)
-                self.mappers.append(mapper)
-
-                check_state = bool(markets_item.child(
-                    row, exchange_item.MARKET_ENABLE).text())
-                remote_label = QtGui.QLabel(
-                    markets_item.child(
-                        row, exchange_item.MARKET_REMOTE).text())
-                check_box = QtGui.QCheckBox()
-                market_combo = tulpenmanie.widget.UuidComboBox()
-                market_combo.setModel(tulpenmanie.market.model)
-                market_combo.setModelColumn(1)
-                market_combo.setEnabled(check_state)
-                check_box.toggled.connect(market_combo.setEnabled)
-
-                mapper.addMapping(check_box, exchange_item.MARKET_ENABLE)
-                mapper.addMapping(market_combo,
-                                  exchange_item.MARKET_LOCAL, 'currentUuid')
-                mapper.toFirst()
-                mapper.setCurrentIndex(row)
-                market_layout.addWidget(remote_label, row,0)
-                market_layout.addWidget(check_box, row,1)
-                market_layout.addWidget(market_combo, row,2)
-
-            markets_widget = QtGui.QWidget()
-            markets_widget.setLayout(market_layout)
-            scroll = QtGui.QScrollArea()
-            scroll.setWidget(markets_widget)
-
-            exchange_layout.addWidget(scroll, grid_row,0, 1,2)
-            exchange_widget = QtGui.QWidget()
-            exchange_widget.setLayout(exchange_layout)
-
-            self.stacked_widget.addWidget(exchange_widget)
-
-        layout = QtGui.QHBoxLayout()
-        layout.addWidget(list_view)
-        layout.addWidget(self.stacked_widget)
-        self.setLayout(layout)
-
-        # Connections
-        list_view.clicked.connect(self._exchange_changed)
-
-    def _exchange_changed(self, exchange_index):
-        row = exchange_index.row()
-        self.stacked_widget.setCurrentIndex(row)
-
 class ErrorHandling(object):
+
+    # TODO this thing make redundant messages, it sucks.
+    # maybe do something with class variables
 
     def exchange_error_handler(self, message):
         message_box = QtGui.QMessageBox(self)
@@ -146,18 +59,18 @@ class ExchangeDockWidget(QtGui.QDockWidget, ErrorHandling):
         try:
             market_uuid = exchange_item.markets_item.child(
                 exchange_market_row, exchange_item.MARKET_LOCAL).text()
-            market_item = tulpenmanie.market.model.findItems(market_uuid)[0]
+            market_item = markets_model.findItems(market_uuid)[0]
             local_market_row = market_item.row()
 
-            base_uuid = tulpenmanie.market.model.item(
-                local_market_row, tulpenmanie.market.model.BASE).text()
-            base_search = tulpenmanie.commodity.model.findItems(
+            base_uuid = markets_model.item(
+                local_market_row, markets_model.BASE).text()
+            base_search = commodities_model.findItems(
                 base_uuid, QtCore.Qt.MatchExactly, 0)
             base_item = base_search[0]
 
-            counter_uuid = tulpenmanie.market.model.item(
-                local_market_row, tulpenmanie.market.model.COUNTER).text()
-            counter_search = tulpenmanie.commodity.model.findItems(
+            counter_uuid = markets_model.item(
+                local_market_row, markets_model.COUNTER).text()
+            counter_search = commodities_model.findItems(
                 counter_uuid, QtCore.Qt.MatchExactly, 0)
             counter_item = counter_search[0]
         except IndexError:
@@ -188,7 +101,7 @@ class ExchangeDockWidget(QtGui.QDockWidget, ErrorHandling):
             label = QtGui.QLabel(translation)
             label.setAlignment(QtCore.Qt.AlignRight)
             label.setFont(label_font)
-            widget = tulpenmanie.widget.CommodityLcdWidget(self.counter_row)
+            widget = tulpenmanie.ui.widget.CommodityLcdWidget(self.counter_row)
             setattr(self, '{}_widget'.format(stat), widget)
             side_layout.addWidget(label, row,0)
             side_layout.addWidget(widget, row,1)
@@ -254,9 +167,9 @@ class AccountWidget(QtGui.QWidget, ErrorHandling):
         # Data
         self.account = account_object
 
-        self.asks_model = tulpenmanie.model.order.OrdersModel(
+        self.asks_model = tulpenmanie.model.orders.OrdersModel(
             parent.base_row, parent.counter_row, self)
-        self.bids_model = tulpenmanie.model.order.OrdersModel(
+        self.bids_model = tulpenmanie.model.orders.OrdersModel(
             parent.base_row, parent.counter_row, self)
         self.asks_model.setHorizontalHeaderLabels(
             ("id",
@@ -273,9 +186,9 @@ class AccountWidget(QtGui.QWidget, ErrorHandling):
         # Create UI
         layout = QtGui.QGridLayout()
 
-        base_funds_label = tulpenmanie.widget.FundsLabel(
+        base_funds_label = tulpenmanie.ui.widget.FundsLabel(
             parent.base_row)
-        counter_funds_label = tulpenmanie.widget.FundsLabel(
+        counter_funds_label = tulpenmanie.ui.widget.FundsLabel(
             parent.counter_row)
 
         refresh_funds_action = QtGui.QAction(
@@ -295,31 +208,31 @@ class AccountWidget(QtGui.QWidget, ErrorHandling):
         layout.addWidget(base_funds_label, 0,0, 1,3)
         layout.addWidget(counter_funds_label, 0,3, 1,3)
 
-        self.ask_base_amount_spin = tulpenmanie.widget.CommoditySpinBox(
+        self.ask_base_amount_spin = tulpenmanie.ui.widget.CommoditySpinBox(
             parent.base_row)
         self.ask_base_amount_spin.valueChanged[float].connect(
             self.ask_base_amount_changed)
 
-        self.bid_base_amount_spin = tulpenmanie.widget.CommoditySpinBox(
+        self.bid_base_amount_spin = tulpenmanie.ui.widget.CommoditySpinBox(
             parent.base_row)
         self.bid_base_amount_spin.valueChanged[float].connect(
             self.bid_base_amount_changed)
 
-        self.ask_price_spin = tulpenmanie.widget.CommoditySpinBox(
+        self.ask_price_spin = tulpenmanie.ui.widget.CommoditySpinBox(
             parent.counter_row)
         self.ask_price_spin.valueChanged[float].connect(self.ask_price_changed)
 
-        self.bid_price_spin = tulpenmanie.widget.CommoditySpinBox(
+        self.bid_price_spin = tulpenmanie.ui.widget.CommoditySpinBox(
             parent.counter_row)
         self.bid_price_spin.valueChanged[float].connect(self.bid_price_changed)
 
-        self.ask_counter_amount_label = tulpenmanie.widget.CounterAmountLabel(
+        self.ask_counter_amount_label = tulpenmanie.ui.widget.CounterAmountLabel(
             parent.counter_row)
-        self.ask_counter_estimate_label = tulpenmanie.widget.CounterEstimateLabel(
+        self.ask_counter_estimate_label = tulpenmanie.ui.widget.CounterEstimateLabel(
             parent.counter_row)
-        self.bid_counter_amount_label = tulpenmanie.widget.CounterAmountLabel(
+        self.bid_counter_amount_label = tulpenmanie.ui.widget.CounterAmountLabel(
             parent.counter_row)
-        self.bid_counter_estimate_label = tulpenmanie.widget.CounterEstimateLabel(
+        self.bid_counter_estimate_label = tulpenmanie.ui.widget.CounterEstimateLabel(
             parent.counter_row)
 
         ask_button = QtGui.QPushButton(

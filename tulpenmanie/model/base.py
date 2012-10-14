@@ -29,9 +29,9 @@ class FlatSettingsModel(QtGui.QStandardItemModel):
         self.settings = QtCore.QSettings()
         self.settings.beginGroup(self.name)
         self.setColumnCount(self.COLUMNS)
-        self._populate()
+        self.revert()
 
-    def _populate(self):
+    def revert(self):
         logger.debug("loading %s", self.name)
         for row, uuid in enumerate(self.settings.childGroups()):
             self.settings.beginGroup(uuid)
@@ -41,8 +41,9 @@ class FlatSettingsModel(QtGui.QStandardItemModel):
                 item = QtGui.QStandardItem(self.settings.value(setting))
                 self.setItem(int(row), column, item)
             self.settings.endGroup()
+        return True
 
-    def save(self):
+    def submit(self):
         logger.debug("saving %s", self.name)
         rows = range(self.rowCount())
         self.settings.remove('')
@@ -53,7 +54,8 @@ class FlatSettingsModel(QtGui.QStandardItemModel):
                 value =  self.item(row, column).text()
                 self.settings.setValue(setting, value)
             self.settings.endGroup()
-
+        return True
+    
     def delete_row(self, row):
         uuid = self.item(self.UUID, row).text()
         self.settings.remove(uuid)

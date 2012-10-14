@@ -27,6 +27,7 @@ import tulpenmanie.data.funds
 import tulpenmanie.data.orders
 import tulpenmanie.data.ticker
 import tulpenmanie.network
+from tulpenmanie.model.exchanges import exchanges_model
 
 
 logger = logging.getLogger(__name__)
@@ -36,7 +37,7 @@ HOSTNAME = "www.bitstamp.net"
 _BASE_URL = "https://" + HOSTNAME + "/api/"
 
 
-class BitstampExchangeItem(tulpenmanie.exchange.ExchangeItem):
+class BitstampExchangeItem(tulpenmanie.model.exchanges.ExchangeItem):
 
     exchange_name = EXCHANGE_NAME
 
@@ -84,8 +85,8 @@ class BitstampExchangeMarket(_Bitstamp):
         self._ticker_clients = 0
         self._ticker_timer = QtCore.QTimer(self)
         self._ticker_timer.timeout.connect(self.refresh_ticker)
-        search = tulpenmanie.exchange.model.findItems(self.exchange_name,
-                                                      QtCore.Qt.MatchExactly)
+        search = exchanges_model.findItems(self.exchange_name,
+                                           QtCore.Qt.MatchExactly)
         self._model_item = search[0]
 
     def get_ticker_proxy(self, remote_market=None):

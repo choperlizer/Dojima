@@ -17,8 +17,10 @@
 import logging
 from PyQt4 import QtCore, QtGui
 
-import tulpenmanie.commodity
-import tulpenmanie.market
+from tulpenmanie.model.commodities import commodities_model
+from tulpenmanie.model.markets import markets_model
+from tulpenmanie.model.exchanges import exchanges_model
+
 import tulpenmanie.exchange
 #This next import registers providers with the former module
 from tulpenmanie.exchange_modules import *
@@ -32,10 +34,6 @@ class MainWindow(QtGui.QMainWindow):
 
     def __init__(self, parent=None):
         super (MainWindow, self).__init__(parent)
-
-        tulpenmanie.commodity.create_model(self)
-        tulpenmanie.market.create_model(self)
-        tulpenmanie.exchange.create_exchanges_model(self)
 
         edit_definitions_action = QtGui.QAction(
             QtCore.QCoreApplication.translate("MainWindow",
@@ -63,6 +61,9 @@ class MainWindow(QtGui.QMainWindow):
 
         self.setDockNestingEnabled(True)
 
+
+        print "loading a model"
+
         self.markets = dict()
         self.exchanges = dict()
         self.parse_models()
@@ -73,18 +74,18 @@ class MainWindow(QtGui.QMainWindow):
 
     def parse_markets(self):
         for uuid in self.markets.keys():
-            if not tulpenmanie.market.model.findItems(
-                    uuid, QtCore.Qt.MatchExactly, tulpenmanie.market.model.UUID):
+            if not markets_model.findItems(
+                    uuid, QtCore.Qt.MatchExactly, markets_model.UUID):
                 self.markets.pop(uuid)
 
-        for market_row in range(tulpenmanie.market.model.rowCount()):
-            market_uuid = str(tulpenmanie.market.model.item(
-                market_row, tulpenmanie.market.model.UUID).text())
+        for market_row in range(markets_model.rowCount()):
+            market_uuid = str(markets_model.item(
+                market_row, markets_model.UUID).text())
 
             if market_uuid not in self.markets:
                 market_dict = dict()
-                market_name = tulpenmanie.market.model.item(
-                    market_row, tulpenmanie.market.model.NAME).text()
+                market_name = markets_model.item(
+                    market_row, markets_model.NAME).text()
                 menu = QtGui.QMenu(market_name, self)
                 self.markets_menu.addMenu(menu)
 
@@ -93,8 +94,8 @@ class MainWindow(QtGui.QMainWindow):
                 self.markets[market_uuid] = market_dict
 
     def parse_exchanges(self):
-        for exchange_row in range(tulpenmanie.exchange.model.rowCount()):
-            exchange_item = tulpenmanie.exchange.model.item(exchange_row)
+        for exchange_row in range(exchanges_model.rowCount()):
+            exchange_item = exchanges_model.item(exchange_row)
             exchange_name = str(exchange_item.text())
             if exchange_name not in self.exchanges:
                 self.exchanges[exchange_name] = dict()
@@ -180,7 +181,8 @@ class MainWindow(QtGui.QMainWindow):
 
     # TODO make the edit dialog do this
     def closeEvent(self, event):
-        tulpenmanie.commodity.model.save()
-        tulpenmanie.market.model.save()
-        tulpenmanie.exchange.model.save()
+        tulpenmanie.model.commodities.commodities_model.submit()
+        tulpenmanie.model.markets.markets_model.submit()
+        tulpenmanie.model.exchanges.exchanges_model.submit()
+
         event.accept()

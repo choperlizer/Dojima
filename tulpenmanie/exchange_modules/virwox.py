@@ -29,7 +29,7 @@ import tulpenmanie.data.funds
 import tulpenmanie.data.orders
 import tulpenmanie.data.ticker
 import tulpenmanie.network
-
+from tulpenmanie.model.exchanges import exchanges_model
 
 logger = logging.getLogger(__name__)
 
@@ -117,7 +117,7 @@ class VirwoxInstrumentsRequest(QtCore.QObject):
         self.deleteLater()
 
 
-class VirwoxProviderItem(tulpenmanie.exchange.DynamicExchangeItem):
+class VirwoxProviderItem(tulpenmanie.model.exchanges.DynamicExchangeItem):
 
     exchange_name = EXCHANGE_NAME
 
@@ -154,7 +154,7 @@ class VirwoxExchangeMarket(_Virwox):
         self.ticker_clients = dict()
         self.ticker_timer = QtCore.QTimer(self)
         self.ticker_timer.timeout.connect(self._refresh_tickers)
-        search = tulpenmanie.exchange.model.findItems(self.exchange_name,
+        search = exchanges_model.findItems(self.exchange_name,
                                                       QtCore.Qt.MatchExactly)
         self._model_item = search[0]
 

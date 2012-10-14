@@ -17,9 +17,9 @@
 
 from PyQt4 import QtCore, QtGui
 
-import tulpenmanie.ui.commodity
-import tulpenmanie.ui.market
-import tulpenmanie.ui.exchange
+import tulpenmanie.ui.edit.commodity
+import tulpenmanie.ui.edit.market
+import tulpenmanie.ui.edit.exchange
 
 class EditDefinitionsDialog(QtGui.QDialog):
 
@@ -27,15 +27,22 @@ class EditDefinitionsDialog(QtGui.QDialog):
         super(EditDefinitionsDialog, self).__init__(parent)
 
         self.tab_widget = QtGui.QTabWidget()
-        self.tab_widget.addTab(tulpenmanie.ui.commodity.EditWidget(),
-                               "&commodities")
-        self.tab_widget.addTab(tulpenmanie.ui.market.EditWidget(),
-                               "&markets")
-        self.tab_widget.addTab(tulpenmanie.ui.exchange.EditWidget(),
-                               "&exchanges")
+        self.tab_widget.addTab(
+            tulpenmanie.ui.edit.commodity.EditWidget(self),
+            QtCore.QCoreApplication.translate('EditDefinitionsDialog',
+                                              "&commodities"))
+        self.tab_widget.addTab(
+            tulpenmanie.ui.edit.market.EditWidget(),
+            QtCore.QCoreApplication.translate('EditDefinitionsDialog',
+                                              "&markets"))
+        self.tab_widget.addTab(
+            tulpenmanie.ui.edit.exchange.EditWidget(),
+            QtCore.QCoreApplication.translate('EditDefinitionsDialog',
+                                              "&exchanges"))
+
+        # TODO just connect once
         button_box = QtGui.QDialogButtonBox(
             QtGui.QDialogButtonBox.Close)
-        button_box.accepted.connect(self.accept)
         button_box.rejected.connect(self.accept)
 
         layout = QtGui.QVBoxLayout()
@@ -43,4 +50,12 @@ class EditDefinitionsDialog(QtGui.QDialog):
         layout.addWidget(button_box)
         self.setLayout(layout)
 
-        self.setWindowTitle("edit commodities, markets, exchanges")
+        self.setWindowTitle("edit commodities definitions")
+
+    """
+    def close(self):
+        for i in range(self.tab_widget.count()):
+            widget = self.tab_widget.widget(i)
+            widget.save()
+        self.accept()
+    """

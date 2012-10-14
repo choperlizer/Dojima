@@ -30,6 +30,7 @@ import tulpenmanie.exchange
 import tulpenmanie.data.orders
 import tulpenmanie.data.ticker
 import tulpenmanie.network
+from tulpenmanie.model.exchanges import exchanges_model
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +49,7 @@ def _object_hook(dct):
         return dct
 
 
-class MtgoxExchangeItem(tulpenmanie.exchange.ExchangeItem):
+class MtgoxExchangeItem(tulpenmanie.model.exchanges.ExchangeItem):
 
     exchange_name = EXCHANGE_NAME
 
@@ -104,8 +105,8 @@ class MtgoxExchangeMarket(QtCore.QObject, _Mtgox):
         self._ticker_clients = dict()
         self._ticker_timer = QtCore.QTimer(self)
         self._ticker_timer.timeout.connect(self._refresh_tickers)
-        search = tulpenmanie.exchange.model.findItems(self.exchange_name,
-                                                      QtCore.Qt.MatchExactly)
+        search = exchanges_model.findItems(self.exchange_name,
+                                           QtCore.Qt.MatchExactly)
         self._model_item = search[0]
 
     def get_ticker_proxy(self, remote_market):

@@ -14,14 +14,9 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-import logging
-
 from PyQt4 import QtCore, QtGui
 
-import tulpenmanie.commodity
-
-
-logger = logging.getLogger(__name__)
+from tulpenmanie.model.commodities import commodities_model
 
 
 class OrdersModel(QtGui.QStandardItemModel):
@@ -46,9 +41,6 @@ class OrdersModel(QtGui.QStandardItemModel):
         b_suffix = self.get_base_suffix()
 
         for order_id, price, amount, in orders:
-            print type(c_precision)
-            print type(price)
-            print type(amount)
             if c_precision:
                 price = round(price, c_precision)
             if b_precision:
@@ -70,31 +62,31 @@ class OrdersModel(QtGui.QStandardItemModel):
         self.removeRows(0, self.rowCount())
 
     def get_base_prefix(self):
-        return tulpenmanie.commodity.model.item(
-            self.base_row, tulpenmanie.commodity.model.PREFIX).text()
+        return commodities_model.item(
+            self.base_row, commodities_model.PREFIX).text()
 
     def get_counter_prefix(self):
-        return tulpenmanie.commodity.model.item(
-            self.counter_row, tulpenmanie.commodity.model.PREFIX).text()
+        return commodities_model.item(
+            self.counter_row, commodities_model.PREFIX).text()
 
     def get_base_suffix(self):
-        return tulpenmanie.commodity.model.item(
-            self.base_row, tulpenmanie.commodity.model.SUFFIX).text()
+        return commodities_model.item(
+            self.base_row, commodities_model.SUFFIX).text()
 
     def get_counter_suffix(self):
-        return tulpenmanie.commodity.model.item(
-            self.counter_row, tulpenmanie.commodity.model.SUFFIX).text()
+        return commodities_model.item(
+            self.counter_row, commodities_model.SUFFIX).text()
 
     def get_base_precision(self):
-        precision = tulpenmanie.commodity.model.item(
-            self.base_row, tulpenmanie.commodity.model.PRECISION).text()
+        precision = commodities_model.item(
+            self.base_row, commodities_model.PRECISION).text()
         if not precision:
             return None
         return int(precision)
 
     def get_counter_precision(self):
-        precision = tulpenmanie.commodity.model.item(
-            self.counter_row, tulpenmanie.commodity.model.PRECISION).text()
+        precision = commodities_model.item(
+            self.counter_row, commodities_model.PRECISION).text()
         if not precision:
             return None
         else:

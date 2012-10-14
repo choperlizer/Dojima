@@ -14,24 +14,13 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-import logging
 from PyQt4 import QtCore, QtGui
 
 import tulpenmanie.model.base
-import tulpenmanie.commodity
-from tulpenmanie.widget import UuidComboBox
 
-logger = logging.getLogger(__name__)
 
-model = None
-
-def create_model(parent):
-    global model
-    model = _MarketsModel(parent)
-
-class _MarketsModel(tulpenmanie.model.base.FlatSettingsModel):
+class MarketsModel(tulpenmanie.model.base.FlatSettingsModel):
     """QtGui.QStandardItemModel that contain market configuration."""
-    """Intended to be instaniated in this module only."""
 
     name = 'markets'
     COLUMNS = 4
@@ -61,3 +50,6 @@ class _MarketsModel(tulpenmanie.model.base.FlatSettingsModel):
                     enable_market_item = markets_item.child(
                         market_row, exchange_item.MARKET_ENABLE)
                     enable_market_item.setText("false")
+
+                    
+markets_model = MarketsModel()

@@ -14,28 +14,28 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-import decimal
+from decimal import Decimal
 
 from PyQt4 import QtCore, QtGui
 from PyQt4.QtCore import pyqtProperty
 
-import tulpenmanie.commodity
+from tulpenmanie.model.commodities import commodities_model
 
 class CommodityWidgetBase(object):
 
     def get_prefix(self):
-        return tulpenmanie.commodity.model.item(
-            self.commodity_row, tulpenmanie.commodity.model.PREFIX).text()
+        return commodities_model.item(
+            self.commodity_row, commodities_model.PREFIX).text()
     prefix = property(get_prefix)
 
     def get_suffix(self):
-        return tulpenmanie.commodity.model.item(
-            self.commodity_row, tulpenmanie.commodity.model.SUFFIX).text()
+        return commodities_model.item(
+            self.commodity_row, commodities_model.SUFFIX).text()
     suffix = property(get_suffix)
 
     def get_precision(self):
-        precision = tulpenmanie.commodity.model.item(
-            self.commodity_row, tulpenmanie.commodity.model.PRECISION).text()
+        precision = commodities_model.item(
+            self.commodity_row, commodities_model.PRECISION).text()
         if not precision:
             precision = None
         else:
@@ -116,7 +116,7 @@ class CommoditySpinBox(QtGui.QDoubleSpinBox, CommodityWidgetBase):
             self.setSingleStep(1.0 / pow(10, self.precision))
 
     def decimal_value(self):
-        return decimal.Decimal(str(self.cleanText()))
+        return Decimal(str(self.cleanText()))
 
 
 class FundsLabel(QtGui.QLabel, CommodityWidgetBase):
@@ -187,7 +187,7 @@ class CounterEstimateLabel(CounterLabel):
 
 class UuidComboBox(QtGui.QComboBox):
 
-    #TODO set the default tulpenmanie.commodity.model column to 1
+    #TODO set the default commodities_model column to 1
 
     def _get_current_uuid(self):
         return self.model().item(self.currentIndex(), 0).text()
