@@ -19,22 +19,16 @@ from PyQt4 import QtCore
 
 import tulpenmanie.model.ot
 
-class OTAssetsModel(tulpenmanie.model.ot.OTBaseModel):
-
-    COLUMNS = 3
-    ID, NAME, CONTRACT = range(COLUMNS)
+class OTNymsModel(tulpenmanie.model.ot.OTBaseModel):
 
     def headerData(self, section, orientation, role=QtCore.Qt.DisplayRole):
         if orientation == QtCore.Qt.Horizontal:
             if section == self.ID:
-                return QtCore.QCoreApplication.translate('OTAssetsModel',
-                                                         "asset id")
+                return QtCore.QCoreApplication.translate('OTNymsModel',
+                                                         "nym id")
             if section == self.NAME:
-                return QtCore.QCoreApplication.translate('OTAssetsModel',
+                return QtCore.QCoreApplication.translate('OTNymssModel',
                                                          "name")
-            if section == self.CONTRACT:
-                return QtCore.QCoreApplication.translate('OTAssetsModel',
-                                                         "contract")
         return section
 
     def data(self, index, role=QtCore.Qt.DisplayRole):
@@ -42,34 +36,28 @@ class OTAssetsModel(tulpenmanie.model.ot.OTBaseModel):
             return 0
         if role == QtCore.Qt.TextAlignmentRole:
             return int(QtCore.Qt.AlignLeft | QtCore.Qt.AlignVCenter)
-        if role == QtCore.Qt.ToolTipRole:
-            #TODO clean strip the base64 and return formatted XML
-            ot_id = otapi.OT_API_GetAssetType_ID(index.row())
-            return otapi.OT_API_GetAssetType_Contract(ot_id)
         elif role == QtCore.Qt.DisplayRole or role == QtCore.Qt.EditRole:
             column = index.column()
-            ot_id = otapi.OT_API_GetAssetType_ID(index.row())
-            if column == 0:
+            ot_id = otapi.OT_API_GetNym_ID(index.row())
+            if column == self.ID:
                 return ot_id
-            if column == 1:
-                return otapi.OT_API_GetAssetType_Name(ot_id)
-            if column == 2:
-                return otapi.OT_API_GetAssetType_Contract(ot_id)
+            if column == self.NAME:
+                return otapi.OT_API_GetNym_Name(ot_id)
 
     def setData(self, index, data, role=QtCore.Qt.EditRole):
         if not index.isValid() or role != QtCore.Qt.EditRole:
             return False
-        if index.column() != 1:
+        if index.column() != self.NAME:
             return False
-        ot_id = otapi.OT_API_GetAssetType_ID(index.row())
-        otapi_OT_API_SetAssetType_Name(ot_id, str(data))
+        ot_id = otapi.OT_API_GetNym_ID(index.row())
+        otapi_OT_API_SetNym_Name(ot_id, str(data))
         self.dataChanged.emit(index, index)
         return True
 
     def rowCount(self, parent=None):
         if parent and parent.isValid():
             return 0
-        return otapi.OT_API_GetAssetTypeCount()
+        return otapi.OT_API_GetNymCount()
 
 """ def flags(self, index):
         flags = super(_MyTableModel, self).flags(index)
