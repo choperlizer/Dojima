@@ -15,8 +15,10 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+import otapi
 from PyQt4 import QtCore, QtGui
 
+from tulpenmanie.model.ot_assets import OTAssetsModel
 from tulpenmanie.model.commodities import commodities_model
 from tulpenmanie.model.markets import markets_model
 
@@ -35,22 +37,45 @@ class EditWidget(QtGui.QWidget):
         precision_spin = QtGui.QSpinBox()
         precision_spin.setValue(3)
         precision_spin.setMinimum(-99)
-        precision_spin.setToolTip(
+        precision_spin.setToolTip(QtCore.QCoreApplication.translate(
+            'EditWidget',
             """Decimal precision used to display quantities and prices.\n"""
-            """A negative precision is not recommended.""")
-        new_button = QtGui.QPushButton("new")
-        delete_button = QtGui.QPushButton("delete")
+            """A negative precision is not recommended."""))
+
+        import_button = QtGui.QPushButton(QtCore.QCoreApplication.translate(
+            'EditWidget', "&import contract"))
+        new_button = QtGui.QPushButton(QtCore.QCoreApplication.translate(
+            'EditWidget', "&new"))
+        delete_button = QtGui.QPushButton(QtCore.QCoreApplication.translate(
+            'EditWidget', "&delete"))
 
         edit_layout = QtGui.QFormLayout()
-        edit_layout.addRow("prefix:", prefix_edit)
-        edit_layout.addRow("suffix:", suffix_edit)
-        edit_layout.addRow("display precision:", precision_spin)
+        edit_layout.addRow(QtCore.QCoreApplication.translate('EditWidget',
+                                                             "prefix:"),
+                                                             prefix_edit)
+        edit_layout.addRow(QtCore.QCoreApplication.translate('EditWidget',
+                                                             "suffix:"),
+                                                             suffix_edit)
+        edit_layout.addRow(
+            QtCore.QCoreApplication.translate('EditWidget',
+                                              "display precision:"),
+                                              precision_spin)
+
+        ot_assets_label = QtGui.QLabel(QtCore.QCoreApplication.translate(
+            'EditWidget', "Open Transactions assets:"))
+        self.ot_assets_view = QtGui.QListView()
+        ot_assets_label.setBuddy(self.ot_assets_view)
 
         layout = QtGui.QGridLayout()
-        layout.addWidget(self.list_view, 0,0, 2,1)
+        layout.addWidget(self.list_view, 0,0, 5,1)
+
         layout.addLayout(edit_layout, 0,1, 1,2)
-        layout.addWidget(new_button, 1,1)
-        layout.addWidget(delete_button, 1,2)
+        layout.addWidget(ot_assets_label, 2,1, 1,2)
+        layout.addWidget(self.ot_assets_view, 3,1, 1,2)
+
+        layout.addWidget(import_button, 4,1, 1,2)
+        layout.addWidget(new_button, 5,1)
+        layout.addWidget(delete_button, 5,2)
         self.setLayout(layout)
 
         # Model
@@ -63,9 +88,13 @@ class EditWidget(QtGui.QWidget):
         self.mapper.addMapping(suffix_edit, commodities_model.SUFFIX)
         self.mapper.addMapping(precision_spin,
                                commodities_model.PRECISION)
+        ot_assets_model = OTAssetsModel(self)
+        self.ot_assets_view.setModel(ot_assets_model)
+        self.ot_assets_view.setModelColumn(1)
 
         # Connect
         self.list_view.clicked.connect(self.mapper.setCurrentModelIndex)
+        import_button.clicked.connect(self.import_contract)
         new_button.clicked.connect(self._new)
         delete_button.clicked.connect(self._delete)
 
@@ -105,3 +134,47 @@ class EditWidget(QtGui.QWidget):
                 commodities_model.index(
                     0, commodities_model.NAME))
             self.mapper.toFirst()
+
+    def import_contract(self):
+        dialog = ContractImportDialog(self)
+        dialog.exec_()
+        # reload the ot model I guess
+
+
+class ContractImportDialog(QtGui.QDialog):
+
+    # TODO this puppy crashes hard
+
+    def __init__(self, parent=None):
+        super(ContractImportDialog, self).__init__(parent)
+
+        self.import_box = QtGui.QPlainTextEdit()
+        self.import_box.setMinimumWidth(512)
+        button_box = QtGui.QDialogButtonBox(QtGui.QDialogButtonBox.Ok)
+
+        layout = QtGui.QVBoxLayout()
+        layout.addWidget(self.import_box)
+        layout.addWidget(button_box)
+        self.setLayout(layout)
+        button_box.accepted.connect(self.parse_text)
+
+    def parse_text(self):
+        text = str(self.import_box.toPlainText())
+        if not text:
+            self.accept()
+        # TODO this will crash everything if the contract isn't good
+        if otapi.OT_API_AddAssetContract(text):
+            self.import_box.clear()
+            QtGui.QMessageBox.information(self,
+                QtCore.QCoreApplication.translate('ContractImportDialog',
+                                                  "Contract Import"),
+                otapi.OT_API_PeekMemlogFront())
+            self.accept()
+        else:
+            # Not sure if we get here unless we check the text then
+            # bypass AddAssetContract
+            QtGui.QMessageBox.warning(self,
+                QtCore.QCoreApplication.translate('ContractImportDialog',
+                                                  "Contract Import"),
+                otapi.OT_API_PeekMemlogFront())
+            self.reject()

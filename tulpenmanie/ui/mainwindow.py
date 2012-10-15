@@ -15,6 +15,8 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import logging
+
+import otapi
 from PyQt4 import QtCore, QtGui
 
 from tulpenmanie.model.commodities import commodities_model
@@ -184,5 +186,7 @@ class MainWindow(QtGui.QMainWindow):
         tulpenmanie.model.commodities.commodities_model.submit()
         tulpenmanie.model.markets.markets_model.submit()
         tulpenmanie.model.exchanges.exchanges_model.submit()
+
+        otapi.OT_API_Cleanup()
 
         event.accept()
