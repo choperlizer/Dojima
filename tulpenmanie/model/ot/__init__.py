@@ -25,7 +25,7 @@ class OTBaseModel(QtCore.QAbstractTableModel):
     def columnCount(self, parent=None):
         if parent and parent.isValid():
             return 0
-        return self.COLUMS
+        return self.COLUMNS
 
     def parent(self):
         return QtCore.QModelIndex()
