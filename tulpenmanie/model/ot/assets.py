@@ -33,7 +33,6 @@ class OTAssetsModel(QtCore.QAbstractTableModel):
                                                          "contract")
         return section
 
-
     def data(self, index, role=QtCore.Qt.DisplayRole):
         if not index.isValid():
             return 0
