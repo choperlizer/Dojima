@@ -2,7 +2,7 @@ from distutils.core import setup
 
 setup(name='tulpenmanie',
       version='0.7.0',
-      description='Graphical speculation platform',
+      description='Markets client',
       url='https://github.com/3M3RY/tulpenmanie',
       author='Emery Hemingway',
       author_email='tulpenmanie@emery.neomailbox.net',
