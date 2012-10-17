@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Tulpenmanie, a graphical speculation platform.
+# Tulpenmanie, a markets client.
 # Copyright (C) 2012  Emery Hemingway
 #
 # This program is free software: you can redistribute it and/or modify

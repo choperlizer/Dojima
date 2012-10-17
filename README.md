@@ -1,5 +1,5 @@
 # Tulpenmanie
-A graphical speculation platform in PyQt4 that aims to provide a normalized 
+A graphical markets client in PyQt4 that aims to provide a normalized 
 trading experience across disparate markets, exchanges, and assets, with a 
 GUI targeted at users with multi-monitor and tiling window managers.
 

@@ -1,4 +1,4 @@
-# Tulpenmanie, a graphical speculation platform.
+# Tulpenmanie, a markets client.
 # Copyright (C) 2012  Emery Hemingway
 #
 # The code herein is nearly verbatim work released into
