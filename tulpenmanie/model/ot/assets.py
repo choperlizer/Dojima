@@ -71,8 +71,8 @@ class OTAssetsModel(tulpenmanie.model.ot.OTBaseModel):
             return 0
         return otapi.OT_API_GetAssetTypeCount()
 
-""" def flags(self, index):
-        flags = super(_MyTableModel, self).flags(index)
-        flags |= QtCore.Qt.ItemIsEditable
+def flags(self, index):
+        flags = super(OTAssetsModel, self).flags(index)
+        if index.column() == self.NAME:
+            flags |= QtCore.Qt.ItemIsEditable
         return flags
-"""

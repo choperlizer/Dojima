@@ -49,8 +49,11 @@ class OTNymsModel(tulpenmanie.model.ot.OTBaseModel):
             return False
         if index.column() != self.NAME:
             return False
+        return False
+        # TODO This wont work, because the nym label is supposed to be signed
+        singer_nym = "popup a dialog or something, or have it set in settings"
         ot_id = otapi.OT_API_GetNym_ID(index.row())
-        otapi_OT_API_SetNym_Name(ot_id, str(data))
+        otapi_OT_API_SetNym_Name(ot_id, signer_nym, str(data))
         self.dataChanged.emit(index, index)
         return True
 
