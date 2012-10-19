@@ -17,7 +17,9 @@
 import otapi
 from PyQt4 import QtCore
 
+import tulpenmanie.model
 import tulpenmanie.model.ot
+import tulpenmanie.model.markets
 
 
 class OTServersSimpleModel(tulpenmanie.model.ot.OTBaseModel):
@@ -73,124 +75,34 @@ class OTServersSimpleModel(tulpenmanie.model.ot.OTBaseModel):
         return otapi.OT_API_GetServerCount()
 
 
-class OTServersComplexModel(QtCore.QAbstractItemModel):
+class OTServersTreeModel(tulpenmanie.model.TreeModel):
 
     def __init__(self, parent=None):
-        super(OTServersComplexModel, self).__init__(parent)
-
-        self.root_item = RootItem(self)
-        self.revert()
-
-    def columnCount(self, parent):
-        if parent.isValid():
-            return parent.internalPointer().columnCount()
-        else:
-            return self.root_item.columnCount()
-
-    def data(self, index, role=QtCore.Qt.DisplayRole):
-        if not index.isValid():
-            return None
-
-        item = index.internalPointer()
-        return item.data(index.column(), role)
-
-    # This might need to ask the items for their flags in the future
-    def flags(self, index):
-        if not index.isValid():
-            return QtCore.Qt.NoItemFlags
-        item = index.internalPointer()
-        return item.flags()
+        super(OTServersTreeModel, self).__init__(parent)
+        self.rootItem = RootItem(None, self)
+        self.rootItem.revert()
 
     def headerData(self, section, orientation, role):
         if orientation == QtCore.Qt.Horizontal and role == QtCore.Qt.DisplayRole:
-            return self.root_item.data(section)
+            return ("stuff", "other stuff")
         return None
 
-    def index(self, row, column, parent):
-        if not self.hasIndex(row, column, parent):
-            return QtCore.QModelIndex()
 
-        if not parent.isValid():
-            parentItem = self.root_item
-        else:
-            parentItem = parent.internalPointer()
-
-        child_item = parentItem.child(row)
-        if child_item:
-            return self.createIndex(row, column, child_item)
-        else:
-            return QtCore.QModelIndex()
-
-    def parent(self, index):
-        if not index.isValid():
-            return QtCore.QModelIndex()
-
-        child_item = index.internalPointer()
-        parentItem = child_item.parent()
-        if parentItem == self.root_item:
-            return QtCore.QModelIndex()
-        return self.createIndex(parentItem.row(), 0, parentItem)
-
-    def rowCount(self, parent):
-        if parent.column() > 0:
-            return 0
-
-        if not parent.isValid():
-            parentItem = self.root_item
-        else:
-            parentItem = parent.internalPointer()
-        return parentItem.childCount()
+class RootItem(tulpenmanie.model.TreeItem):
 
     def revert(self):
+        # TODO handle missing servers
         for i in range(otapi.OT_API_GetServerCount()):
             server_id = otapi.OT_API_GetServer_ID(i)
-            if server_id not in self.root_item.childIndexes:
-                server_item = ServerItem(server_id, self.root_item)
-                self.root_item.appendChild(server_id, server_item)
-
-    def setData(self, index, value, role=QtCore.Qt.EditRole):
-        if not index.isValid():
-            return False
-
-        item = index.internalPointer()
-        return item.setData(index, value, role)
-
-
-class RootItem(object):
-    def __init__(self, parent):
-        self.parentItem = parent
-        self.childIndexes = list()
-        self.childItems = list()
-
-    def appendChild(self, item_id, item):
-        self.childIndexes.append(item_id)
-        self.childItems.append(item)
-
-    def child(self, row):
-        return self.childItems[row]
-
-    def childCount(self):
-        return len(self.childItems)
+            if server_id not in self.childIndexes:
+                server_item = ServerItem(server_id, self)
+                self.appendChild(server_id, server_item)
+        return True
 
     def columnCount(self):
-        # This is hardcoded to the amount of columns in the biggest child
         return 4
 
-    def data(self, column, role=None):
-        return None
-
-    def dataChanged(self, topLeft, bottomRight):
-        self.parentItem.dataChanged.emit(topLeft, bottomRight)
-
-    def parent(self):
-        return self.parentItem
-
-    def row(self):
-        if self.parentItem:
-            return self.parentItem.childItems.index(self)
-
-        return 0
-
+    
 class ServerItem(object):
 
     COLUMNS = 4
@@ -223,7 +135,7 @@ class ServerItem(object):
         return len(self.childItems)
 
     def columnCount(self):
-        return self.COLUMNS
+        return 2
 
     def data(self, column, role=QtCore.Qt.DisplayRole):
         if role != QtCore.Qt.DisplayRole:
@@ -232,9 +144,6 @@ class ServerItem(object):
             return self.server_id
         if column == self.NAME:
             return self.name
-
-    def dataChanged(self, topLeft, bottomRight):
-        self.parentItem.dataChanged(topLeft, bottomRight)
 
     def flags(self):
         return QtCore.Qt.ItemIsEnabled
@@ -261,7 +170,6 @@ class ServerItem(object):
             return False
         server_id = otapi.OT_API_GetServer_ID(self.row)
         if otapi_OT_API_SetServer_Name(self.server_id, str(value)) == 1:
-            self.dataChanged.emit(index, index)
             return True
         return False
 
@@ -293,7 +201,7 @@ class MarketItem(object):
     def data(self, column, role=QtCore.Qt.DisplayRole):
         if role == QtCore.Qt.DisplayRole:
             if column == self.ID:
-                return self.market_data.asset_type_id
+                return self.market_data.market_id
 
             if column == self.BASE:
                 return otapi.OT_API_GetAssetType_Name(
@@ -314,13 +222,15 @@ class MarketItem(object):
 
     def setData(self, index, value, role=QtCore.Qt.CheckStateRole):
         if index.column() != self.ENABLE or role != QtCore.Qt.CheckStateRole:
-            print "setData was not the right role"
             return False
         self.check_state = value
-        self.parentItem.dataChanged(index, index)
-        print "we've emmitted and stuff"
-        print value
         return True
+
+    def submit(self):
+        # find our market id, our server id, and set that in the markets_model
+
+        # first resolve the base and counter to local uuids
+        pass
 
     def parent(self):
         return self.parentItem

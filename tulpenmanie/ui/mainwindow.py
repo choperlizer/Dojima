@@ -25,7 +25,7 @@ from tulpenmanie.model.exchanges import exchanges_model
 
 import tulpenmanie.exchange
 #This next import registers providers with the former module
-from tulpenmanie.exchange_modules import *
+#from tulpenmanie.exchange_modules import *
 import tulpenmanie.ui.exchange
 import tulpenmanie.ui.edit
 import tulpenmanie.ui.transfer.bitcoin
@@ -68,7 +68,7 @@ class MainWindow(QtGui.QMainWindow):
 
         self.markets = dict()
         self.exchanges = dict()
-        self.parse_models()
+        #self.parse_models()
 
     def parse_models(self):
         self.parse_markets()
@@ -179,7 +179,7 @@ class MainWindow(QtGui.QMainWindow):
     def _edit_definitions(self):
         dialog = tulpenmanie.ui.edit.EditDefinitionsDialog(self)
         dialog.exec_()
-        self.parse_models()
+        #self.parse_models()
 
     # TODO make the edit dialog do this
     def closeEvent(self, event):

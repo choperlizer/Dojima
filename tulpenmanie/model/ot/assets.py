@@ -71,8 +71,54 @@ class OTAssetsModel(tulpenmanie.model.ot.OTBaseModel):
             return 0
         return otapi.OT_API_GetAssetTypeCount()
 
-def flags(self, index):
+    def flags(self, index):
+
         flags = super(OTAssetsModel, self).flags(index)
         if index.column() == self.NAME:
             flags |= QtCore.Qt.ItemIsEditable
         return flags
+
+
+class LocalOTAssetMappingModel(tulpenmanie.model.TreeModel):
+
+    def __init__(self, parent):
+        super(LocalOTAssetMappingModel, self).__init__(parent)
+        self.asset_ids = list()
+
+    def columnCount(self, parent):
+        return 2
+
+    def data(self, index, role):
+        if role != QtCore.Qt.DisplayRole:
+            return
+        column = index.column()
+        asset_id = self.asset_ids[index.row()]
+        if column == 0:
+            return asset_id
+        if column == 1:
+            return otapi.OT_API_GetAssetType_Name(asset_id)
+
+    def insertRows(self, row, count, index):
+        asset_id = otapi.OT_API_GetAssetType_ID(index.row())
+        count = len(self.asset_ids)
+        self.beginInsertRows(QtCore.QModelIndex(), count, count)
+        self.asset_ids.append(asset_id)
+        self.endInsertRows()
+
+    def supportedDropActions(self):
+        return QtCore.Qt.CopyAction
+
+    def rowCount(self, parent):
+        return len(self.asset_ids)
+
+    def appendAsset(self, asset_id):
+        current_count = len(self.asset_ids)
+        self.beginInsertRows(QtCore.QModelIndex(), current_count, current_count)
+        self.asset_ids.append(asset_id)
+        self.endInsertRows()
+
+    def popRow(self, row):
+        self.beginRemoveRows(QtCore.QModelIndex(), row, row)
+        asset_id = self.asset_ids.pop(row)
+        self.endRemoveRows()
+        return asset_id

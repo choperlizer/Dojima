@@ -17,15 +17,50 @@
 import logging
 from PyQt4 import QtCore, QtGui
 
-logger = logging.getLogger(__name__)
 
-class ExchangesModel(QtGui.QStandardItemModel):
+logger = logging.getLogger(__name__)
+SETTINGS_GROUP = 'exchange_markets'
+
+
+class ExchangesModel(QtCore.QAbstractItemModel):
+
+    # so this should hold market id's that correspond to a market object class
+
+    def __init__(self, parent=None):
+        super(ExchangesModel, self).__init__(parent)
+        self.indexes = list()
+        self.objects = list()
+
+    def revert(self):
+        settings = QtCore.QSettings()
+        settings.beginGroup(SETTINGS_GROUP)
+        markets = settings.childGroups()
+        for market in markets:
+            if market not in self.indexes:
+                self.indexes.append(market)
+                # don't just append a dict, find something better to do
+                obj = dict()
+                self.objects.append(dict())
+            else:
+                obj = self.objects[self.indexes.index(market)]
+
+            settings.beginGroup(market)
+            for key in settings.childKeys():
+                value = settings.value(key).toString()
+                obj[key] = value
+            settings.endGroup()
+        return True
 
     def submit(self):
-        logger.info("saving exchanges model")
-        for row in range(self.rowCount()):
-            item = self.item(row)
-            item.submit()
+        settings = QtCore.QSettings()
+        settings.beginGroup(SETTINGS_GROUP)
+        for i, market in enumerate(self.indexes):
+            obj = self.objects[i]
+            settings.beginGroup(market)
+            for key, value in obj.items():
+                # TODO check if value is save to write as text
+                settings.setValue(key, item)
+            settings.endGroup()
 
 
 class ExchangeItem(QtGui.QStandardItem):
@@ -142,7 +177,7 @@ class DynamicExchangeItem(ExchangeItem):
                 value = settings.value(setting)
                 if not value: value = ''
                 items.append(QtGui.QStandardItem(value))
-            self.markets_item.appendRow(items)
+            #self.markets_item.appendRow(items)
             settings.endGroup()
         self.markets_item.sortChildren(self.MARKET_REMOTE)
         self.new_markets_request()

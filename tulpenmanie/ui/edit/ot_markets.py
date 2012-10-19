@@ -1,4 +1,4 @@
-# Tulpenmanie, a graphical speculation platform.
+# Tulpenmanie, a markets client.
 # Copyright (C) 2012  Emery Hemingway
 #
 # This program is free software: you can redistribute it and/or modify
@@ -24,8 +24,12 @@ class EditWidget(QtGui.QWidget):
         super(EditWidget, self).__init__(parent)
 
         markets_view = QtGui.QTreeView()
-        model = tulpenmanie.model.ot.servers.OTServersComplexModel()
+        model = tulpenmanie.model.ot.servers.OTServersTreeModel()
         markets_view.setModel(model)
+        #TODO make a loop to resize past column 0
+        markets_view.resizeColumnToContents(1)
+        markets_view.resizeColumnToContents(2)
+        markets_view.resizeColumnToContents(3)
 
         layout = QtGui.QGridLayout()
         layout.addWidget(markets_view)

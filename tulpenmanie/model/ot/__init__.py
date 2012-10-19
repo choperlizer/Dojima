@@ -21,7 +21,7 @@ class OTBaseModel(QtCore.QAbstractTableModel):
 
     COLUMNS = 2
     ID, NAME = range(COLUMNS)
-    
+
     def columnCount(self, parent=None):
         if parent and parent.isValid():
             return 0
@@ -30,8 +30,8 @@ class OTBaseModel(QtCore.QAbstractTableModel):
     def parent(self):
         return QtCore.QModelIndex()
 
-""" def flags(self, index):
-        flags = super(_MyTableModel, self).flags(index)
-        flags |= QtCore.Qt.ItemIsEditable
+    def flags(self, index):
+        flags = super(OTBaseModel, self).flags(index)
+        if index.column == self.NAME:
+            flags |= QtCore.Qt.ItemIsEditable
         return flags
-"""
