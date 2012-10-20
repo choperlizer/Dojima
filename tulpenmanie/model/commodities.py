@@ -109,9 +109,10 @@ class CommodityItem(tulpenmanie.model.TreeItem):
     def appendAsset(self, asset_id):
         asset_item = AssetItem(asset_id, self)
         count = len(self.childIndexes)
-        self.beginInsertRows(count, count)
+        self_index = self.parentItem.parentItem.createIndex(count, 0, self)
+        self.beginInsertRows(self_index, count, count)
         self.appendChild(asset_id, asset_item)
-        self.endInsertColumns()
+        self.endInsertRows()
 
     def columnCount(self):
         return self.parentItem.columnCount()
@@ -155,7 +156,7 @@ class AssetItem(tulpenmanie.model.TreeItem):
     def data(self, column, role=QtCore.Qt.DisplayRole):
         if role != QtCore.Qt.DisplayRole:
             return None
-        if column == 0: return asset_id
+        if column == 0: return self.asset_id
         if column == 1:
             return otapi.OT_API_GetAssetType_Name(self.asset_id)
 

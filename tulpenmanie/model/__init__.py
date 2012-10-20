@@ -107,6 +107,9 @@ class RootItem(object):
         self.childIndexes.append(item_id)
         self.childItems.append(item)
 
+    def beginInsertRows(self, parent, first, last):
+        self.parentItem.beginInsertRows(parent, first, last)
+
     def child(self, row):
         return self.childItems[row]
 
@@ -115,7 +118,10 @@ class RootItem(object):
 
     def data(self, column, role=None):
         return None
-
+    
+    def endInsertRows(self):
+        self.parentItem.endInsertRows()
+        
     def parent(self):
         return self.parentItem
 

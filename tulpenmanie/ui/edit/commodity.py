@@ -10,7 +10,7 @@
 # This program is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License for more details.
+# GNU General Public Licnense for more details.
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
@@ -113,7 +113,7 @@ class EditWidget(QtGui.QWidget):
                                commodities_model.PRECISION)
         # there needs to be multiple mapping models that change with commodity
         self.ot_child_assets_view.setModel(commodities_model)
-        self.ot_child_assets_view.setModelColumn(1)
+        #self.ot_child_assets_view.setModelColumn(1)
 
         self.ot_assets_model = ReduceableOTAssetsModel(self)
         self.ot_assets_view.setModel(self.ot_assets_model)
@@ -179,15 +179,15 @@ class ContractImportDialog(QtGui.QDialog):
 
         self.import_box = QtGui.QPlainTextEdit()
         self.import_box.setMinimumWidth(512)
-        paste_button = QtGui.QPushButton(QtCore.QCoreApplication.translate(
-            'ContractImportDialog', "paste"))
         file_button = QtGui.QPushButton(QtCore.QCoreApplication.translate(
             'ContractImportDialog', "file"))
+        paste_button = QtGui.QPushButton(QtCore.QCoreApplication.translate(
+            'ContractImportDialog', "paste"))
         import_button = QtGui.QPushButton(QtCore.QCoreApplication.translate(
             'ContractImportDialog', "import"))
         button_box = QtGui.QDialogButtonBox()
-        button_box.addButton(paste_button, QtGui.QDialogButtonBox.ActionRole)
         button_box.addButton(file_button, QtGui.QDialogButtonBox.ActionRole)
+        button_box.addButton(paste_button, QtGui.QDialogButtonBox.ActionRole)
         button_box.addButton(import_button, QtGui.QDialogButtonBox.ActionRole)
         button_box.addButton(QtGui.QDialogButtonBox.Close)
 
@@ -195,8 +195,8 @@ class ContractImportDialog(QtGui.QDialog):
         layout.addWidget(self.import_box)
         layout.addWidget(button_box)
         self.setLayout(layout)
-        paste_button.clicked.connect(self.paste_text)
         file_button.clicked.connect(self.import_file)
+        paste_button.clicked.connect(self.paste_text)
         import_button.clicked.connect(self.parse_text)
         button_box.accepted.connect(self.accept)
         button_box.rejected.connect(self.accept)
@@ -212,6 +212,8 @@ class ContractImportDialog(QtGui.QDialog):
             self.recent_dir,
             QtCore.QCoreApplication.translate(
                 'ContractImportDialog', "Open Transactions contracts (*.otc)"))
+        if not len(filenames):
+            return
         self.recent_dir = os.path.dirname(str(filenames[-1]))
 
         for filename in filenames:
@@ -242,7 +244,8 @@ class ContractImportDialog(QtGui.QDialog):
             self.import_box.clear()
             QtGui.QMessageBox.information(self, subdialog_title,
                 QtCore.QCoreApplication.translate(
-                    'ContractImportDialog', "contract imported"))
+                    'ContractImportDialog',
+                    "contract imported (if not already present)" ))
 
             self.import_occured = True
             # TODO get the proper indexes and emit
