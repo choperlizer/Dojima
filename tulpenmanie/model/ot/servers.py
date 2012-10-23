@@ -84,7 +84,7 @@ class OTServersTreeModel(tulpenmanie.model.TreeModel):
 
     def headerData(self, section, orientation, role):
         if orientation == QtCore.Qt.Horizontal and role == QtCore.Qt.DisplayRole:
-            return ("stuff", "other stuff")
+            return ("ID", "base", "counter")
         return None
 
 
@@ -102,7 +102,7 @@ class RootItem(tulpenmanie.model.TreeItem):
     def columnCount(self):
         return 4
 
-    
+
 class ServerItem(object):
 
     COLUMNS = 4
@@ -135,7 +135,7 @@ class ServerItem(object):
         return len(self.childItems)
 
     def columnCount(self):
-        return 2
+        return 5
 
     def data(self, column, role=QtCore.Qt.DisplayRole):
         if role != QtCore.Qt.DisplayRole:
@@ -199,20 +199,29 @@ class MarketItem(object):
         return self.COLUMNS
 
     def data(self, column, role=QtCore.Qt.DisplayRole):
-        if role == QtCore.Qt.DisplayRole:
-            if column == self.ID:
+        if column == self.ID:
+            if role == QtCore.Qt.DisplayRole or role == QtCore.Qt.UserRole:
                 return self.market_data.market_id
 
-            if column == self.BASE:
+        if column == self.BASE:
+            if role == QtCore.Qt.DisplayRole:
                 return otapi.OT_API_GetAssetType_Name(
                     self.market_data.asset_type_id)
+            if role == QtCore.Qt.UserRole:
+                return self.market_data.asset_type_id
 
-            if column == self.COUNTER:
+        if column == self.COUNTER:
+            if role == QtCore.Qt.DisplayRole:
                 return otapi.OT_API_GetAssetType_Name(
                     self.market_data.currency_type_id)
-
-        elif column == self.ENABLE and role == QtCore.Qt.CheckStateRole:
-            return self.checkState()
+            if role == QtCore.Qt.UserRole:
+                return self.market_data.currency_type_id
+                    
+        if column == self.ENABLE:
+            if role == QtCore.Qt.DisplayRole:
+                return "enable"
+            if role == QtCore.Qt.CheckStateRole:
+                return self.checkState()
 
     def flags(self):
         return (QtCore.Qt.ItemIsEnabled | QtCore.Qt.ItemIsUserCheckable)

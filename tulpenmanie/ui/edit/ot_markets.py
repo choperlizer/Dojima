@@ -23,15 +23,29 @@ class EditWidget(QtGui.QWidget):
     def __init__(self, parent=None):
         super(EditWidget, self).__init__(parent)
 
-        markets_view = QtGui.QTreeView()
-        model = tulpenmanie.model.ot.servers.OTServersTreeModel()
-        markets_view.setModel(model)
+        self.markets_view = QtGui.QTreeView()
+        self.markets_view.setSelectionMode(QtGui.QAbstractItemView.SingleSelection)
+        self.servers_model = tulpenmanie.model.ot.servers.OTServersTreeModel()
+        self.markets_view.setModel(self.servers_model)
         #TODO make a loop to resize past column 0
-        markets_view.resizeColumnToContents(1)
-        markets_view.resizeColumnToContents(2)
-        markets_view.resizeColumnToContents(3)
+        self.markets_view.resizeColumnToContents(1)
+        self.markets_view.resizeColumnToContents(2)
+        self.markets_view.resizeColumnToContents(3)
+
+        map_to_commodity_action = QtGui.QAction(
+            QtCore.QCoreApplication.translate('EditWidget', "map to..."),
+            self, triggered=self.map_to_commodity)
+
+        self.markets_view.addAction(map_to_commodity_action)
+        self.markets_view.setContextMenuPolicy(QtCore.Qt.ActionsContextMenu)
 
         layout = QtGui.QGridLayout()
-        layout.addWidget(markets_view)
+        layout.addWidget(self.markets_view)
 
         self.setLayout(layout)
+
+    def map_to_commodity(self):
+        index = self.markets_view.currentIndex()
+        asset_id = self.servers_model.data(index, QtCore.Qt.UserRole)
+        dialog = tulpenmanie.ui.edit.ot_assets.AssetMappingDialog(asset_id, self)
+        dialog.exec_()
