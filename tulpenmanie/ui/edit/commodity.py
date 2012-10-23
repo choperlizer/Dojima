@@ -57,7 +57,7 @@ class EditWidget(QtGui.QWidget):
             QtCore.QCoreApplication.translate('EditWidget',
                                               "display precision:"),
                                               precision_spin)
-        
+
         layout = QtGui.QGridLayout()
         layout.addWidget(self.list_view, 0,0, 3,1)
 
@@ -109,3 +109,63 @@ class CommoditiesListView(QtGui.QListView):
 
     def currentChanged(self, current, previous):
         self.commodityChanged.emit(current)
+
+class NewCommodityDialog(QtGui.QDialog):
+
+    def __init__(self, parent=None):
+        super(NewCommodityDialog, self).__init__(parent)
+
+        self.name_edit = QtGui.QLineEdit()
+        self.prefix_edit = QtGui.QLineEdit()
+        self.suffix_edit = QtGui.QLineEdit()
+
+        self.precision_spin = QtGui.QSpinBox()
+        self.precision_spin.setValue(0)
+        self.precision_spin.setMinimum(-99)
+
+        button_box = QtGui.QDialogButtonBox(QtGui.QDialogButtonBox.Ok |
+                                            QtGui.QDialogButtonBox.Cancel)
+
+        form_layout = QtGui.QFormLayout()
+        form_layout.addRow(
+            QtCore.QCoreApplication.translate('NewCommodityDialog', "name:"),
+            self.name_edit)
+        form_layout.addRow(
+            QtCore.QCoreApplication.translate('NewCommodityDialog', "prefix:"),
+            self.prefix_edit)
+        form_layout.addRow(
+            QtCore.QCoreApplication.translate('NewCommodityDialog', "suffix:"),
+            self.suffix_edit)
+        form_layout.addRow(
+            QtCore.QCoreApplication.translate('NewCommodityDialog',
+                                              "display precision:"),
+            self.precision_spin)
+
+        layout = QtGui.QVBoxLayout()
+        layout.addLayout(form_layout)
+        layout.addWidget(button_box)
+        self.setLayout(layout)
+
+        button_box.accepted.connect(self.submit)
+        button_box.rejected.connect(self.reject)
+
+    def submit(self):
+        # TODO search for redundant commodities
+        self.row = commodities_model.rowCount()
+
+        item = QtGui.QStandardItem(QtCore.QUuid.createUuid().toString()[1:-1])
+        commodities_model.setItem(self.row, commodities_model.UUID, item)
+
+        item = QtGui.QStandardItem(self.name_edit.text())
+        commodities_model.setItem(self.row, commodities_model.NAME, item)
+
+        item = QtGui.QStandardItem(self.prefix_edit.text())
+        commodities_model.setItem(self.row, commodities_model.PREFIX, item)
+
+        item = QtGui.QStandardItem(self.suffix_edit.text())
+        commodities_model.setItem(self.row, commodities_model.SUFFIX, item)
+
+        item = QtGui.QStandardItem(self.precision_spin.text())
+        commodities_model.setItem(self.row, commodities_model.PRECISION, item)
+        commodities_model.submit()
+        self.accept()

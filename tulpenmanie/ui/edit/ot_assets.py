@@ -22,6 +22,7 @@ from PyQt4 import QtCore, QtGui
 
 import tulpenmanie.model.ot.assets
 from tulpenmanie.model.commodities import commodities_model
+from tulpenmanie.ui.edit.commodity import NewCommodityDialog
 
 
 class EditWidget(QtGui.QWidget):
@@ -205,11 +206,13 @@ class AssetMappingDialog(QtGui.QDialog):
     preview_string = QtCore.QCoreApplication.translate('AssetMappingDialog',
                                                        "A %1 is %2 %3")
 
+    # TODO extract the factor and decimal out of the contract
+    
     def __init__(self, assetId, parent=None):
         super(AssetMappingDialog, self).__init__(parent)
 
         self.asset_id = assetId
-        # TODO another redundant otapi call
+        # another redundant otapi call
         self.asset_name = otapi.OT_API_GetAssetType_Name(self.asset_id)
 
         # UI
@@ -240,6 +243,10 @@ class AssetMappingDialog(QtGui.QDialog):
                                               "new local"))
         self.preview_label = QtGui.QLabel()
 
+        self.contract_view = QtGui.QPlainTextEdit(
+            otapi.OT_API_GetAssetType_Contract(self.asset_id))
+        self.contract_view.setReadOnly(True)
+        self.contract_view.setLineWrapMode(QtGui.QPlainTextEdit.NoWrap)
 
         button_box = QtGui.QDialogButtonBox()
         button_box.addButton(new_local_button, QtGui.QDialogButtonBox.ActionRole)
@@ -260,15 +267,44 @@ class AssetMappingDialog(QtGui.QDialog):
         layout = QtGui.QVBoxLayout()
         layout.addLayout(form_layout)
         layout.addWidget(self.preview_label)
+        layout.addWidget(self.contract_view)
         layout.addWidget(button_box)
         self.setLayout(layout)
 
         # connections
         self.commodity_combo.currentIndexChanged[str].connect(
             self.commodityChanged)
-
         self.factor_spin.valueChanged[str].connect(
             self.factorChanged)
+        new_local_button.clicked.connect(self.new_local)
+        button_box.accepted.connect(self.submit)
+        button_box.rejected.connect(self.reject)
+
+        # select
+        self.model = tulpenmanie.model.ot.assets.OTAssetsSettingsModel()
+        search = self.model.findItems(self.asset_id)
+        if not search:
+            self.row = None
+            self.factor_spin.setValue(1)
+            return
+
+        self.row = search[0].row()
+        commodity_id = self.model.item(self.row, self.model.LOCAL_ID).text()
+
+        search = commodities_model.findItems(commodity_id)
+        if not search: return
+
+        commodity_row = search[0].row()
+        self.commodity_combo.setCurrentIndex(commodity_row)
+        factor = self.model.item(self.row, self.model.FACTOR).text()
+        if factor:
+            self.factor_spin.setValue(int(factor))
+        else:
+            self.factor_spin.setValue(1)
+
+        self.preview_label.setText(
+            QtCore.QCoreApplication.translate('AssetMappingDialog',
+                                              "previous mapping found"))
 
     def commodityChanged(self, commodity):
         factor = self.factor_spin.value()
@@ -283,11 +319,27 @@ class AssetMappingDialog(QtGui.QDialog):
             self.preview_string.arg(commodity
                                     ).arg(factor
                                           ).arg(self.asset_name))
+    def new_local(self):
+        dialog = NewCommodityDialog(self)
+        if dialog.exec_():
+            self.commodity_combo.setCurrentIndex(dialog.row)
 
+    def submit(self):
+        commodity_id = commodities_model.item(
+            self.commodity_combo.currentIndex(), commodities_model.UUID).text()
+        print commodity_id
 
+        if self.row is None:
+            self.row = self.model.rowCount()
 
-        # What you need to do today
-        """
-        Make a new commodity dialog, store these assets mappings in a model,
-        and eventually do something with that model.
-        """
+        item = QtGui.QStandardItem(self.asset_id)
+        self.model.setItem(self.row, self.model.ASSET_ID, item)
+
+        item = QtGui.QStandardItem(commodity_id)
+        self.model.setItem(self.row, self.model.LOCAL_ID, item)
+
+        item = QtGui.QStandardItem(self.factor_spin.cleanText())
+        self.model.setItem(self.row, self.model.FACTOR, item)
+
+        self.model.submit()
+        self.accept()

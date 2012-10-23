@@ -14,10 +14,16 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+import logging
+
 import otapi
-from PyQt4 import QtCore
+from PyQt4 import QtCore, QtGui
 
 import tulpenmanie.model.ot
+
+
+logger = logging.getLogger(__name__)
+
 
 class OTAssetsModel(tulpenmanie.model.ot.OTBaseModel):
 
@@ -79,46 +85,43 @@ class OTAssetsModel(tulpenmanie.model.ot.OTBaseModel):
         return flags
 
 
-class LocalOTAssetMappingModel(tulpenmanie.model.TreeModel):
+class OTAssetsSettingsModel(QtGui.QStandardItemModel):
 
-    def __init__(self, parent):
-        super(LocalOTAssetMappingModel, self).__init__(parent)
-        self.asset_ids = list()
+    COLUMNS = 3
+    ASSET_ID, LOCAL_ID, FACTOR = range(COLUMNS)
+    settings_group = "OT-assets"
+    settings_map = (("commodity", LOCAL_ID), ("factor", FACTOR))
 
-    def columnCount(self, parent):
-        return 2
+    def __init__(self, parent=None):
+        super(OTAssetsSettingsModel, self).__init__(parent)
+        self.load()
 
-    def data(self, index, role):
-        if role != QtCore.Qt.DisplayRole:
-            return
-        column = index.column()
-        asset_id = self.asset_ids[index.row()]
-        if column == 0:
-            return asset_id
-        if column == 1:
-            return otapi.OT_API_GetAssetType_Name(asset_id)
+    def load(self):
+        logger.debug("reverting OT assets settings")
+        settings = QtCore.QSettings()
+        settings.beginGroup(self.settings_group)
+        for row, asset_id in enumerate(settings.childGroups()):
+            item = QtGui.QStandardItem(asset_id)
+            self.setItem(row, self.ASSET_ID, item)
 
-    def insertRows(self, row, count, index):
-        asset_id = otapi.OT_API_GetAssetType_ID(index.row())
-        count = len(self.asset_ids)
-        self.beginInsertRows(QtCore.QModelIndex(), count, count)
-        self.asset_ids.append(asset_id)
-        self.endInsertRows()
+            settings.beginGroup(asset_id)
+            for key, column in self.settings_map:
+                value = settings.value(key)
+                item = QtGui.QStandardItem(value)
+                self.setItem(row, column, item)
+            settings.endGroup()
+        return True
 
-    def supportedDropActions(self):
-        return QtCore.Qt.CopyAction
-
-    def rowCount(self, parent):
-        return len(self.asset_ids)
-
-    def appendAsset(self, asset_id):
-        current_count = len(self.asset_ids)
-        self.beginInsertRows(QtCore.QModelIndex(), current_count, current_count)
-        self.asset_ids.append(asset_id)
-        self.endInsertRows()
-
-    def popRow(self, row):
-        self.beginRemoveRows(QtCore.QModelIndex(), row, row)
-        asset_id = self.asset_ids.pop(row)
-        self.endRemoveRows()
-        return asset_id
+    def submit(self):
+        logger.debug("submitting OT assets settings")
+        settings = QtCore.QSettings()
+        settings.beginGroup(self.settings_group)
+        settings.remove('')
+        for row in range(self.rowCount()):
+            asset_id = self.item(row, self.ASSET_ID).text()
+            settings.beginGroup(asset_id)
+            for key, column in self.settings_map:
+                value = self.item(row, column).text()
+                settings.setValue(key, value)
+            settings.endGroup()
+        return True

@@ -17,6 +17,7 @@
 from PyQt4 import QtCore, QtGui
 
 import tulpenmanie.model.ot.servers
+import tulpenmanie.ui.edit.ot_assets
 
 class EditWidget(QtGui.QWidget):
 
