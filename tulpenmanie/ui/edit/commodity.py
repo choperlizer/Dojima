@@ -17,10 +17,8 @@
 
 import os.path
 
-import otapi
 from PyQt4 import QtCore, QtGui
 
-from tulpenmanie.model.ot.assets import OTAssetsModel
 from tulpenmanie.model.commodities import commodities_model
 
 
@@ -43,8 +41,6 @@ class EditWidget(QtGui.QWidget):
             """Decimal precision used to display quantities and prices.\n"""
             """A negative precision is not recommended."""))
 
-        import_button = QtGui.QPushButton(QtCore.QCoreApplication.translate(
-            'EditWidget', "&import contract"))
         new_button = QtGui.QPushButton(QtCore.QCoreApplication.translate(
             'EditWidget', "&new"))
         delete_button = QtGui.QPushButton(QtCore.QCoreApplication.translate(
@@ -61,44 +57,14 @@ class EditWidget(QtGui.QWidget):
             QtCore.QCoreApplication.translate('EditWidget',
                                               "display precision:"),
                                               precision_spin)
-
-        self.ot_child_assets_view = QtGui.QListView()
-        #self.ot_child_assets_view.setAcceptDrops(True)
-        #self.ot_child_assets_view.setDropIndicatorShown(True)
-        #self.ot_child_assets_view.setDragEnabled(True)
-
-        parent_of_label = QtGui.QLabel(QtCore.QCoreApplication.translate(
-            'EditWidget', "parent of:",
-            "the defined commoditiy shall be equivilant to one or more of"
-            "the following"))
-        parent_of_label.setBuddy(self.ot_child_assets_view)
-        add_child_button = QtGui.QPushButton(
-            QtCore.QCoreApplication.translate('EditWidget', "add"))
-        remove_child_button = QtGui.QPushButton(
-            QtCore.QCoreApplication.translate('EditWidget', "remove"))
-
-        self.ot_assets_view = QtGui.QListView()
-        self.ot_assets_view.setDragEnabled(True)
-
-        ot_assets_label = QtGui.QLabel(QtCore.QCoreApplication.translate(
-            'EditWidget', "Open Transactions assets:"))
-        ot_assets_label.setBuddy(self.ot_assets_view)
-
+        
         layout = QtGui.QGridLayout()
-        layout.addWidget(self.list_view, 0,0, 6,2)
+        layout.addWidget(self.list_view, 0,0, 3,1)
 
-        layout.addLayout(edit_layout, 0,2, 1,2)
-        layout.addWidget(parent_of_label, 1,2, 1,2)
-        layout.addWidget(self.ot_child_assets_view, 2,2, 1,2)
-        layout.addWidget(add_child_button, 3,2)
-        layout.addWidget(remove_child_button, 3,3)
-
-        layout.addWidget(ot_assets_label, 4,2, 1,2)
-        layout.addWidget(self.ot_assets_view, 5,2, 1,2)
-
-        layout.addWidget(import_button, 6,3)
-        layout.addWidget(new_button, 6,0)
-        layout.addWidget(delete_button, 6,1)
+        layout.addLayout(edit_layout, 0,1, 1,2)
+        layout.setRowStretch(1, 1)
+        layout.addWidget(new_button, 2,1)
+        layout.addWidget(delete_button, 2,2)
         self.setLayout(layout)
 
         # Model
@@ -111,19 +77,9 @@ class EditWidget(QtGui.QWidget):
         self.mapper.addMapping(suffix_edit, commodities_model.SUFFIX)
         self.mapper.addMapping(precision_spin,
                                commodities_model.PRECISION)
-        # there needs to be multiple mapping models that change with commodity
-        self.ot_child_assets_view.setModel(commodities_model)
-        #self.ot_child_assets_view.setModelColumn(1)
-
-        self.ot_assets_model = ReduceableOTAssetsModel(self)
-        self.ot_assets_view.setModel(self.ot_assets_model)
-        self.ot_assets_view.setModelColumn(1)
 
         # Connect
-        self.list_view.commodityChanged.connect(self.changeCommodityIndex)
-        add_child_button.clicked.connect(self.add_child_asset)
-        remove_child_button.clicked.connect(self.remove_child_asset)
-        import_button.clicked.connect(self.import_contract)
+        self.list_view.commodityChanged.connect(self.mapper.setCurrentModelIndex)
         new_button.clicked.connect(self.new)
         delete_button.clicked.connect(self.delete)
 
@@ -131,7 +87,6 @@ class EditWidget(QtGui.QWidget):
         index = commodities_model.index(0, commodities_model.NAME)
         self.list_view.setCurrentIndex(index)
         self.mapper.toFirst()
-        self.ot_child_assets_view.setRootIndex(index)
 
     def new(self):
         row = commodities_model.new_commodity()
@@ -147,118 +102,6 @@ class EditWidget(QtGui.QWidget):
         row = self.mapper.currentIndex()
         commodities_model.removeRow(row)
 
-    def changeCommodityIndex(self, index):
-        self.mapper.setCurrentModelIndex(index)
-        self.ot_child_assets_view.setRootIndex(index)
-
-    def add_child_asset(self):
-        commodity_item = self.list_view.currentIndex().internalPointer()
-        for index in self.ot_assets_view.selectedIndexes():
-            asset_id = otapi.OT_API_GetAssetType_ID(index.row())
-            self.ot_assets_model.disableAsset(asset_id)
-            commodity_item.appendAsset(asset_id)
-
-    def remove_child_asset(self):
-        for index in self.ot_child_assets_view.selectedIndexes():
-            asset_id = self.ot_child_assets_model.popRow(index.row())
-            self.ot_assets_model.enableAsset(asset_id)
-
-    def import_contract(self):
-        dialog = ContractImportDialog(self)
-        dialog.exec_()
-        # reload the ot model I guess
-
-
-class ContractImportDialog(QtGui.QDialog):
-
-    def __init__(self, parent=None):
-        super(ContractImportDialog, self).__init__(parent)
-
-        self.import_occurred = False
-        self.recent_dir = QtCore.QString(QtGui.QDesktopServices.HomeLocation)
-
-        self.import_box = QtGui.QPlainTextEdit()
-        self.import_box.setMinimumWidth(512)
-        file_button = QtGui.QPushButton(QtCore.QCoreApplication.translate(
-            'ContractImportDialog', "file"))
-        paste_button = QtGui.QPushButton(QtCore.QCoreApplication.translate(
-            'ContractImportDialog', "paste"))
-        import_button = QtGui.QPushButton(QtCore.QCoreApplication.translate(
-            'ContractImportDialog', "import"))
-        button_box = QtGui.QDialogButtonBox()
-        button_box.addButton(file_button, QtGui.QDialogButtonBox.ActionRole)
-        button_box.addButton(paste_button, QtGui.QDialogButtonBox.ActionRole)
-        button_box.addButton(import_button, QtGui.QDialogButtonBox.ActionRole)
-        button_box.addButton(QtGui.QDialogButtonBox.Close)
-
-        layout = QtGui.QVBoxLayout()
-        layout.addWidget(self.import_box)
-        layout.addWidget(button_box)
-        self.setLayout(layout)
-        file_button.clicked.connect(self.import_file)
-        paste_button.clicked.connect(self.paste_text)
-        import_button.clicked.connect(self.parse_text)
-        button_box.accepted.connect(self.accept)
-        button_box.rejected.connect(self.accept)
-
-    def paste_text(self):
-        clipboard = QtGui.QApplication.clipboard()
-        self.import_box.setPlainText(clipboard.text())
-
-    def import_file(self):
-        filenames = QtGui.QFileDialog.getOpenFileNames(self,
-            QtCore.QCoreApplication.translate(
-                'ContractImportDialog', "select contract file"),
-            self.recent_dir,
-            QtCore.QCoreApplication.translate(
-                'ContractImportDialog', "Open Transactions contracts (*.otc)"))
-        if not len(filenames):
-            return
-        self.recent_dir = os.path.dirname(str(filenames[-1]))
-
-        for filename in filenames:
-            contract_file = QtCore.QFile(filename)
-            if not contract_file.open(QtCore.QIODevice.ReadOnly |
-                                      QtCore.QIODevice.Text):
-                continue
-            stream = QtCore.QTextStream(contract_file)
-            # TODO this could exaust memory if one loaded a malicious file
-            contract = stream.readAll()
-            self.parse_contract(contract)
-
-    def parse_text(self):
-        text = self.import_box.toPlainText()
-        if not len(text):
-            self.accept()
-            return
-        self.parse_contract(text)
-
-    def parse_contract(self, text):
-        # TODO extract the contract name and put that in the result dialog
-        # since if multiple contract files are imported the result can only
-        # be distinguished by the order they pop up
-        parse_result = otapi.OT_API_AddAssetContract(str(text))
-        subdialog_title = QtCore.QCoreApplication.translate(
-            'ContractImportDialog', "contract import result")
-        if parse_result == 1:
-            self.import_box.clear()
-            QtGui.QMessageBox.information(self, subdialog_title,
-                QtCore.QCoreApplication.translate(
-                    'ContractImportDialog',
-                    "contract imported (if not already present)" ))
-
-            self.import_occured = True
-            # TODO get the proper indexes and emit
-            #self.parent.ot_asset_model.dataChanged.emit(
-        else:
-            QtGui.QMessageBox.warning(self, subdialog_title,
-                                      otapi.OT_API_PeekMemlogFront())
-
-    def close(self):
-        if self.import_occured is True:
-            self.accept()
-        self.reject()
-
 
 class CommoditiesListView(QtGui.QListView):
 
@@ -266,32 +109,3 @@ class CommoditiesListView(QtGui.QListView):
 
     def currentChanged(self, current, previous):
         self.commodityChanged.emit(current)
-
-
-class ReduceableOTAssetsModel(OTAssetsModel):
-
-    def __init__(self, parent=None):
-        super(ReduceableOTAssetsModel, self).__init__(parent)
-        self.disabled_asset_ids = list()
-
-    def flags(self, index):
-        asset_id = otapi.OT_API_GetAssetType_ID(index.row())
-        if asset_id in self.disabled_asset_ids:
-            flags = QtCore.Qt.NoItemFlags
-        else:
-           flags = super(ReduceableOTAssetsModel, self).flags(index)
-           flags |= QtCore.Qt.ItemIsDragEnabled
-        return flags
-
-    def enableAsset(self, asset_id):
-        i = self.disabled_asset_ids.index(asset_id)
-        self.disabled_asset_ids.pop(i)
-        topLeft = self.createIndex(0, 0)
-        bottomRight = self.createIndex(otapi.OT_API_GetAssetTypeCount() - 1, 1)
-        self.dataChanged.emit(topLeft, bottomRight)
-
-    def disableAsset(self, asset_id):
-        self.disabled_asset_ids.append(asset_id)
-        topLeft = self.createIndex(0, 0)
-        bottomRight = self.createIndex(otapi.OT_API_GetAssetTypeCount() - 1, 1)
-        self.dataChanged.emit(topLeft, bottomRight)
