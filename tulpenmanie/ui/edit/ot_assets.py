@@ -20,6 +20,7 @@ import os.path
 import otapi
 from PyQt4 import QtCore, QtGui
 
+import tulpenmanie.ot
 import tulpenmanie.model.ot.assets
 from tulpenmanie.model.commodities import commodities_model
 from tulpenmanie.ui.edit.commodity import NewCommodityDialog
@@ -203,17 +204,19 @@ class AssetsListView(QtGui.QListView):
 
 class AssetMappingDialog(QtGui.QDialog):
 
-    preview_string = QtCore.QCoreApplication.translate('AssetMappingDialog',
-                                                       "A %1 is %2 %3")
+    # Maybe throw some random numbers into the preview string
+    preview_string = QtCore.QCoreApplication.translate(
+        'AssetMappingDialog', "A %1 is %2 %3", "local, amount, remote")
 
     # TODO extract the factor and decimal out of the contract
-    
+
     def __init__(self, assetId, parent=None):
         super(AssetMappingDialog, self).__init__(parent)
 
         self.asset_id = assetId
         # another redundant otapi call
-        self.asset_name = otapi.OT_API_GetAssetType_Name(self.asset_id)
+        self.contract = tulpenmanie.ot.CurrencyContract(self.asset_id)
+        self.asset_name = self.contract.getName()
 
         # UI
         self.commodity_combo = QtGui.QComboBox()
@@ -226,6 +229,7 @@ class AssetMappingDialog(QtGui.QDialog):
 
         self.factor_spin = QtGui.QSpinBox()
         self.factor_spin.setMaximum(1000000000)
+        self.factor_spin.setMinimum(1)
         self.factor_spin.setToolTip(
             # TODO probably strip this tip
             QtCore.QCoreApplication.translate('AssetMappingDialog',
@@ -285,7 +289,7 @@ class AssetMappingDialog(QtGui.QDialog):
         search = self.model.findItems(self.asset_id)
         if not search:
             self.row = None
-            self.factor_spin.setValue(1)
+            self.factor_spin.setValue(self.contract.getFactor())
             return
 
         self.row = search[0].row()
@@ -300,7 +304,7 @@ class AssetMappingDialog(QtGui.QDialog):
         if factor:
             self.factor_spin.setValue(int(factor))
         else:
-            self.factor_spin.setValue(1)
+            self.factor_spin.setValue(self.contract.getFactor())
 
         self.preview_label.setText(
             QtCore.QCoreApplication.translate('AssetMappingDialog',
@@ -320,7 +324,11 @@ class AssetMappingDialog(QtGui.QDialog):
                                     ).arg(factor
                                           ).arg(self.asset_name))
     def new_local(self):
-        dialog = NewCommodityDialog(self)
+        dialog = NewCommodityDialog(self,
+                                    name=self.asset_name,
+                                    prefix=self.contract.getSymbol(),
+                                    suffix=self.contract.getTLA(),
+                                    precision=self.contract.getDecimalPower())
         if dialog.exec_():
             self.commodity_combo.setCurrentIndex(dialog.row)
 

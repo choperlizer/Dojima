@@ -112,15 +112,15 @@ class CommoditiesListView(QtGui.QListView):
 
 class NewCommodityDialog(QtGui.QDialog):
 
-    def __init__(self, parent=None):
+    def __init__(self, parent, name='', prefix='', suffix='', precision=0):
         super(NewCommodityDialog, self).__init__(parent)
 
-        self.name_edit = QtGui.QLineEdit()
-        self.prefix_edit = QtGui.QLineEdit()
-        self.suffix_edit = QtGui.QLineEdit()
+        self.name_edit = QtGui.QLineEdit(name)
+        self.prefix_edit = QtGui.QLineEdit(prefix)
+        self.suffix_edit = QtGui.QLineEdit(suffix)
 
         self.precision_spin = QtGui.QSpinBox()
-        self.precision_spin.setValue(0)
+        self.precision_spin.setValue(precision)
         self.precision_spin.setMinimum(-99)
 
         button_box = QtGui.QDialogButtonBox(QtGui.QDialogButtonBox.Ok |
