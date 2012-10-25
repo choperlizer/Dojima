@@ -18,11 +18,10 @@ import decimal
 import logging
 from PyQt4 import QtCore, QtGui
 
-import tulpenmanie.exchange
+#import tulpenmanie.exchange
 import tulpenmanie.ui.widget
 import tulpenmanie.model.orders
 from tulpenmanie.model.commodities import commodities_model
-from tulpenmanie.model.markets import markets_model
 
 logger =  logging.getLogger(__name__)
 
@@ -41,46 +40,31 @@ class ErrorHandling(object):
 
 class ExchangeDockWidget(QtGui.QDockWidget, ErrorHandling):
 
-    def __init__(self, exchange_item, exchange_market_row, parent=None):
-        exchange_name = exchange_item.text()
-        market_uuid = exchange_item.markets_item.child(
-            exchange_market_row, exchange_item.MARKET_LOCAL).text()
-        self.remote_market = str(exchange_item.markets_item.child(
-            exchange_market_row, exchange_item.MARKET_REMOTE).text())
-        title = exchange_name + ' ' + self.remote_market
+    def __init__(self, exchangeProxy, marketPair, parent=None):
+        exchange_name = exchangeProxy.name
+        self.base_id, self.counter_id = marketPair.split('_')
+
+        # Building the pretty name again
+        # there will probably be problems when commodities are deleted
+        search = commodities_model.findItems(self.base_id)
+        self.base_row = search[0].row()
+        base_name = commodities_model.item(self.base_row,
+                                           commodities_model.NAME).text()
+
+        search = commodities_model.findItems(self.counter_id)
+        self.counter_row = search[0].row()
+        counter_name = commodities_model.item(self.counter_row,
+                                              commodities_model.NAME).text()
+
+        pretty_market_name = (base_name + ' / ' + counter_name)
+
+        title = exchange_name + ' - ' + pretty_market_name
         super(ExchangeDockWidget, self).__init__(title, parent)
 
+        self.remote_market = exchangeProxy.getMapping(marketPair)
+
         self.account_widget = None
-        self.exchange_item = exchange_item
-        self.market_row = exchange_market_row
-
-        self.exchange = tulpenmanie.exchange.get_exchange_object(exchange_name)
-
-        try:
-            market_uuid = exchange_item.markets_item.child(
-                exchange_market_row, exchange_item.MARKET_LOCAL).text()
-            market_item = markets_model.findItems(market_uuid)[0]
-            local_market_row = market_item.row()
-
-            base_uuid = markets_model.item(
-                local_market_row, markets_model.BASE).text()
-            base_search = commodities_model.findItems(
-                base_uuid, QtCore.Qt.MatchExactly, 0)
-            base_item = base_search[0]
-
-            counter_uuid = markets_model.item(
-                local_market_row, markets_model.COUNTER).text()
-            counter_search = commodities_model.findItems(
-                counter_uuid, QtCore.Qt.MatchExactly, 0)
-            counter_item = counter_search[0]
-        except IndexError:
-            logger.critical("settings error, invalid model mapping in market "
-                            "%s or exchange %s", market_uuid, exchange_name)
-            logger.critical(msg)
-            return None
-
-        self.base_row = base_item.row()
-        self.counter_row = counter_item.row()
+        self.exchange = exchangeProxy.getExchangeObject()
 
         #Widgets
         self.widget = QtGui.QWidget(self)
@@ -114,10 +98,6 @@ class ExchangeDockWidget(QtGui.QDockWidget, ErrorHandling):
         self.widget.setLayout(layout)
         self.setWidget(self.widget)
 
-        self.enable_exchange_action = QtGui.QAction(title, parent)
-        self.enable_exchange_action.setCheckable(True)
-        self.enable_exchange_action.triggered.connect(self.enable_exchange)
-
     def set_signal_connection_state(self, state):
         ticker_proxy = self.exchange.get_ticker_proxy(self.remote_market)
         if state:
@@ -128,16 +108,21 @@ class ExchangeDockWidget(QtGui.QDockWidget, ErrorHandling):
             ticker_proxy.bid_signal.connect(self.bid_widget.setValue)
 
     def closeEvent(self, event):
-        self.enable_exchange(False)
-        self.enable_exchange_action.setChecked(False)
+        self.enableExchange(False)
+        self.enableExchange_action.setChecked(False)
         event.accept()
 
-    def enable_exchange(self, enable):
+    def enableExchange(self, enable):
         self.setEnabled(enable)
         self.setVisible(enable)
         self.set_signal_connection_state(enable)
         self.exchange.set_ticker_stream_state(enable, self.remote_market)
 
+        if enable:
+            self.accountCheck()
+        # this model is gone for now, rewrite this when there is an active
+        # exchange markets model
+        """
         market_item = self.exchange_item.child(0, self.exchange_item.MARKETS)
         enable_item = market_item.child(self.market_row,
                                         self.exchange_item.MARKET_ENABLE)
@@ -145,6 +130,35 @@ class ExchangeDockWidget(QtGui.QDockWidget, ErrorHandling):
             enable_item.setText("true")
         else:
             enable_item.setText("false")
+        """
+
+    def _accountCheck(self):
+
+        Dialog = self.exchange.getAccountDialogClass()
+        args = self.exchange.getAccountDialogArgs(self.remote_market)
+        print "got here in exchange.py"
+
+        dialog = Dialog(args, self)
+        dialog.exec_()
+        #self.exchange.showAccountDialog(self.remote_market, self)
+
+    def accountCheck(self):
+        #account_status = self.exchange.hasAccount(self.remote_market)
+        #if account_status == 1:
+            #self.createAccountWidget()
+        #else:
+        #print "calling  show dialog"
+        #if self.exchange.showAccountDialog(self.remote_market, self):
+        #    self.createAccountWidget()
+
+        print "got here in exchange module"
+        self.exchange.showAccountDialog(self.remote_market, self)
+
+    def createAccountWidget(self):
+        pass
+
+    def accountWidget(self):
+        pass
 
     def add_account_widget(self, widget):
         self.account_widget = widget

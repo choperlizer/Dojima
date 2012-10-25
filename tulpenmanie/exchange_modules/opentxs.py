@@ -19,9 +19,13 @@ from decimal import Decimal
 import otapi
 from PyQt4 import QtCore, QtGui
 
+import tulpenmanie.data.ticker
 import tulpenmanie.markets
 #from tulpenmanie.model.exchanges import exchanges_model
 import tulpenmanie.model.ot.assets
+
+# i don't really want to import gui stuff here
+import tulpenmanie.ui.ot.account
 
 
 class OTExchangeProxy(object):
@@ -29,7 +33,7 @@ class OTExchangeProxy(object):
     # make a dict that returns the market_id for a given pair
 
     def __init__(self, serverId, marketList):
-        self.server_id = serverId
+        self.id = serverId
         # TODO find out if this market_list thing is dynamic
         self.market_list = marketList
         self.exchange_object = None
@@ -37,22 +41,61 @@ class OTExchangeProxy(object):
 
     def getExchangeObject(self):
         if self.exchange_object is None:
-            self.exchange_object = OTExchangeObject(self.server_id)
+            self.exchange_object = OTExchangeMarket(self.id)
 
         return self.exchange_object
 
     @property
     def name(self):
-        return otapi.OT_API_GetServer_Name(self.server_id)
+        return otapi.OT_API_GetServer_Name(self.id)
+
+    def getMapping(self, key):
+        return self.market_map[key]
 
 
-class OpenTransactionsExchangeMarket(QtCore.QObject):
+class OTExchangeMarket(QtCore.QObject):
 
+    exchange_error_signal = QtCore.pyqtSignal(str)
 
     def __init__(self, serverID, parent=None):
-        super(OpenTransactionsExchangeMarket, self).__init__(parent)
+        super(OTExchangeMarket, self).__init__(parent)
+        self.server_id = serverID
         self.ticker_proxies = dict()
         self.ticker_clients = dict()
+        # market_id -> [base_id, counter_id]
+        self.markets = dict()
+        # asset -> preferred account
+        self.accounts = dict()
+
+        # this storable and list may go out of scope
+        storable = otapi.QueryObject(otapi.STORED_OBJ_MARKET_LIST,
+                                     'markets', self.server_id,
+                                     'market_data.bin')
+        self.market_list = otapi.MarketList.ot_dynamic_cast(storable)
+        for i in range(self.market_list.GetMarketDataCount()):
+            data = self.market_list.GetMarketData(i)
+            self.markets[data.market_id] = (data.asset_type_id,
+                                            data.currency_type_id)
+
+    def showAccountDialog(self, market_id, parent):
+        base_id, counter_id = self.markets[market_id]
+
+        dialog = tulpenmanie.ui.ot.account.MarketAccountsDialog(
+            self.server_id, base_id, counter_id, parent)
+        print "got past instantiating dialog"
+
+        if dialog.exec_():
+            # get the two accounts from the dialog
+            pass
+
+    def getAccountDialogClass(self, market_id=None):
+        return tulpenmanie.ui.ot.account.MarketAccountsDialog
+
+    def getAccountDialogArgs(self, market_id):
+        base
+        return (self.server_id,
+                self.markets[market_id].
+                self.markets[market_id].currency_type_id)
 
 
     def get_ticker_proxy(self, market_id):
@@ -62,7 +105,6 @@ class OpenTransactionsExchangeMarket(QtCore.QObject):
             return ticker_proxy
         return self.ticker_proxies[market_id]
 
-
     def set_ticker_stream_state(self, state, market_id):
         pass
 
@@ -71,6 +113,35 @@ class OpenTransactionsExchangeMarket(QtCore.QObject):
 
     def getTicker(self, server_id, market_id, nym_id):
         pass
+
+    def hasAccount(self, market_id):
+        data = self.markets[market_id]
+        base_accounts = list()
+        counter_accounts = list()
+
+        for i in range(otapi.OT_API_GetAccountCount()):
+            account_id = otapi.OT_API_GetAccountWallet_ID(i)
+            if otapi.OT_API_GetAccountWallet_Type(account_id) == 'issuer':
+                continue
+
+            account_asset = otapi.OT_API_GetAccountWallet_AssetTypeID(account_id)
+            if account_asset == data.asset_type_id:
+                base_accounts.append(account_id)
+            elif account_asset == data.currency_type_id:
+                counter_accounts.append(account_id)
+
+        base_size = len(base_accounts)
+        counter_size = len(counter_accounts)
+        if base_size == 0 or counter_size == 0:
+            return 0
+        if (base_size + counter_size) > 2:
+            return 2
+        # must be 1 to 1 then
+        return 1
+
+        # make a little storage thing that has the base and counter asset_ids
+        # and the accounts we prefer
+
 
 class OpenTransactionsExchangeAccount(QtCore.QObject):
 
