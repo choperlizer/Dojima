@@ -31,7 +31,7 @@ class OTServersSimpleModel(tulpenmanie.model.ot.OTBaseModel):
     def headerData(self, section, orientation, role=QtCore.Qt.DisplayRole):
         if orientation == QtCore.Qt.Horizontal:
             if section == self.ID:
-                return QtCore.QCoreApplication.translate('OTServersSimlpeModel',
+                return QtCore.QCoreApplication.translate('OTServersSimpleModel',
                                                          "server id")
             if section == self.NAME:
                 return QtCore.QCoreApplication.translate('OTServersSimpleModel',
@@ -105,7 +105,7 @@ class RootItem(tulpenmanie.model.TreeItem):
 
 class ServerItem(object):
 
-    COLUMNS = 4
+    COLUMNS = 3
     ID, NAME = 0, 1
 
     def __init__(self, server_id, parent):
@@ -176,21 +176,13 @@ class ServerItem(object):
 
 class MarketItem(object):
 
-    COLUMNS = 4
-    ID, BASE, COUNTER, ENABLE = range(COLUMNS)
+    COLUMNS = 3
+    ID, BASE, COUNTER = range(COLUMNS)
     # Maybe add an volume column
-    #TODO disable markets with unknown currencies/assets/commodities
 
     def __init__(self, market_data, parent):
         self.market_data = market_data
         self.parentItem = parent
-        self.check_state = QtCore.Qt.Checked
-
-    def checkState(self):
-        return self.check_state
-
-    def setCheckState(self, state):
-        self.check_state = state
 
     def childCount(self):
         return 0
@@ -217,14 +209,8 @@ class MarketItem(object):
             if role == QtCore.Qt.UserRole:
                 return self.market_data.currency_type_id
                     
-        if column == self.ENABLE:
-            if role == QtCore.Qt.DisplayRole:
-                return "enable"
-            if role == QtCore.Qt.CheckStateRole:
-                return self.checkState()
-
     def flags(self):
-        return (QtCore.Qt.ItemIsEnabled | QtCore.Qt.ItemIsUserCheckable)
+        return (QtCore.Qt.ItemIsEnabled)
 
     def row(self):
         return self.parent.childIndexes.index(self.server_data.market_id)

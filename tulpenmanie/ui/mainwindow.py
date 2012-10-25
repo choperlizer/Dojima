@@ -19,14 +19,16 @@ import logging
 import otapi
 from PyQt4 import QtCore, QtGui
 
-from tulpenmanie.model.commodities import commodities_model
-from tulpenmanie.model.markets import markets_model
-from tulpenmanie.model.exchanges import exchanges_model
+import tulpenmanie.markets
 
-import tulpenmanie.exchange
+from tulpenmanie.model.commodities import commodities_model
+#from tulpenmanie.model.markets import markets_model
+#from tulpenmanie.model.exchanges import exchanges_model
+
+#import tulpenmanie.exchange
 #This next import registers providers with the former module
-#from tulpenmanie.exchange_modules import *
-import tulpenmanie.ui.exchange
+from tulpenmanie.exchange_modules import *
+#import tulpenmanie.ui.exchange
 import tulpenmanie.ui.edit
 import tulpenmanie.ui.ot
 import tulpenmanie.ui.transfer.bitcoin
@@ -43,14 +45,13 @@ class MainWindow(QtGui.QMainWindow):
                                               "&markets and exchanges"),
             self, triggered=self._edit_definitions)
 
-        self.markets_menu = QtGui.QMenu(
-            QtCore.QCoreApplication.translate("MainWindow", "&market"), self)
+        self.markets_menu = MarketsMenu()
         self.menuBar().addMenu(self.markets_menu)
 
         transfer_menu = QtGui.QMenu(
             QtCore.QCoreApplication.translate("MainWindow", "&transfer"), self)
         bitcoin_menu = QtGui.QMenu(
-            QtCore.QCoreApplication.translate("MainWindow", "&bitcoin"), self)
+            QtCore.QCoreApplication.translate("MaineWindow", "&bitcoin"), self)
         for Action in tulpenmanie.ui.transfer.bitcoin.actions:
             action = Action(self)
             bitcoin_menu.addAction(action)
@@ -72,17 +73,22 @@ class MainWindow(QtGui.QMainWindow):
         self.setDockNestingEnabled(True)
 
 
-        print "loading a model"
-
-        self.markets = dict()
-        self.exchanges = dict()
-        #self.parse_models()
-
-    def parse_models(self):
         self.parse_markets()
-        self.parse_exchanges()
+
 
     def parse_markets(self):
+        for market in tulpenmanie.markets.container:
+            if market.pair in self.markets_menu:
+                menu = self.markets_menu.getSubmenu(market.pair)
+            else:
+                menu = self.markets_menu.addSubmenu(market.pair,
+                                                    market.prettyName())
+            for exchange_proxy in market:
+                action = ShowTradeWidgetAction(exchange_proxy, menu)
+                menu.addAction(action)
+
+    """
+    def _parse_markets(self):
         for uuid in self.markets.keys():
             if not markets_model.findItems(
                     uuid, QtCore.Qt.MatchExactly, markets_model.UUID):
@@ -103,7 +109,7 @@ class MainWindow(QtGui.QMainWindow):
                 market_dict['dock'] = dict()
                 self.markets[market_uuid] = market_dict
 
-    def parse_exchanges(self):
+    def _parse_exchanges(self):
         for exchange_row in range(exchanges_model.rowCount()):
             exchange_item = exchanges_model.item(exchange_row)
             exchange_name = str(exchange_item.text())
@@ -183,6 +189,7 @@ class MainWindow(QtGui.QMainWindow):
                 if account_widget and not account_object:
                     exchange_dock.account_widget = None
                     account_widget.deleteLater()
+    """
 
     def _edit_definitions(self):
         dialog = tulpenmanie.ui.edit.EditDefinitionsDialog(self)
@@ -198,3 +205,37 @@ class MainWindow(QtGui.QMainWindow):
         otapi.OT_API_Cleanup()
 
         event.accept()
+
+
+class MarketsMenu(QtGui.QMenu):
+
+    def __init__(self, parent=None):
+        super(MarketsMenu, self).__init__(
+            QtCore.QCoreApplication.translate("MainWindow", "&market"),
+            parent)
+        self.submenus = dict()
+
+    def __contains__(self, marketId):
+        return (marketId in self.submenus)
+
+    def getSubmenu(self, marketId):
+        return self.submenus[marketId]
+
+    def addSubmenu(self, marketId, marketName):
+        submenu = self.addMenu(marketName)
+        self.submenus[marketId] = submenu
+        return submenu
+
+
+class ShowTradeWidgetAction(QtGui.QAction):
+
+    def __init__(self, exchangeProxy, parent):
+        super(ShowTradeWidgetAction, self).__init__(exchangeProxy.name,
+                                                    parent)
+        self.exchange_proxy = exchangeProxy
+
+        # now I need to overwrite the activate method to show the dialog
+        # if I want the market pair I can get that from the parent() menu
+
+        # this action will also have to display something to differentiate
+        # markets with different minimum orders
