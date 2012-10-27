@@ -20,110 +20,35 @@ import os.path
 import otapi
 from PyQt4 import QtCore, QtGui
 
+import tulpenmanie.ui.ot.asset
+import tulpenmanie.ui.ot.nym 
+
+class CreateNymAction(QtGui.QAction):
+
+    def __init__(self, parent):
+        super(CreateNymAction, self).__init__(
+            QtCore.QCoreApplication.translate('CreateNymDialog', "create &nym"),
+            parent)
+        self.triggered.connect(self.show_dialog)
+
+    def show_dialog(self):
+        dialog = tulpenmanie.ui.ot.nym.CreateNymDialog(self.parent())
+        dialog.show()
+
 
 class AssetContractImportAction(QtGui.QAction):
 
     def __init__(self, parent):
         super(AssetContractImportAction, self).__init__(
-            QtCore.QCoreApplication.translate('AssetContractImportAction',
-                                              "import asset contract"),
+            QtCore.QCoreApplication.translate('AssetContractImportDialog',
+                                              "import &asset contract"),
             parent)
         self.triggered.connect(self.show_dialog)
 
     def show_dialog(self):
-        dialog = AssetContractImportDialog(self.parent())
+        dialog = tulpenmanie.ui.ot.asset.AssetContractImportDialog(self.parent())
         dialog.show()
 
-        
-class AssetContractImportDialog(QtGui.QDialog):
 
-    def __init__(self, parent=None):
-        super(AssetContractImportDialog, self).__init__(parent)
+actions = (CreateNymAction, AssetContractImportAction,)
 
-        self.import_occurred = False
-        self.recent_dir = QtCore.QString(QtGui.QDesktopServices.HomeLocation)
-
-        self.import_box = QtGui.QPlainTextEdit()
-        self.import_box.setMinimumWidth(512)
-        file_button = QtGui.QPushButton(QtCore.QCoreApplication.translate(
-            'ContractImportDialog', "file"))
-        paste_button = QtGui.QPushButton(QtCore.QCoreApplication.translate(
-            'ContractImportDialog', "paste"))
-        import_button = QtGui.QPushButton(QtCore.QCoreApplication.translate(
-            'ContractImportDialog', "import"))
-        button_box = QtGui.QDialogButtonBox()
-        button_box.addButton(file_button, QtGui.QDialogButtonBox.ActionRole)
-        button_box.addButton(paste_button, QtGui.QDialogButtonBox.ActionRole)
-        button_box.addButton(import_button, QtGui.QDialogButtonBox.ActionRole)
-        button_box.addButton(QtGui.QDialogButtonBox.Close)
-
-        layout = QtGui.QVBoxLayout()
-        layout.addWidget(self.import_box)
-        layout.addWidget(button_box)
-        self.setLayout(layout)
-        file_button.clicked.connect(self.import_file)
-        paste_button.clicked.connect(self.paste_text)
-        import_button.clicked.connect(self.parse_text)
-        button_box.accepted.connect(self.accept)
-        button_box.rejected.connect(self.accept)
-
-    def paste_text(self):
-        clipboard = QtGui.QApplication.clipboard()
-        self.import_box.setPlainText(clipboard.text())
-
-    def import_file(self):
-        filenames = QtGui.QFileDialog.getOpenFileNames(self,
-            QtCore.QCoreApplication.translate(
-                'ContractImportDialog', "select contract file"),
-            self.recent_dir,
-            QtCore.QCoreApplication.translate(
-                'ContractImportDialog', "Open Transactions contracts (*.otc)"))
-        if not len(filenames):
-            return
-        self.recent_dir = os.path.dirname(str(filenames[-1]))
-
-        for filename in filenames:
-            contract_file = QtCore.QFile(filename)
-            if not contract_file.open(QtCore.QIODevice.ReadOnly |
-                                      QtCore.QIODevice.Text):
-                continue
-            stream = QtCore.QTextStream(contract_file)
-            # TODO this could exaust memory if one loaded a malicious file
-            contract = stream.readAll()
-            self.parse_contract(contract)
-
-    def parse_text(self):
-        text = self.import_box.toPlainText()
-        if not len(text):
-            self.accept()
-            return
-        self.parse_contract(text)
-
-    def parse_contract(self, text):
-        # TODO extract the contract name and put that in the result dialog
-        # since if multiple contract files are imported the result can only
-        # be distinguished by the order they pop up
-        parse_result = otapi.OT_API_AddAssetContract(str(text))
-        subdialog_title = QtCore.QCoreApplication.translate(
-            'ContractImportDialog', "contract import result")
-        if parse_result == 1:
-            self.import_box.clear()
-            QtGui.QMessageBox.information(self, subdialog_title,
-                QtCore.QCoreApplication.translate(
-                    'ContractImportDialog',
-                    "contract imported (if not already present)" ))
-
-            self.import_occured = True
-            # TODO get the proper indexes and emit
-            #self.parent.ot_asset_model.dataChanged.emit(
-        else:
-            QtGui.QMessageBox.warning(self, subdialog_title,
-                                      otapi.OT_API_PeekMemlogFront())
-
-    def close(self):
-        if self.import_occured is True:
-            self.accept()
-        self.reject()
-
-
-actions = (AssetContractImportAction,)

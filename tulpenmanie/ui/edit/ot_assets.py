@@ -20,11 +20,7 @@ import os.path
 import otapi
 from PyQt4 import QtCore, QtGui
 
-import tulpenmanie.ot
 import tulpenmanie.model.ot.assets
-
-
-
 
 
 class EditWidget(QtGui.QWidget):

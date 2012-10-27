@@ -21,8 +21,45 @@ from PyQt4 import QtCore, QtGui
 logger = logging.getLogger(__name__)
 SETTINGS_GROUP = 'exchange_markets'
 
+# This exchanges thing should be a list of exchanges with children
+# the exchanges will come from the exchange module as objects that are registered
+# at import
 
-class ExchangesModel(QtCore.QAbstractItemModel):
+#scratch that, exchanges model needs to have a markets top level, with
+# exchange children below that
+
+
+class Exchange(object):
+
+    # top level is just a single column of market pairs
+    # second level are exchanges that provide thos markets
+
+    def __init__(self):
+        self.markets = list()
+
+    def __iter__(self):
+        return self.markets
+
+    
+
+    def getMarketItem(self, pair):
+        search = self.findItems(pair)
+        if search: return search[0]
+
+        item = MarketItem(pair)
+        self.appendRow(item)
+        return item
+
+
+class MarketItem(QtGui.QStandardItem):
+
+    def __init__(self, pair):
+        super(MarketItem, self).__init__()
+        self.pair = pair
+        # TODO maybe make references to the base and counter items here
+
+
+class _ExchangesModel(QtCore.QAbstractItemModel):
 
     # so this should hold market id's that correspond to a market object class
 
@@ -62,8 +99,23 @@ class ExchangesModel(QtCore.QAbstractItemModel):
                 settings.setValue(key, item)
             settings.endGroup()
 
-
 class ExchangeItem(QtGui.QStandardItem):
+
+    def __init__(self, name):
+        super(ExchangeItem, self).__init__(name)
+        self.menu = None
+        self.exchange_object = None
+
+    def getMenu(self):
+        if self.menu is None:
+            self.menu = QtGui.QMenu(self.name)
+        return self.menu
+
+    def getExchangeObject(self):
+        raise NotImplementedError
+
+
+class _ExchangeItem(QtGui.QStandardItem):
 
     MARKET_COLUMNS = 3
     MARKET_REMOTE, MARKET_ENABLE, MARKET_LOCAL = range(MARKET_COLUMNS)
@@ -199,4 +251,3 @@ class DynamicExchangeItem(ExchangeItem):
         return False
 
 
-exchanges_model = ExchangesModel()

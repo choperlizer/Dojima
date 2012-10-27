@@ -16,9 +16,9 @@
 
 import decimal
 import logging
+
 from PyQt4 import QtCore, QtGui
 
-#import tulpenmanie.exchange
 import tulpenmanie.ui.widget
 import tulpenmanie.model.orders
 from tulpenmanie.model.commodities import commodities_model
@@ -40,7 +40,7 @@ class ErrorHandling(object):
 
 class ExchangeDockWidget(QtGui.QDockWidget, ErrorHandling):
 
-    def __init__(self, exchangeProxy, marketPair, parent=None):
+    def __init__(self, exchangeProxy, marketPair, action, parent=None):
         exchange_name = exchangeProxy.name
         self.base_id, self.counter_id = marketPair.split('_')
 
@@ -55,16 +55,17 @@ class ExchangeDockWidget(QtGui.QDockWidget, ErrorHandling):
         self.counter_row = search[0].row()
         counter_name = commodities_model.item(self.counter_row,
                                               commodities_model.NAME).text()
+        title = QtCore.QCoreApplication.translate(
+            'ExchangeDockWidget', "%1 - %2 / %3", "exchange name, base, counter"
+            ).arg(exchange_name).arg(base_name).arg(counter_name)
 
-        pretty_market_name = (base_name + ' / ' + counter_name)
-
-        title = exchange_name + ' - ' + pretty_market_name
         super(ExchangeDockWidget, self).__init__(title, parent)
 
         self.remote_market = exchangeProxy.getMapping(marketPair)
 
-        self.account_widget = None
+        self.account = None
         self.exchange = exchangeProxy.getExchangeObject()
+        self.enable_exchange_action = action
 
         #Widgets
         self.widget = QtGui.QWidget(self)
@@ -91,35 +92,34 @@ class ExchangeDockWidget(QtGui.QDockWidget, ErrorHandling):
             side_layout.addWidget(widget, row,1)
             row += 1
 
-        self.account_layout = QtGui.QVBoxLayout()
-        layout = QtGui.QHBoxLayout()
-        layout.addLayout(side_layout)
-        layout.addLayout(self.account_layout)
-        self.widget.setLayout(layout)
+        self.layout = QtGui.QHBoxLayout()
+        self.layout.addLayout(side_layout)
+        self.widget.setLayout(self.layout)
         self.setWidget(self.widget)
 
     def set_signal_connection_state(self, state):
-        ticker_proxy = self.exchange.get_ticker_proxy(self.remote_market)
-        if state:
-            self.exchange.exchange_error_signal.connect(
-                self.exchange_error_handler)
-            ticker_proxy.ask_signal.connect(self.ask_widget.setValue)
-            ticker_proxy.last_signal.connect(self.last_widget.setValue)
-            ticker_proxy.bid_signal.connect(self.bid_widget.setValue)
+        if not state: return
+
+        self.exchange.exchange_error_signal.connect(self.exchange_error_handler)
+        ticker_proxy = self.exchange.getTickerProxy(self.remote_market)
+        ticker_proxy.ask_signal.connect(self.ask_widget.setValue)
+        ticker_proxy.last_signal.connect(self.last_widget.setValue)
+        ticker_proxy.bid_signal.connect(self.bid_widget.setValue)
 
     def closeEvent(self, event):
         self.enableExchange(False)
-        self.enableExchange_action.setChecked(False)
+
+        self.enable_exchange_action.setChecked(False)
         event.accept()
 
     def enableExchange(self, enable):
         self.setEnabled(enable)
         self.setVisible(enable)
         self.set_signal_connection_state(enable)
-        self.exchange.set_ticker_stream_state(enable, self.remote_market)
+        self.exchange.setTickerStreamState(enable, self.remote_market)
 
-        if enable:
-            self.accountCheck()
+        if enable and self.account is None:
+            self.createAccountWidget()
         # this model is gone for now, rewrite this when there is an active
         # exchange markets model
         """
@@ -132,55 +132,32 @@ class ExchangeDockWidget(QtGui.QDockWidget, ErrorHandling):
             enable_item.setText("false")
         """
 
-    def _accountCheck(self):
-
-        Dialog = self.exchange.getAccountDialogClass()
-        args = self.exchange.getAccountDialogArgs(self.remote_market)
-        print "got here in exchange.py"
-
-        dialog = Dialog(args, self)
-        dialog.exec_()
-        #self.exchange.showAccountDialog(self.remote_market, self)
-
-    def accountCheck(self):
-        #account_status = self.exchange.hasAccount(self.remote_market)
-        #if account_status == 1:
-            #self.createAccountWidget()
-        #else:
-        #print "calling  show dialog"
-        #if self.exchange.showAccountDialog(self.remote_market, self):
-        #    self.createAccountWidget()
-
-        print "got here in exchange module"
-        self.exchange.showAccountDialog(self.remote_market, self)
-
     def createAccountWidget(self):
-        pass
+        # TODO there should be an option to change account from this dock
+        if not self.exchange.hasDefaultAccount(self.remote_market):
+            if not self.exchange.showAccountDialog(self.remote_market, self):
+                return
 
-    def accountWidget(self):
-        pass
+        self.account = self.exchange.getAccountObject()
 
-    def add_account_widget(self, widget):
-        self.account_widget = widget
-        self.account_layout.addWidget(widget)
+        widget = AccountWidget(self.account, self)
+        self.layout.addWidget(widget)
 
 
 class AccountWidget(QtGui.QWidget, ErrorHandling):
 
-    #TODO funds signals should connect to multiple account widgets,
-    # where accounts and commodities are the same
+    # TODO now I've got to deal with these OT double accounts
 
-    def __init__(self, account_object, remote_market, parent):
+    def __init__(self, account_object, parent):
         super(AccountWidget, self).__init__(parent)
-
-        self.remote_market = str(remote_market)
-        #TODO this will break if pair does not have 3 character codes
-        base = self.remote_market[:3]
-        counter = self.remote_market[-3:]
 
         # Data
         self.account = account_object
+        self.market_id = parent.remote_market
+        # these are remote ids, not local
+        base_id, counter_id = parent.exchange.getRemotePair(self.market_id)
 
+        # TODO see if the orders model can be optimized
         self.asks_model = tulpenmanie.model.orders.OrdersModel(
             parent.base_row, parent.counter_row, self)
         self.bids_model = tulpenmanie.model.orders.OrdersModel(
@@ -240,21 +217,21 @@ class AccountWidget(QtGui.QWidget, ErrorHandling):
             parent.counter_row)
         self.bid_price_spin.valueChanged[float].connect(self.bid_price_changed)
 
-        self.ask_counter_amount_label = tulpenmanie.ui.widget.CounterAmountLabel(
+        self.ask_counter_amount_label = tulpenmanie.ui.widget.AmountLabel(
             parent.counter_row)
-        self.ask_counter_estimate_label = tulpenmanie.ui.widget.CounterEstimateLabel(
+        self.ask_counter_estimate_label = tulpenmanie.ui.widget.EstimateLabel(
             parent.counter_row)
-        self.bid_counter_amount_label = tulpenmanie.ui.widget.CounterAmountLabel(
+        self.bid_counter_amount_label = tulpenmanie.ui.widget.AmountLabel(
             parent.counter_row)
-        self.bid_counter_estimate_label = tulpenmanie.ui.widget.CounterEstimateLabel(
+        self.bid_counter_estimate_label = tulpenmanie.ui.widget.EstimateLabel(
             parent.counter_row)
 
         ask_button = QtGui.QPushButton(
             QtCore.QCoreApplication.translate('AccountWidget', "&ask",
-                                              "as in ask order"))
+                                              "as in place ask order"))
         bid_button = QtGui.QPushButton(
             QtCore.QCoreApplication.translate('AccountWidget', "&bid",
-                                              "as in bid order"))
+                                              "as in place bid order"))
         ask_order_menu = QtGui.QMenu()
         ask_limit_action = QtGui.QAction(
             QtCore.QCoreApplication.translate('AccountWidget', "limit order"),
@@ -304,7 +281,6 @@ class AccountWidget(QtGui.QWidget, ErrorHandling):
                      self.ask_price_spin,self.bid_price_spin):
             spin.setMaximum(999999)
 
-        # TODO these views should prefix/suffix price and amounts
         self.ask_orders_view = QtGui.QTableView()
         self.ask_orders_view.setModel(self.asks_model)
         layout.addWidget(self.ask_orders_view, 4,0, 1,3)
@@ -317,11 +293,9 @@ class AccountWidget(QtGui.QWidget, ErrorHandling):
             view.setSelectionMode(QtGui.QListView.SingleSelection)
             view.setSelectionBehavior(QtGui.QListView.SelectRows)
             view.setColumnHidden(0, True)
-            view.setShowGrid(False)
+            #view.setShowGrid(False)
             view.verticalHeader().hide()
             view.setContextMenuPolicy(QtCore.Qt.ActionsContextMenu)
-
-        self.setLayout(layout)
 
         #Refresh orders action
         refresh_orders_action = QtGui.QAction(
@@ -336,20 +310,22 @@ class AccountWidget(QtGui.QWidget, ErrorHandling):
         self.bid_orders_view.addAction(cancel_bid_action)
         self.bid_orders_view.addAction(refresh_orders_action)
 
+        self.setLayout(layout)
+
         # Connect to account
-        base_funds_proxy = self.account.get_funds_proxy(base)
+        base_funds_proxy = self.account.getFundsProxy(base_id)
         base_funds_proxy.balance.connect(base_funds_label.setValue)
         base_funds_proxy.balance_changed.connect(
             base_funds_label.change_value)
 
-        counter_funds_proxy = self.account.get_funds_proxy(counter)
+        counter_funds_proxy = self.account.getFundsProxy(counter_id)
         counter_funds_proxy.balance.connect(counter_funds_label.setValue)
         counter_funds_proxy.balance_changed.connect(
             counter_funds_label.change_value)
 
         self.account.exchange_error_signal.connect(self.exchange_error_handler)
 
-        orders_proxy = self.account.get_orders_proxy(self.remote_market)
+        orders_proxy = self.account.getOrdersProxy(self.market_id)
         orders_proxy.asks.connect(self.new_asks)
         orders_proxy.bids.connect(self.new_bids)
         orders_proxy.ask.connect(self.new_ask)
@@ -357,29 +333,12 @@ class AccountWidget(QtGui.QWidget, ErrorHandling):
         orders_proxy.ask_cancelled.connect(self.ask_cancelled)
         orders_proxy.bid_cancelled.connect(self.bid_cancelled)
 
-        # Check if ready to order
-        # TODO this sucks, it must go
-        signal_name = self.remote_market.replace('/', '_') + '_ready_signal'
-        signal = getattr(self.account, signal_name)
-        if hasattr(self.account, 'place_ask_limit_order'):
-            signal.connect(ask_limit_action.setEnabled)
-            signal.connect(bid_limit_action.setEnabled)
-            ask_limit_action.triggered.connect(self._ask_limit)
-            bid_limit_action.triggered.connect(self._bid_limit)
-        if hasattr(self.account, 'place_ask_market_order'):
-            signal.connect(ask_market_action.setEnabled)
-            signal.connect(bid_market_action.setEnabled)
-            ask_market_action.triggered.connect(self._ask_market)
-            bid_market_action.triggered.connect(self._bid_market)
-
-        parent.add_account_widget(self)
         parent.enable_exchange_action.toggled.connect(self.enable_account)
 
     def enable_account(self, enable):
         if enable:
             # TODO sometimes redundant to refresh() and refresh_orders()
-            remote_market = self.remote_market.replace('/', '_')
-            self.account.check_order_status(remote_market)
+            # find something better to do
             self.account.refresh()
 
     def new_asks(self, orders):
@@ -399,27 +358,27 @@ class AccountWidget(QtGui.QWidget, ErrorHandling):
     def _ask_limit(self):
         amount = self.ask_base_amount_spin.decimal_value()
         price = self.ask_price_spin.decimal_value()
-        self.account.place_ask_limit_order(self.remote_market, amount, price)
+        self.account.placeAskLimitOrder(self.market_id, amount, price)
 
     def _bid_limit(self):
         amount = self.bid_base_amount_spin.decimal_value()
         price = self.bid_price_spin.decimal_value()
-        self.account.place_bid_limit_order(self.remote_market, amount, price)
+        self.account.placeBidLimitOrder(self.market_id, amount, price)
 
     def _ask_market(self):
         amount = self.ask_base_amount_spin.decimal_value()
-        self.account.place_ask_market_order(self.remote_market, amount)
+        self.account.placeAskMarketOrder(self.market_id, amount)
 
     def _bid_market(self):
         amount = self.bid_base_amount_spin.decimal_value()
-        self.account.place_bid_market_order(self.remote_market, amount)
+        self.account.placeBidMarketOrder(self.market_id, amount)
 
     def _cancel_ask(self):
         row = self.ask_orders_view.currentIndex().row()
         item = self.asks_model.item(row, self.asks_model.ORDER_ID)
         if item:
             order_id = item.text()
-            self.account.cancel_ask_order(self.remote_market, order_id)
+            self.account.cancelAskOrder(self.market_id, order_id)
 
     def ask_cancelled(self, order_id):
         items = self.asks_model.findItems(order_id, QtCore.Qt.MatchExactly, 0)
@@ -431,7 +390,7 @@ class AccountWidget(QtGui.QWidget, ErrorHandling):
         item = self.bids_model.item(row, self.bids_model.ORDER_ID)
         if item:
             order_id = item.text()
-            self.account.cancel_bid_order(self.remote_market, order_id)
+            self.account.cancelBidOrder(self.market_id, order_id)
 
     def bid_cancelled(self, order_id):
         items = self.bids_model.findItems(order_id, QtCore.Qt.MatchExactly, 0)
@@ -463,8 +422,8 @@ class AccountWidget(QtGui.QWidget, ErrorHandling):
     def change_ask_counter(self, base_amount, price):
         counter_amount = base_amount * price
         self.ask_counter_amount_label.setValue(counter_amount)
-        commission = self.account.get_commission(counter_amount,
-                                                 self.remote_market)
+        commission = self.account.getCommission(counter_amount,
+                                                self.market_id)
         if commission:
             self.ask_counter_estimate_label.setValue(counter_amount - commission)
             return
@@ -495,8 +454,8 @@ class AccountWidget(QtGui.QWidget, ErrorHandling):
     def change_bid_counter(self, base_amount, price):
         counter_amount = base_amount * price
         self.bid_counter_amount_label.setValue(counter_amount)
-        commission = self.account.get_commission(counter_amount,
-                                                 self.remote_market)
+        commission = self.account.getCommission(counter_amount,
+                                                self.market_id)
         if commission:
             self.bid_counter_estimate_label.setValue(counter_amount - commission)
         else:

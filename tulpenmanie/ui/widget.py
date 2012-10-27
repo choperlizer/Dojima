@@ -162,14 +162,14 @@ class FundsLabel(QtGui.QLabel, CommodityWidgetBase):
         self.estimated = True
 
 
-class CounterLabel(QtGui.QLabel, CommodityWidgetBase):
+class SimpleCommodityLabel(QtGui.QLabel, CommodityWidgetBase):
     def __init__(self, commodity_row, parent=None):
-        super(CounterLabel, self).__init__(parent)
+        super(SimpleCommodityLabel, self).__init__(parent)
         self.commodity_row = commodity_row
         self.setAlignment(QtCore.Qt.AlignLeft)
 
 
-class CounterAmountLabel(CounterLabel):
+class AmountLabel(SimpleCommodityLabel):
     def setValue(self, value):
         if self.precision:
             value = round(value, self.precision)
@@ -177,7 +177,7 @@ class CounterAmountLabel(CounterLabel):
         self.setText(text)
 
 
-class CounterEstimateLabel(CounterLabel):
+class EstimateLabel(SimpleCommodityLabel):
     def setValue(self, value):
         if self.precision:
             value = round(value, self.precision)

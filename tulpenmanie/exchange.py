@@ -14,40 +14,11 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-from PyQt4 import QtCore, QtGui
+from PyQt4 import QtCore
 
 import tulpenmanie.data.funds
 import tulpenmanie.data.orders
-from tulpenmanie.model.exchanges import exchanges_model
 
-def register_exchange_model_item(ExchangeItem):
-    item = ExchangeItem()
-    exchanges_model.appendRow(item)
-
-_exchange_classes = dict()
-def register_exchange(exchange_class):
-	_exchange_classes[exchange_class.exchange_name] = exchange_class
-
-
-accounts = dict()
-def register_account(account_class):
-    accounts[account_class.exchange_name] = account_class
-
-
-_exchange_objects = dict()
-def get_exchange_object(exchange_name):
-    exchange_name = str(exchange_name)
-    if exchange_name in _exchange_objects:
-        exchange_object = _exchange_objects[exchange_name]
-    else:
-        ExchangeClass = _exchange_classes[exchange_name]
-        exchange_object = ExchangeClass()
-        _exchange_objects[exchange_name] = exchange_object
-    return exchange_object
-
-
-
-#TODO decorate the functions below with @required_function
 
 class Exchange:
 
@@ -55,6 +26,18 @@ class Exchange:
         request = heapq.heappop(self._requests)
         request.send()
         self._replies.add(request)
+
+    def getAccountObject(self):
+        raise NotImplementedError
+
+    def getTickerProxy(self, remoteMarketID):
+        raise NotImplementedError
+
+    def hasDefaultAccount(self, remoteMarketID):
+        raise NotImplementedError
+
+    def setTickerStreamState(self, remoteMarketID):
+        raise NotImplementedError
 
 
 class ExchangeAccount:
@@ -64,20 +47,44 @@ class ExchangeAccount:
         request.send()
         self._replies.add(request)
 
-    def get_funds_proxy(self, symbol):
+
+    def cancelAskOrder(self, remoteMarketID, orderID):
+        raise NotImplementedError
+
+    def cancelBidOrder(self, remoteMarketID, orderID):
+        raise NotImplementedError
+
+    def getCommission(self, remoteMarketID, amount):
+        raise NotImplementedError
+
+    def getFundsProxy(self, symbol):
         if symbol not in self.funds_proxies:
             proxy = tulpenmanie.data.funds.FundsProxy(self)
             self.funds_proxies[symbol] = proxy
             return proxy
+
         return self.funds_proxies[symbol]
 
-    def get_orders_proxy(self, remote_market):
+    def getOrdersProxy(self, remote_market):
         if remote_market not in self.orders_proxies:
             orders_proxy = tulpenmanie.data.orders.OrdersProxy(self)
             self.orders_proxies[remote_market] = orders_proxy
             return orders_proxy
+
         return self.orders_proxies[remote_market]
 
     def refresh(self):
         self.refresh_orders()
         self.refresh_funds()
+
+    def refreshFunds(self):
+        raise NotImplementedError
+
+    def refreshOrders(self):
+        raise NotImplementedError
+
+    def placeAskLimitOrder(self, remoteMarketID, amount, price):
+        raise NotImplementedError
+
+    def placeBidLimitOrder(self, remoteMarketID, amount, price):
+        raise NotImplementedError

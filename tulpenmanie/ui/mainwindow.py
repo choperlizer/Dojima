@@ -20,13 +20,8 @@ import otapi
 from PyQt4 import QtCore, QtGui
 
 import tulpenmanie.markets
-
 from tulpenmanie.model.commodities import commodities_model
-#from tulpenmanie.model.markets import markets_model
-#from tulpenmanie.model.exchanges import exchanges_model
-
-#import tulpenmanie.exchange
-#This next import registers providers with the former module
+#This next import registers the exchanges into tulpenmanie.markets
 from tulpenmanie.exchange_modules import *
 import tulpenmanie.ui.exchange
 import tulpenmanie.ui.edit
@@ -85,6 +80,7 @@ class MainWindow(QtGui.QMainWindow):
             else:
                 menu = self.markets_menu.addSubmenu(market.pair,
                                                     market.prettyName())
+
             for exchange_proxy in market:
                 action = ShowTradeDockAction(exchange_proxy, market.pair, self)
                 menu.addAction(action)
@@ -147,9 +143,17 @@ class MarketsMenu(QtGui.QMenu):
         return self.submenus[marketId]
 
     def addSubmenu(self, marketId, marketName):
-        submenu = self.addMenu(marketName)
+        submenu = MarketSubMenu(marketName, self)
+        self.addMenu(submenu)
         self.submenus[marketId] = submenu
         return submenu
+
+        
+class MarketSubMenu(QtGui.QMenu):
+
+    def __init__(self, marketName, parent=None):
+        super(MarketSubMenu, self).__init__(marketName, parent)
+        # now I have to deal with exchanges with multiple markets for a pair
 
 
 class ShowTradeDockAction(QtGui.QAction):
@@ -184,7 +188,7 @@ class ShowTradeDockAction(QtGui.QAction):
         main_window = self.parent()
 
         self.dock = tulpenmanie.ui.exchange.ExchangeDockWidget(
-                self.exchange_proxy, self.market_pair)
+                self.exchange_proxy, self.market_pair, self)
         main_window.addDockWidget(QtCore.Qt.LeftDockWidgetArea, self.dock)
         # may not need this to keep the dock instance alive
         #main_window.docks.add(dock)

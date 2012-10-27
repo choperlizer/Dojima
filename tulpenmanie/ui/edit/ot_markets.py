@@ -17,7 +17,7 @@
 from PyQt4 import QtCore, QtGui
 import otapi
 
-import tulpenmanie.ot
+import tulpenmanie.ot.contract
 import tulpenmanie.model.ot.servers
 import tulpenmanie.model.ot.assets
 from tulpenmanie.model.commodities import commodities_model
@@ -87,7 +87,7 @@ class AssetMappingDialog(QtGui.QDialog):
         super(AssetMappingDialog, self).__init__(parent)
 
         self.asset_id = assetId
-        self.contract = tulpenmanie.ot.CurrencyContract(self.asset_id)
+        self.contract = tulpenmanie.ot.contract.CurrencyContract(self.asset_id)
         self.asset_name = self.contract.getName()
 
         # UI
