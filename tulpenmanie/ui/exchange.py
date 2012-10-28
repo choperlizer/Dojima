@@ -117,6 +117,8 @@ class ExchangeDockWidget(QtGui.QDockWidget, ErrorHandling):
         self.setVisible(enable)
         self.set_signal_connection_state(enable)
         self.exchange.setTickerStreamState(enable, self.remote_market)
+        if self.account:
+            self.account_widget.enableAccount(enable)
 
         if enable and self.account is None:
             self.createAccountWidget()
@@ -140,8 +142,8 @@ class ExchangeDockWidget(QtGui.QDockWidget, ErrorHandling):
 
         self.account = self.exchange.getAccountObject()
 
-        widget = AccountWidget(self.account, self)
-        self.layout.addWidget(widget)
+        self.account_widget = AccountWidget(self.account, self)
+        self.layout.addWidget(self.account_widget)
 
 
 class AccountWidget(QtGui.QWidget, ErrorHandling):
@@ -154,8 +156,6 @@ class AccountWidget(QtGui.QWidget, ErrorHandling):
         # Data
         self.account = account_object
         self.market_id = parent.remote_market
-        # these are remote ids, not local
-        base_id, counter_id = parent.exchange.getRemotePair(self.market_id)
 
         # TODO see if the orders model can be optimized
         self.asks_model = tulpenmanie.model.orders.OrdersModel(
@@ -185,7 +185,7 @@ class AccountWidget(QtGui.QWidget, ErrorHandling):
         refresh_funds_action = QtGui.QAction(
             QtCore.QCoreApplication.translate('AccountWidget',
                                               "&refresh funds"),
-            self, triggered=self.account.refresh_funds)
+            self, triggered=self.refreshFunds)
 
         funds_font = QtGui.QFont()
         funds_font.setPointSize(13)
@@ -313,12 +313,15 @@ class AccountWidget(QtGui.QWidget, ErrorHandling):
         self.setLayout(layout)
 
         # Connect to account
-        base_funds_proxy = self.account.getFundsProxy(base_id)
+        # these are remote ids, not local
+        b_ac_id, c_ac_id = self.account.getAccountPair(self.market_id)
+
+        base_funds_proxy = self.account.getFundsProxy(b_ac_id)
         base_funds_proxy.balance.connect(base_funds_label.setValue)
         base_funds_proxy.balance_changed.connect(
             base_funds_label.change_value)
 
-        counter_funds_proxy = self.account.getFundsProxy(counter_id)
+        counter_funds_proxy = self.account.getFundsProxy(c_ac_id)
         counter_funds_proxy.balance.connect(counter_funds_label.setValue)
         counter_funds_proxy.balance_changed.connect(
             counter_funds_label.change_value)
@@ -333,13 +336,11 @@ class AccountWidget(QtGui.QWidget, ErrorHandling):
         orders_proxy.ask_cancelled.connect(self.ask_cancelled)
         orders_proxy.bid_cancelled.connect(self.bid_cancelled)
 
-        parent.enable_exchange_action.toggled.connect(self.enable_account)
+        self.account.refresh(self.market_id)
 
-    def enable_account(self, enable):
+    def enableAccount(self, enable):
         if enable:
-            # TODO sometimes redundant to refresh() and refresh_orders()
-            # find something better to do
-            self.account.refresh()
+            self.account.refresh(self.market_id)
 
     def new_asks(self, orders):
         self.asks_model.clear_orders()
@@ -460,3 +461,6 @@ class AccountWidget(QtGui.QWidget, ErrorHandling):
             self.bid_counter_estimate_label.setValue(counter_amount - commission)
         else:
             self.bid_counter_estimate_label.clear()
+
+    def refreshFunds(self):
+        self.account.refreshFunds(self.market_id)
