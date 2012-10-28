@@ -25,7 +25,7 @@ from tulpenmanie.model.commodities import commodities_model
 from tulpenmanie.exchange_modules import *
 import tulpenmanie.ui.exchange
 import tulpenmanie.ui.edit
-import tulpenmanie.ui.ot
+import tulpenmanie.ui.ot.action
 import tulpenmanie.ui.transfer.bitcoin
 
 logger = logging.getLogger(__name__)
@@ -55,7 +55,7 @@ class MainWindow(QtGui.QMainWindow):
 
         ot_menu = QtGui.QMenu(
             QtCore.QCoreApplication.translate('MainWindow', "OpenT&xs"), self)
-        for Action in tulpenmanie.ui.ot.actions:
+        for Action in tulpenmanie.ui.ot.action.actions:
             action = Action(self)
             ot_menu.addAction(action)
         self.menuBar().addMenu(ot_menu)
