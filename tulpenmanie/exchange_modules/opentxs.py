@@ -77,6 +77,7 @@ class OTTickerTimer(QtCore.QObject):
 class OTExchange(QtCore.QObject):
 
     exchange_error_signal = QtCore.pyqtSignal(str)
+    funds_proxies = dict()
 
     def __init__(self, serverID, parent=None):
         super(OTExchange, self).__init__(parent)
@@ -91,16 +92,19 @@ class OTExchange(QtCore.QObject):
         self.assets = dict()
         # market_id -> [base_account_id, counter_account_id]
         self.accounts = dict()
+        # market_id -> scale
+        self.scales = dict()
 
-        # this storable and list may go out of scope
-        self.storable = otapi.QueryObject(otapi.STORED_OBJ_MARKET_LIST,
+        self.ml_store = otapi.QueryObject(otapi.STORED_OBJ_MARKET_LIST,
                                           'markets', self.server_id,
                                           'market_data.bin')
-        self.market_list = otapi.MarketList.ot_dynamic_cast(self.storable)
+        self.market_list = otapi.MarketList.ot_dynamic_cast(self.ml_store)
         for i in range(self.market_list.GetMarketDataCount()):
             data = self.market_list.GetMarketData(i)
-            self.assets[data.market_id] = (data.asset_type_id,
-                                            data.currency_type_id)
+            market_id = data.market_id
+            self.assets[market_id] = (data.asset_type_id, data.currency_type_id)
+            self.scales[market_id] = data.scale
+        self.nol_store = None
 
         # The request timer and queues
         self.request_timer = QtCore.QTimer(self)
@@ -110,8 +114,24 @@ class OTExchange(QtCore.QObject):
         self.ticker_clients = 0
         self.ticker_timer = QtCore.QTimer(self)
         self.ticker_timer.timeout.connect(self.getMarketList)
+        self.getaccount_queue = Queue()
+        self.getnymoffers_queue = Queue()
         self.offer_queue = Queue()
         self.trades_queue = Queue()
+
+    def readNymOfferList(self):
+        # this would go into __init__ but the nym_id isn't there
+        # it may be too much overhead to create the storable each time
+        storable = otapi.QueryObject(otapi.STORED_OBJ_OFFER_LIST_NYM,
+                                      'nyms', self.server_id, 'offers',
+                                      self.nym_id + '.bin')
+        if not storable: return
+
+        nym_offers = otapi.OfferListNym.ot_dynamic_cast(storable)
+
+        for i in range(nym_offers.GetOfferDataNymCount()):
+            offer = nym_offers.GetOfferDataNym(i)
+            print i, offer
 
     def getAccountObject(self):
         if self.account_object is None:
@@ -217,20 +237,36 @@ class OTExchange(QtCore.QObject):
             # TOTAL_ASSETS_ON_OFFER, Total assets available for sale or purchase.
             # Will be multiplied by minimum increment.
 
-            # match the scale to the market
             # SELLING == OT_TRUE, BUYING == OT_FALSE
 
-            # deal with this later
+            market_id, total, price, buy_sell = self.offer_queue.get()
             base_asset_id, counter_asset_id = self.assets[market_id]
             base_account_id, counter_account_id = self.accounts[market_id]
-            total, price, buy_sell = self.offer_queue.get()
-            scale = 1
+            scale = self.scales[market_id]
             increment = 1
             otapi.OT_API_issueMarketOffer(self.server_id, self.nym_id,
                                           base_asset_id, base_account_id,
                                           counter_asset_id, counter_account_id,
-                                          scale, increment, total,
-                                          price, buy_sell)
+                                          str(scale), str(increment), str(total),
+                                          str(price), buy_sell)
+            return
+
+        if not self.getaccount_queue.empty():
+            account_id = self.getaccount_queue.get_nowait()
+            otapi.OT_API_getAccount(self.server_id, self.nym_id, account_id)
+
+            balance = Decimal(otapi.OT_API_GetAccountWallet_Balance(account_id))
+            proxy = self.funds_proxies[account_id]
+            proxy.balance.emit(balance)
+            return
+
+        if not self.getnymoffers_queue.empty():
+            # TODO won't work if making offers with more than one nym
+            self.getnymoffers_queue.get_nowait()
+            logger.info('requesting nym %s offer list from %s',
+                        self.nym_id, self.server_id)
+            otapi.OT_API_getNym_MarketOffers(self.server_id, self.nym_id)
+            # TODO now read the nym_offer_list
 
         if not self.trades_queue.empty():
             market_id = self.trades_queue.get_nowait()
@@ -250,9 +286,9 @@ class OTExchange(QtCore.QObject):
                                                                 counter_id,
                                                                 parent)
         if dialog.exec_():
-            self.nym_id = dialog.getNymId()
-            self.accounts[market_id] = (dialog.getBaseAccountId(),
-                                        dialog.getCounterAccountId())
+            self.nym_id = str(dialog.getNymId())
+            self.accounts[market_id] = (str(dialog.getBaseAccountId()),
+                                        str(dialog.getCounterAccountId()))
             self.setDefaultAccounts(market_id)
             return True
 
@@ -279,35 +315,37 @@ class OTExchangeAccount(QtCore.QObject, tulpenmanie.exchange.ExchangeAccount):
         super(OTExchangeAccount, self).__init__(exchange)
         self.exchange = exchange
         # These are needed for the inherited get proxy methods
-        self.funds_proxies = dict()
         self.orders_proxies = dict()
-
 
     def getAccountPair(self, market_id):
         return self.exchange.accounts[market_id]
 
+    def getFundsProxy(self, account_id):
+        if account_id not in self.exchange.funds_proxies:
+            proxy = tulpenmanie.data.funds.FundsProxy(self)
+            self.exchange.funds_proxies[account_id] = proxy
+            return proxy
+
+        return self.exchange.funds_proxies[account_id]
+
     def refresh(self, market_id):
         self.refreshFunds(market_id)
+        self.refreshOrders()
 
     def refreshFunds(self, market_id):
         for account_id in self.exchange.accounts[market_id]:
-            logger.info("refreshing funds for account_id")
-            otapi.OT_API_getAccount(self.exchange.server_id,
-                                    self.exchange.nym_id,
-                                    account_id)
-            balance = Decimal(otapi.OT_API_GetAccountWallet_Balance(account_id))
-            proxy = self.funds_proxies[account_id]
-            print "emiting", balance
-            proxy.balance.emit(balance)
+            self.exchange.getaccount_queue.put(account_id)
 
-    def refresh_orders(self):
-        pass
+    def refreshOrders(self, market_id=None):
+        self.exchange.getnymoffers_queue.put(True)
 
-    def place_ask_limit_order(self, market_id, amount, price):
-        self.parent.offer_queue.put(market_id, amount, price, 1)
+    def placeAskLimitOrder(self, market_id, amount, price):
+        # SELLING == OT_TRUE, BUYING == OT_FALSE
+        self.exchange.offer_queue.put( (market_id, int(amount), int(price), 1) )
 
-    def place_bid_limit_order(self, market_id, amount, price):
-        self.parent.offer_queue.put(market_id, amount, price, 0)
+    def placeBidLimitOrder(self, market_id, amount, price):
+        # SELLING == OT_TRUE, BUYING == OT_FALSE
+        self.exchange.offer_queue.put( (market_id, int(amount), int(price), 0) )
 
     def cancel_ask_order(self, market_id, order_id):
         pass
