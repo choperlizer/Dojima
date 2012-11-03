@@ -39,7 +39,7 @@ class FlatSettingsModel(QtGui.QStandardItemModel):
             self.setItem(row, self.UUID, item)
             for setting, column in self.SETTINGS_MAP:
                 item = QtGui.QStandardItem(self.settings.value(setting))
-                self.setItem(int(row), column, item)
+                self.setItem(row, column, item)
             self.settings.endGroup()
         return True
 

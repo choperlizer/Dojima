@@ -14,13 +14,11 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-from decimal import Decimal
-
 from PyQt4 import QtCore
 
 
 class TickerProxy(QtCore.QObject):
 
-    ask_signal = QtCore.pyqtSignal(Decimal)
-    last_signal = QtCore.pyqtSignal(Decimal)
-    bid_signal = QtCore.pyqtSignal(Decimal)
+    ask_signal = QtCore.pyqtSignal(int)
+    last_signal = QtCore.pyqtSignal(int)
+    bid_signal = QtCore.pyqtSignal(int)

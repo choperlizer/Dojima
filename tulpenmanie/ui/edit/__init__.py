@@ -18,7 +18,7 @@
 from PyQt4 import QtCore, QtGui
 
 import tulpenmanie.ui.edit.commodity
-import tulpenmanie.ui.edit.market
+#import tulpenmanie.ui.edit.market
 #import tulpenmanie.ui.edit.exchange
 import tulpenmanie.ui.edit.ot_markets
 

@@ -28,8 +28,13 @@ class CurrencyContract(object):
 
     def __init__(self, assetTypeId):
         self.id = assetTypeId
-        self.contract = otapi.OT_API_GetAssetType_Contract(self.id)
 
+        # TODO find a signing nym and verify the contract
+        #self.xml = otapi.OT_API_VerifyAndRetrieveXMLContents(
+        #    assetTypeId, tulpenmanie.ot.getSigningNym())
+
+        self.contract = otapi.OT_API_GetAssetType_Contract(assetTypeId)
+       
         self.name = None
         self.tla = None
         self.symbol = None

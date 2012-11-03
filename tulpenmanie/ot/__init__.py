@@ -14,10 +14,5 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-import otapi
-
-
-def register_nym(server_id, nym_id):
-    """REGISTER NYM AT SERVER (or download nymfile, if nym already registered.)"""
-    pass
-    #OTAPI_Func.CREATE_USER_ACCT
+#import otapi
+#from PyQt4 import QtCore, QtGui

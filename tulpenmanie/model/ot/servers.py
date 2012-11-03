@@ -19,7 +19,6 @@ from PyQt4 import QtCore
 
 import tulpenmanie.model
 import tulpenmanie.model.ot
-import tulpenmanie.model.markets
 
 
 class OTServersSimpleModel(tulpenmanie.model.ot.OTBaseModel):
@@ -52,7 +51,7 @@ class OTServersSimpleModel(tulpenmanie.model.ot.OTBaseModel):
 
         elif role == QtCore.Qt.DisplayRole or role == QtCore.Qt.EditRole:
             column = index.column()
-            ot_id = otapi.OT_API_GetOt_id(index.row())
+            ot_id = otapi.OT_API_GetServer_ID(index.row())
             if column == self.ID:
                 return ot_id
             if column == self.NAME:

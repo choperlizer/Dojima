@@ -22,6 +22,7 @@ from PyQt4 import QtCore, QtGui
 
 import tulpenmanie.ui.ot.contract
 import tulpenmanie.ui.ot.nym
+import tulpenmanie.ui.ot.servers
 
 
 class _DialogAction(QtGui.QAction):
@@ -47,13 +48,13 @@ class AssetContractImportAction(_DialogAction):
     Dialog = tulpenmanie.ui.ot.contract.AssetContractImportDialog
 
 
-class ServerContractImportAction(_DialogAction):
+class ServersDialogAction(_DialogAction):
 
-    title = QtCore.QCoreApplication.translate('ContractImportDialog',
-                                              "import &server contract")
-    Dialog = tulpenmanie.ui.ot.contract.ServerContractImportDialog
+    title = QtCore.QCoreApplication.translate('ServersDialog',
+                                              "&servers and accounts")
+    Dialog = tulpenmanie.ui.ot.servers.ServersDialog
 
 
 actions = (CreateNymAction,
            AssetContractImportAction,
-           ServerContractImportAction)
+           ServersDialogAction)

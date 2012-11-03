@@ -16,11 +16,14 @@
 
 from PyQt4 import QtCore
 
-import tulpenmanie.data.funds
-import tulpenmanie.data.orders
+import tulpenmanie.data.balance
+#import tulpenmanie.data.orders
 
 
 class Exchange:
+
+    def echoTicker(self, remoteMarketID):
+        pass
 
     def pop_request(self):
         request = heapq.heappop(self._requests)
@@ -30,10 +33,16 @@ class Exchange:
     def getAccountObject(self):
         raise NotImplementedError
 
+    def getFactors(self, remoteMarketID):
+        raise NotImplementedError
+
     def getTickerProxy(self, remoteMarketID):
         raise NotImplementedError
 
     def hasDefaultAccount(self, remoteMarketID):
+        raise NotImplementedError
+
+    def populateMenuBar(self, menu, remoteMarketID):
         raise NotImplementedError
 
     def setTickerStreamState(self, remoteMarketID):
@@ -47,44 +56,43 @@ class ExchangeAccount:
         request.send()
         self._replies.add(request)
 
-
-    def cancelAskOrder(self, remoteMarketID, orderID):
+    def cancelAskOffer(self, remoteMarketID, offerID):
         raise NotImplementedError
 
-    def cancelBidOrder(self, remoteMarketID, orderID):
+    def cancelBidOffer(self, remoteMarketID, offerID):
         raise NotImplementedError
 
     def getCommission(self, remoteMarketID, amount):
         raise NotImplementedError
 
-    def getFundsProxy(self, symbol):
+    def getBalanceProxy(self, symbol):
         if symbol not in self.funds_proxies:
-            proxy = tulpenmanie.data.funds.FundsProxy(self)
+            proxy = tulpenmanie.data.funds.BalanceProxy(self)
             self.funds_proxies[symbol] = proxy
             return proxy
 
         return self.funds_proxies[symbol]
 
-    def getOrdersProxy(self, remote_market):
-        if remote_market not in self.orders_proxies:
-            orders_proxy = tulpenmanie.data.orders.OrdersProxy(self)
-            self.orders_proxies[remote_market] = orders_proxy
-            return orders_proxy
+    def getOffersProxy(self, remote_market):
+        if remote_market not in self.offers_proxies:
+            offers_proxy = tulpenmanie.data.offers.OffersProxy(self)
+            self.offers_proxies[remote_market] = offers_proxy
+            return offers_proxy
 
-        return self.orders_proxies[remote_market]
+        return self.offers_proxies[remote_market]
 
     def refresh(self):
-        self.refresh_orders()
-        self.refresh_funds()
+        self.refreshOffers()
+        self.refreshBalance()
 
-    def refreshFunds(self):
+    def refreshBalance(self):
         raise NotImplementedError
 
-    def refreshOrders(self):
+    def refreshOffers(self):
         raise NotImplementedError
 
-    def placeAskLimitOrder(self, remoteMarketID, amount, price):
+    def placeAskLimitOffer(self, remoteMarketID, amount, price):
         raise NotImplementedError
 
-    def placeBidLimitOrder(self, remoteMarketID, amount, price):
+    def placeBidLimitOffer(self, remoteMarketID, amount, price):
         raise NotImplementedError
