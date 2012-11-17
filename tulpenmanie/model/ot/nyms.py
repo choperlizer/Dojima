@@ -24,6 +24,7 @@ class OTNymsModel(QtGui.QStandardItemModel):
 
     def __init__(self, parent=None):
         super(OTNymsModel, self).__init__(parent)
+        self.nym_ids = list()
         for i in range(otapi.OT_API_GetNymCount()):
             nym_id = otapi.OT_API_GetNym_ID(i)
             self.addNym(nym_id)
@@ -37,6 +38,16 @@ class OTNymsModel(QtGui.QStandardItemModel):
         item = QtGui.QStandardItem(otapi.OT_API_GetNym_Name(nym_id))
         item.setData(nym_id, QtCore.Qt.UserRole)
         self.appendRow(item)
+        self.nym_ids.append(nym_id)
+
+    def refresh(self):
+        for i in range(otapi.OT_API_GetNymCount()):
+            nym_id = otapi.OT_API_GetNym_ID(i)
+            if not nym_id in self.nym_ids:
+                self.addNym(nym_id)
+
 
     # TODO need to overide something so the nym label can be changed
     # also, I guess there will be nyms that aren't ours floating around too
+
+model = OTNymsModel()

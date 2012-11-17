@@ -21,8 +21,10 @@ from tulpenmanie.model.commodities import commodities_model
 
 
 # The problem the numbers need to be prefixed with 0. and some 0s
+# Maybe they should all display decimals
 
-class _AssetLabel(QtGui.QLabel):
+
+class _AssetLabel(QtGui.QLineEdit):
 
     def setPrefix(self, prefix):
         self.prefix = prefix
@@ -34,7 +36,8 @@ class _AssetLabel(QtGui.QLabel):
 class _AssetIntLabel(_AssetLabel):
 
     def __init__(self, factor=None, precision=None, parent=None):
-        super(_AssetLabel, self).__init__(parent)
+        super(_AssetLabel, self).__init__(parent,
+                                          readOnly=True)
         self.setAlignment(QtCore.Qt.AlignLeft)
         self.prefix = None
         self.suffix = None
@@ -239,3 +242,93 @@ class AssetIntSpinBox(QtGui.QSpinBox):
     def __init__(self, factor=1, precision=None, parent=None):
         super(AssetIntSpinBox, self).__init__(parent)
         self.setRange(0, (factor * 10000) -1 )
+
+
+class AssetSpinBox(QtGui.QDoubleSpinBox):
+
+    # TODO avoid precision for now
+
+    decimal_point = QtCore.QLocale().decimalPoint()
+    valueChanged = QtCore.pyqtSignal(int)
+
+    def __init__(self, parent=None):
+        super(AssetSpinBox, self).__init__(parent)
+        self.factor = 1
+        self.precision = None
+        self.scale = None
+
+    def setFactor(self, factor):
+        self.factor = factor
+        self.setSingleStep(10.0 * factor)
+        # TODO check this
+        if self.scale:
+            maximum = (factor * scale) - factor
+            self.setMaximum(maximum)
+
+    def setPrecision(self, precision):
+        self.precision = precision
+
+    def setScale(self, scale):
+        step = pow(10, scale)
+        self.setSingleStep(step)
+        self.setMaximum( step * 99 )
+
+    def setValue(self, value):
+        if self.factor > 1:
+            value /= self.factor
+        if self.precision is not None:
+            value = round(value, self.precision)
+        super(AssetSpinBox, self).setValue(value)
+
+    def textFromValue(self, value):
+        if self.factor > 1:
+            value /= self.factor
+
+            if self.precision:
+                value = round(value, self.precision)
+
+        text = QtCore.QString().setNum(value)
+
+        #if self.prefix():
+        #    text.prepend(self.prefix())
+        #if self.suffix():
+        #    text.append(self.suffix())
+
+        return text
+
+    def value(self):
+        text = self.cleanText().remove(self.decimal_point)
+        value, ok = text.toInt()
+        assert ok
+        return value
+
+    def valueFromText(self, text):
+        text.remove(self.decimal_point)
+
+        if self.prefix():
+            text.remove(self.prefix())
+        if self.suffix():
+            text.remove(self.suffix())
+
+        value, ok = text.toInt()
+        assert ok
+        if self.factor > 1:
+            value *= self.factor
+
+        return value
+
+class ScaleSpin(QtGui.QSpinBox):
+
+    def __init__(self, parent=None):
+        super(ScaleSpin, self).__init__(parent)
+        self.scale = 1
+        self.setValue(1)
+        self.setMaximum(100)
+
+    def stepBy(self, steps):
+        self.scale += steps
+        self.setMinimum(self.value())
+        print self.scale
+        value = pow(10, self.scale)
+        self.setValue(value)
+        self.setMaximum(value * 10)

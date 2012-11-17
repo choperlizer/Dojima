@@ -25,8 +25,11 @@ from tulpenmanie.model.commodities import commodities_model
 from tulpenmanie.exchange_modules import *
 import tulpenmanie.ui.exchange
 import tulpenmanie.ui.edit
+import tulpenmanie.ui.market
 import tulpenmanie.ui.ot.action
 import tulpenmanie.ui.transfer.bitcoin
+
+import pdb
 
 logger = logging.getLogger(__name__)
 
@@ -35,12 +38,14 @@ class MainWindow(QtGui.QMainWindow):
     def __init__(self, parent=None):
         super (MainWindow, self).__init__(parent)
 
-        edit_definitions_action = QtGui.QAction(
-            QtCore.QCoreApplication.translate("MainWindow",
-                                              "&markets and exchanges"),
-            self, triggered=self._edit_definitions)
-
         self.markets_menu = MarketsMenu(self)
+        action = self.markets_menu.addAction(
+            QtCore.QCoreApplication.translate('MainWindow', "Add new markets",
+                                              "The title of a menu action to "
+                                              "show a wizard to make more "
+                                              "markets available."))
+        action.triggered.connect(self.showAddMarketsWizard)
+
         self.menuBar().addMenu(self.markets_menu)
 
         transfer_menu = QtGui.QMenu(
@@ -60,17 +65,31 @@ class MainWindow(QtGui.QMainWindow):
             ot_menu.addAction(action)
         self.menuBar().addMenu(ot_menu)
 
-        options_menu = QtGui.QMenu(QtCore.QCoreApplication.translate(
-            "MainWindow", "&options"), self)
+        options_menu = QtGui.QMenu(
+            QtCore.QCoreApplication.translate('MainWindow', "&options",
+                                              "Title of the options menu in "
+                                              "the main menu bar."),
+            self)
+        edit_definitions_action = QtGui.QAction(
+            QtCore.QCoreApplication.translate("MainWindow",
+                                              "&markets and exchanges"),
+            self, triggered=self.showEditDefinitionsDialog)
         options_menu.addAction(edit_definitions_action)
         self.menuBar().addMenu(options_menu)
 
         self.setDockNestingEnabled(True)
 
-
         self.parse_markets()
 
         self.docks = set()
+
+    def showAddMarketsWizard(self):
+        wizard = tulpenmanie.ui.market.AddMarketsWizard(self)
+        wizard.show()
+
+    def showEditDefinitionsDialog(self):
+        dialog = tulpenmanie.ui.edit.EditDefinitionsDialog(self)
+        dialog.exec_()
 
 
     def parse_markets(self):
@@ -112,9 +131,6 @@ class MainWindow(QtGui.QMainWindow):
                     account_widget.deleteLater()
     """
 
-    def _edit_definitions(self):
-        dialog = tulpenmanie.ui.edit.EditDefinitionsDialog(self)
-        dialog.exec_()
         #self.parse_models()
 
     # TODO make the edit dialog do this
@@ -148,13 +164,12 @@ class MarketsMenu(QtGui.QMenu):
         self.submenus[marketId] = submenu
         return submenu
 
-        
+
 class MarketSubMenu(QtGui.QMenu):
 
     def __init__(self, marketName, parent=None):
         super(MarketSubMenu, self).__init__(marketName, parent)
         # now I have to deal with exchanges with multiple markets for a pair
-
 
 class ShowTradeDockAction(QtGui.QAction):
 

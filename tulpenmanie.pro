@@ -26,7 +26,7 @@ SOURCES = tulpenmanie/__init__.py \
           tulpenmanie/model/commodities.py \
           tulpenmanie/network/__init__.py \
           tulpenmanie/ot/__init__.py \
-          tulpenmnaie/ot/contract.py \
+          tulpenmanie/ot/contract.py \
           tulpenmanie/ui/__init__.py \
           tulpenmanie/ui/market.py \
           tulpenmanie/ui/transfer/__init__.py \
@@ -42,9 +42,12 @@ SOURCES = tulpenmanie/__init__.py \
           tulpenmanie/ui/mainwindow.py \
           tulpenmanie/ui/ot/__init__.py \
           tulpenmanie/ui/ot/account.py \
+          tulpenmanie/ui/ot/servers.py \
           tulpenmanie/ui/account.py \
           tulpenmanie/exchange.py \
           tulpenmanie/orders.py \
           tulpenmanie/markets.py
 
-TRANSLATIONS = lojban.ts
+TRANSLATIONS = croatian.ts \
+               farsi.ts \
+               lojban.ts

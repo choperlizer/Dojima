@@ -23,6 +23,13 @@ import tulpenmanie.model.ot.assets
 from tulpenmanie.model.commodities import commodities_model
 from tulpenmanie.ui.edit.commodity import NewCommodityDialog
 
+
+# TODO fetch unknown assets from the server with
+# OT_API_getContract, make it optional so local storage doesn't get cluttered
+
+# TODO actually there isn't much point to this dialog, we don't need the markets
+# to make an offer
+
 class EditWidget(QtGui.QWidget):
 
     def __init__(self, parent=None):
@@ -38,6 +45,12 @@ class EditWidget(QtGui.QWidget):
         self.markets_view.resizeColumnToContents(2)
         self.markets_view.resizeColumnToContents(3)
 
+        refresh_button = QtGui.QPushButton(
+            QtCore.QCoreApplication.translate('EditWidget',
+                                              "Refresh"))
+        button_box = QtGui.QDialogButtonBox()
+        button_box.addButton(refresh_button, button_box.ActionRole)
+
         add_to_quick_markets_action = QtGui.QAction(
             QtCore.QCoreApplication.translate('EditWidget',
                                               "add to quick markets"),
@@ -51,9 +64,9 @@ class EditWidget(QtGui.QWidget):
         self.markets_view.addAction(map_to_commodities_action)
         self.markets_view.setContextMenuPolicy(QtCore.Qt.ActionsContextMenu)
 
-        layout = QtGui.QGridLayout()
+        layout = QtGui.QVBoxLayout()
         layout.addWidget(self.markets_view)
-
+        layout.addWidget(button_box)
         self.setLayout(layout)
 
     def addToQuickMarkets(self):

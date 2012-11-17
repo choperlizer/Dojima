@@ -95,6 +95,23 @@ class MarketAccountsDialog(QtGui.QDialog):
         self.server_accounts_model.setFilterFixedString(server_id)
         self.server_accounts_model.setDynamicSortFilter(True)
 
+        assert(True)
+        assert(True)
+        assert(True)
+        assert(True)
+        assert(True)
+        assert(True)
+        assert(True)
+        assert(True)
+        assert(True)
+        assert(True)
+        assert(True)
+        assert(True)
+        assert(True)
+        assert(True)
+
+        # Strange interpreter bug
+
         self.nym_accounts_model = QtGui.QSortFilterProxyModel()
         self.nym_accounts_model.setSourceModel(self.server_accounts_model)
         self.nym_accounts_model.setFilterRole(QtCore.Qt.UserRole)
@@ -126,6 +143,7 @@ class MarketAccountsDialog(QtGui.QDialog):
 
     def changeNym(self, row):
         nym_id = str(self.nym_combo.itemData(row, QtCore.Qt.UserRole))
+        # this model apparently isn't in scope
         self.nym_accounts_model.setFilterFixedString(nym_id)
 
     def getNymId(self):
@@ -164,15 +182,19 @@ class NewAccountDialog(QtGui.QDialog):
 
     tradesRequestSignal = QtCore.pyqtSignal(str)
 
-    def __init__(self, server_id, nym_id, asset_id, parent):
+    def __init__(self, server_id, parent):
         super(NewAccountDialog, self).__init__(parent)
         self.server_id = server_id
-        self.nym_id = nym_id
-        self.asset_id = asset_id
+
+        nyms_model = tulpenmanie.model.ot.nyms.OTNymsModel()
+        assets_model = tulpenmanie.model.ot.assets.OTAssetsModel()
 
         server_label = QtGui.QLabel(otapi.OT_API_GetServer_Name(server_id))
-        nym_label = QtGui.QLabel(otapi.OT_API_GetNym_name(nym_id))
-        asset_label = QtGui.QLabel(otapi.OT_API_GetAssetType_Name(asset_id))
+        self.nym_combo = QtGui.QComboBox()
+        self.nym_combo.setModel(nyms_model)
+        self.asset_combo = QtGui.QComboBox()
+        self.asset_combo.setModel(assets_model)
+        #asset_label = QtGui.QLabel(otapi.OT_API_GetAssetType_Name(asset_id))
         self.name_edit = QtGui.QLineEdit(self)
 
         register_button = QtGui.QPushButton(
@@ -191,11 +213,11 @@ class NewAccountDialog(QtGui.QDialog):
             QtCore.QCoreApplication.translate('NewAccountDialog', "server:"),
             server_label)
         form_layout.addRow(
-            QtCore.QCoreApplication.translate('NewAccountDialog', "asset:"),
-            asset_label)
-        form_layout.addRow(
             QtCore.QCoreApplication.translate('NewAccountDialog', "nym:"),
-            nym_label)
+            self.nym_combo)
+        form_layout.addRow(
+            QtCore.QCoreApplication.translate('NewAccountDialog', "asset:"),
+            self.asset_combo)
         form_layout.addRow(
             QtCore.QCoreApplication.translate('NewAccountDialog', "label:"),
             self.name_edit)
@@ -207,21 +229,26 @@ class NewAccountDialog(QtGui.QDialog):
         QtGui.QApplication.setOverrideCursor(QtCore.Qt.WaitCursor)
         error_title = QtCore.QCoreApplication.translate('NewAccountDialog',
                                                         "Error")
-        # get the ids so we can find the new one
+        nym_id = str(self.nym_combo.itemData(self.nym_combo.currentIndex(),
+                                             QtCore.Qt.UserRole))
+        asset_id = str(self.asset_combo.itemData(self.asset_combo.currentIndex(),
+                                                 QtCore.Qt.UserRole))
+
+        # get the account ids so we can tell which is the new one
         account_ids = list()
         for i in range(otapi.OT_API_GetAccountCount()):
             account_ids.append(otapi.OT_API_GetAccountWallet_ID(i))
 
         # register the nym if needed
-        if not otapi.OT_API_IsNym_RegisteredAtServer(self.nym_id,
+        if not otapi.OT_API_IsNym_RegisteredAtServer(nym_id,
                                                      self.server_id):
-            logger.info("registering %s at %s", self.nym_id, self.server_id)
-            r = otapi.OT_API_createUserAccount(self.server_id, self.nym_id)
+            logger.info("registering %s at %s", nym_id, self.server_id)
+            r = otapi.OT_API_createUserAccount(self.server_id, nym_id)
             if r < 1:
                 QtGui.QApplication.restoreOverrideCursor()
                 QtGui.QMessageBox.warning(self, error_title,
                 QtCore.QCoreApplication.translate('NewAccountDialog'
-                    "Erorr registering the nym with the server."))
+                    "Error registering the nym with the server."))
                 return
 
         # otherwise sync our request number
@@ -229,7 +256,7 @@ class NewAccountDialog(QtGui.QDialog):
         # OT request class should take care of that anyway
         else:
             logger.info("resyncing %s server request number", self.server_id)
-            r = otapi.OT_API_getRequest(self.server_id, self.nym_id)
+            r = otapi.OT_API_getRequest(self.server_id, nym_id)
             if r < 1:
                 QtGui.QApplication.restoreOverrideCursor()
                 QtGui.QMessageBox.warning(self, error_title,
@@ -237,15 +264,14 @@ class NewAccountDialog(QtGui.QDialog):
                                                   "Error syncing with server."))
                 return
 
-
         logger.info("opening account at %s", self.server_id)
         r = otapi.OT_API_createAssetAccount(self.server_id,
-                                            self.nym_id,
-                                            self.asset_id)
+                                            nym_id,
+                                            asset_id)
         if r < 1:
             QtGui.QApplication.restoreOverrideCursor()
             QtGui.QMessageBox.warning(self, error_title,
-                QtCore.QCoreApplication.translate('NewAccountDialog'
+                QtCore.QCoreApplication.translate('NewAccountDialog',
                                                   "Error registering account."))
             self.setEnabled(True)
             return
@@ -256,7 +282,7 @@ class NewAccountDialog(QtGui.QDialog):
             if account_id not in account_ids:
                 break
 
-        otapi.OT_API_SetAccountWallet_Name(account_id, self.nym_id,
+        otapi.OT_API_SetAccountWallet_Name(account_id, nym_id,
                                            str(self.name_edit.text()))
 
         QtGui.QApplication.restoreOverrideCursor()

@@ -15,15 +15,87 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import logging
+
 from PyQt4 import QtCore, QtGui
 
-import tulpenmanie.market
-import tulpenmanie.commodity
-from tulpenmanie.widget import UuidComboBox
+import tulpenmanie.exchanges
+import tulpenmanie.ui.ot.contract
 
 
 logger = logging.getLogger(__name__)
 
+
+class AddMarketsWizard(QtGui.QWizard):
+
+    def __init__(self, parent=None):
+        super(AddMarketsWizard, self).__init__(parent)
+        self.addPage(SelectExchangePage(self))
+
+
+class SelectExchangePage(QtGui.QWizardPage):
+
+    def __init__(self, parent):
+        super(SelectExchangePage, self).__init__(parent)
+        self.wizard = parent
+        self.setTitle(
+            QtCore.QCoreApplication.translate('AddMarketsWizard',
+                                              "Exchanges",
+                                              "Title of the select exchange "
+                                              "page of the add markets wizard."))
+        self.setSubTitle(
+            QtCore.QCoreApplication.translate('AddMarketsWizard',
+                                              "Select the exchange hosting blah "
+                                              "blah blah.. \nTODO finish this "
+                                              "description"))
+        self.list_widget = QtGui.QListWidget(self)
+
+        add_server_button = QtGui.QPushButton(
+            QtCore.QCoreApplication.translate('AddMarketsWizard',
+                                              'Add Server Contract',
+                                              "Title to a button to import an "
+                                              "open transactions server "
+                                              "contract."))
+        button_box = QtGui.QDialogButtonBox()
+        button_box.addButton(add_server_button, button_box.ActionRole)
+        layout = QtGui.QVBoxLayout()
+
+        layout.addWidget(self.list_widget)
+        layout.addWidget(button_box)
+        #layout.setStretch(0, 1)
+        self.setLayout(layout)
+
+        add_server_button.clicked.connect(self.showImportDialog)
+
+    def initializePage(self):
+        for exchange_proxy in tulpenmanie.exchanges.container:
+            list_item = ExchangeListItem(exchange_proxy.name, self.list_widget)
+            list_item.setNextPageId(
+                self.wizard.addPage(exchange_proxy.nextPage()))
+
+        self.list_widget.sortItems()
+        self.list_widget.setCurrentRow(0)
+
+    def nextId(self):
+        return self.list_widget.currentItem().getNextPageId()
+
+    def refreshServers(self):
+        pass
+
+    def showImportDialog(self):
+        dialog = tulpenmanie.ui.ot.contract.ServerContractImportDialog()
+        if dialog.exec_():
+            self.refreshServers()
+
+class ExchangeListItem(QtGui.QListWidgetItem):
+
+    def setNextPageId(self, page_id):
+        self.nextPageId = page_id
+
+    def getNextPageId(self):
+        return self.nextPageId
+
+
+"""
 class EditWidget(QtGui.QWidget):
 
     def __init__(self, parent=None):
@@ -102,3 +174,4 @@ class EditWidget(QtGui.QWidget):
         self.list_view.setCurrentIndex(tulpenmanie.market.model.index(
             row, tulpenmanie.market.model.NAME))
         self.mapper.setCurrentIndex(row)
+"""

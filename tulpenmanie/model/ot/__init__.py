@@ -17,6 +17,7 @@
 import otapi
 from PyQt4 import QtCore
 
+
 class OTBaseModel(QtCore.QAbstractTableModel):
 
     COLUMNS = 2
@@ -35,3 +36,4 @@ class OTBaseModel(QtCore.QAbstractTableModel):
         if index.column == self.NAME:
             flags |= QtCore.Qt.ItemIsEditable
         return flags
+

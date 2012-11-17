@@ -14,7 +14,6 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-import decimal
 import logging
 
 from PyQt4 import QtCore, QtGui
@@ -109,8 +108,6 @@ class ExchangeDockWidget(QtGui.QDockWidget, ErrorHandling):
             row += 2
 
         self.menu_bar = ExchangeDockWidgetMenuBar(self)
-        # Exchanges may store a reference to this menu and update it
-        self.exchange_obj.populateMenuBar(self.menu_bar, self.remote_market)
 
         self.layout = QtGui.QHBoxLayout()
         self.layout.setMenuBar(self.menu_bar)
@@ -118,21 +115,18 @@ class ExchangeDockWidget(QtGui.QDockWidget, ErrorHandling):
         self.widget.setLayout(self.layout)
         self.setWidget(self.widget)
 
-    def set_signal_connection_state(self, state):
-        if not state: return
+        # Exchanges may store a reference to this menu and update it
+        self.exchange_obj.populateMenuBar(self.menu_bar, self.remote_market)
+        if not hasattr(self.exchange_obj, 'getScale'):
+            return
 
-        self.exchange_obj.exchange_error_signal.connect(
-            self.exchange_error_handler)
-        ticker_proxy = self.exchange_obj.getTickerProxy(self.remote_market)
-        ticker_proxy.ask_signal.connect(self.ask_widget.setValue)
-        ticker_proxy.last_signal.connect(self.last_widget.setValue)
-        ticker_proxy.bid_signal.connect(self.bid_widget.setValue)
+        action = self.menu_bar.getMarketMenu().addAction(
+            QtCore.QCoreApplication.translate('ScaleSelectDialog',
+                                              "Select market scale",
+                                              "Title of a menu action to show "
+                                              "the ScaleSelectDialog"))
 
-    def closeEvent(self, event):
-        self.enableExchange(False)
-
-        self.enable_exchange_action.setChecked(False)
-        event.accept()
+        action.triggered.connect(self.showScaleSelectDialog)
 
     def enableExchange(self, enable):
         self.setEnabled(enable)
@@ -159,6 +153,12 @@ class ExchangeDockWidget(QtGui.QDockWidget, ErrorHandling):
             enable_item.setText("false")
         """
 
+    def closeEvent(self, event):
+        self.enableExchange(False)
+
+        self.enable_exchange_action.setChecked(False)
+        event.accept()
+
     def createAccountWidget(self):
         # try and make the menus pop up when they are needed
         #if not self.exchange_obj.hasAccount(self.remote_market):
@@ -167,11 +167,32 @@ class ExchangeDockWidget(QtGui.QDockWidget, ErrorHandling):
         self.account_widget = AccountWidget(self.account_obj, self)
         self.layout.addWidget(self.account_widget)
 
+    def setScale(self, scale):
+        print "beep beep boop boop, set scale to", scale
+
+    def set_signal_connection_state(self, state):
+        if not state: return
+
+        self.exchange_obj.exchange_error_signal.connect(
+            self.exchange_error_handler)
+        ticker_proxy = self.exchange_obj.getTickerProxy(self.remote_market)
+        ticker_proxy.ask_signal.connect(self.ask_widget.setValue)
+        ticker_proxy.last_signal.connect(self.last_widget.setValue)
+        ticker_proxy.bid_signal.connect(self.bid_widget.setValue)
+
+    def showScaleSelectDialog(self):
+        dialog = ScaleSelectDialog(
+            self.base_factor, self.base_precision,
+            self.exchange_obj.getScale(self.remote_market))
+        if dialog.exec_():
+            self.setScale(dialog.getScale())
+
 
 class ExchangeDockWidgetMenuBar(QtGui.QMenuBar):
 
     def __init__(self, parent=None):
         super(ExchangeDockWidgetMenuBar, self).__init__(parent)
+        self.exchange = parent
         self.market_menu = self.addMenu(
             QtCore.QCoreApplication.translate('ExchangeDockWidgetMenuBar',
                                               "Market",
@@ -251,12 +272,11 @@ class AccountWidget(QtGui.QWidget, ErrorHandling):
         layout.addWidget(self.base_balance_label, 0,0, 1,3)
         layout.addWidget(self.counter_balance_label, 0,3, 1,3)
 
-        # This next part looks ugly but there are just alot of spins to make
         self.ask_amount_spin = BaseSpinBox(parent.base_factor,
-                                                parent.base_precision)
+                                           parent.base_precision)
 
         self.bid_amount_spin = BaseSpinBox(parent.base_factor,
-                                                parent.base_precision)
+                                           parent.base_precision)
 
         self.ask_price_spin = CounterSpinBox(parent.counter_factor,
                                              parent.counter_precision)
@@ -594,3 +614,56 @@ class AccountWidget(QtGui.QWidget, ErrorHandling):
 
     def refreshBalance(self):
         self.account_obj.refreshBalance(self.market_id)
+
+
+class ScaleSelectDialog(QtGui.QDialog):
+
+    def __init__(self, factor, precision, current_scale, parent=None):
+        super(ScaleSelectDialog, self).__init__(parent)
+        if factor > 1:
+            AmountView = tulpenmanie.ui.widget.AssetDecimalAmountLabel
+        else:
+            AmountView = tulpenmanie.ui.widget.AssetIntAmountLabel
+
+        self.power_spin = QtGui.QSpinBox()
+        self.power_spin.setValue(current_scale / 10)
+        self.power_spin.valueChanged[int].connect(self.changePower)
+
+        self.scale_view = AmountView(factor, precision)
+
+        self.scale_view.setReadOnly(True)
+
+        button_box = QtGui.QDialogButtonBox(QtGui.QDialogButtonBox.Ok |
+                                            QtGui.QDialogButtonBox.Cancel)
+
+        layout = QtGui.QFormLayout()
+        layout.addRow(
+            QtCore.QCoreApplication.translate('ScaleSelectDialog',
+                                              "Scale base power:",
+                                              "The market base (2, 10, 16) "
+                                              "shall be risen to the the power "
+                                              "of scale base power to derive "
+                                              "the market scale."),
+            self.power_spin)
+
+        layout.addRow(
+            QtCore.QCoreApplication.translate('ScaleSelectDialog',
+                                              "Market scale:",
+                                              "Market scale or granularity  "
+                                              "is a multiplier that affects "
+                                              "the size of orders, a scale of "
+                                              "ten means all orders must be a "
+                                              "multiple of ten."),
+            self.scale_view)
+        layout.addRow(button_box)
+        self.setLayout(layout)
+
+        button_box.accepted.connect(self.accept)
+        button_box.rejected.connect(self.reject)
+
+    def changePower(self, power):
+        value = pow(10, power)
+        self.scale_view.setValue(value)
+
+    def getScale(self):
+        return self.scale_spin.value()

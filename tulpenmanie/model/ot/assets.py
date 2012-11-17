@@ -25,64 +25,26 @@ import tulpenmanie.model.ot
 logger = logging.getLogger(__name__)
 
 
-class OTAssetsModel(tulpenmanie.model.ot.OTBaseModel):
+class OTAssetsModel(QtGui.QStandardItemModel):
 
-    COLUMNS = 3
-    ID, NAME, CONTRACT = range(COLUMNS)
+    def __init__(self, parent=None):
+        super(OTAssetsModel, self).__init__(parent)
+        self.asset_ids = list()
+        for i in range(otapi.OT_API_GetAssetTypeCount()):
+            asset_id = otapi.OT_API_GetAssetType_ID(i)
+            self.addAsset(asset_id)
 
-    def headerData(self, section, orientation, role=QtCore.Qt.DisplayRole):
-        if orientation == QtCore.Qt.Horizontal:
-            if section == self.ID:
-                return QtCore.QCoreApplication.translate('OTAssetsModel',
-                                                         "asset id")
-            if section == self.NAME:
-                return QtCore.QCoreApplication.translate('OTAssetsModel',
-                                                         "name")
-            if section == self.CONTRACT:
-                return QtCore.QCoreApplication.translate('OTAssetsModel',
-                                                         "contract")
-        return section
+    def addAsset(self, asset_id):
+        item = QtGui.QStandardItem(otapi.OT_API_GetAssetType_Name(asset_id))
+        item.setData(asset_id, QtCore.Qt.UserRole)
+        self.appendRow(item)
+        self.asset_ids.append(asset_id)
 
-    def data(self, index, role=QtCore.Qt.DisplayRole):
-        if not index.isValid():
-            return 0
-        if role == QtCore.Qt.TextAlignmentRole:
-            return int(QtCore.Qt.AlignLeft | QtCore.Qt.AlignVCenter)
-        if role == QtCore.Qt.ToolTipRole:
-            #TODO clean strip the base64 and return formatted XML
-            ot_id = otapi.OT_API_GetAssetType_ID(index.row())
-            return otapi.OT_API_GetAssetType_Contract(ot_id)
-        elif role == QtCore.Qt.DisplayRole or role == QtCore.Qt.EditRole:
-            column = index.column()
-            ot_id = otapi.OT_API_GetAssetType_ID(index.row())
-            if column == 0:
-                return ot_id
-            if column == 1:
-                return otapi.OT_API_GetAssetType_Name(ot_id)
-            if column == 2:
-                return otapi.OT_API_GetAssetType_Contract(ot_id)
-
-    def setData(self, index, data, role=QtCore.Qt.EditRole):
-        if not index.isValid() or role != QtCore.Qt.EditRole:
-            return False
-        if index.column() != 1:
-            return False
-        ot_id = otapi.OT_API_GetAssetType_ID(index.row())
-        otapi_OT_API_SetAssetType_Name(ot_id, str(data))
-        self.dataChanged.emit(index, index)
-        return True
-
-    def rowCount(self, parent=None):
-        if parent and parent.isValid():
-            return 0
-        return otapi.OT_API_GetAssetTypeCount()
-
-    def flags(self, index):
-
-        flags = super(OTAssetsModel, self).flags(index)
-        if index.column() == self.NAME:
-            flags |= QtCore.Qt.ItemIsEditable
-        return flags
+    def refresh(self):
+        for i in range(otapi.OT_API_GetAssetTypeCount()):
+            asset_id = otapi.OT_API_GetAssetType_ID(i)
+            if asset_id not in self.asset_ids:
+                self.addAsset(asset_id)
 
 
 class OTAssetsSettingsModel(QtGui.QStandardItemModel):

@@ -19,7 +19,7 @@ from PyQt4 import QtCore, QtGui
 
 import tulpenmanie.model.ot
 
-class OTAccountsModel(QtGui.QStandardItemModel):
+class _OTAccountsModel():
 
     ACCOUNT = 0
     ASSET = 1
@@ -36,6 +36,31 @@ class OTAccountsModel(QtGui.QStandardItemModel):
         "the type of account that can issue assets onto a server, this account "
         "only ever goes into the negative, because the credit in a simple "
         "must originate from an issuer account.")
+
+    def headerData(self, section, orientation, role=QtCore.Qt.DisplayRole):
+        if orientation == QtCore.Qt.Horizontal:
+            if section == self.ACCOUNT:
+                return QtCore.QCoreApplication.translate('OTAccountsModel',
+                                                         "Account")
+            if section == self.ASSET:
+                return QtCore.QCoreApplication.translate('OTAccountsModel',
+                                                         "Asset")
+            if section == self.NYM:
+                return QtCore.QCoreApplication.translate('OTAccountsModel',
+                                                         "Nym")
+            if section == self.SERVER:
+                return QtCore.QCoreApplication.translate('OTAccountsModel',
+                                                         "Server")
+            if section == self.TYPE:
+                return QtCore.QCoreApplication.translate('OTAccountsModel',
+                                                         "Type")
+            if section == self.BALANCE:
+                return QtCore.QCoreApplication.translate('OTAccountsModel',
+                                                         "Balance")
+        return section
+
+
+class OTAccountsModel(QtGui.QStandardItemModel, _OTAccountsModel):
 
     def __init__(self, parent=None):
         super(OTAccountsModel, self).__init__(parent)
@@ -73,39 +98,19 @@ class OTAccountsModel(QtGui.QStandardItemModel):
         account_type = otapi.OT_API_GetAccountWallet_Type(account_id)
         if account_type == 'simple':
             item = QtGui.QStandardItem(self.simple_translation)
+            item.setData('s', QtCore.Qt.UserRole)
         elif account_type == 'issuer':
             item = QtGui.QStandardItem(self.issuer_translation)
+            item.setData('i', QtCore.Qt.UserRole)
         else:
             # this shouldn't happen, but why not plan ahead?
             item = QtGui.QStandardItem(account_type)
+            item.setData(account_type[0], QtCore.Qt.UserRole)
         self.setItem(row, self.TYPE, item)
 
         item = QtGui.QStandardItem(
             otapi.OT_API_GetAccountWallet_Balance(account_id))
         self.setItem(row, self.BALANCE, item)
-
-
-    def headerData(self, section, orientation, role=QtCore.Qt.DisplayRole):
-        if orientation == QtCore.Qt.Horizontal:
-            if section == self.ACCOUNT:
-                return QtCore.QCoreApplication.translate('OTAccountsModel',
-                                                         "Account")
-            if section == self.ASSET:
-                return QtCore.QCoreApplication.translate('OTAccountsModel',
-                                                         "Asset")
-            if section == self.NYM:
-                return QtCore.QCoreApplication.translate('OTAccountsModel',
-                                                         "Nym")
-            if section == self.SERVER:
-                return QtCore.QCoreApplication.translate('OTAccountsModel',
-                                                         "Server")
-            if section == self.TYPE:
-                return QtCore.QCoreApplication.translate('OTAccountsModel',
-                                                         "Type")
-            if section == self.BALANCE:
-                return QtCore.QCoreApplication.translate('OTAccountsModel',
-                                                         "Balance")
-        return section
 
     def refresh(self):
         for row in range(otapi.OT_API_GetAccountCount()):
@@ -130,3 +135,21 @@ class OTAccountsModel(QtGui.QStandardItemModel):
         self.item(row, self.ACCOUNT).setText(data)
         self.dataChanged.emit(index, index)
         return True
+
+
+class OTAccountsProxyModel(QtGui.QSortFilterProxyModel, _OTAccountsModel):
+
+    def refresh(self):
+        self.model().refresh()
+
+
+class OTServerAccountsModel(OTAccountsProxyModel):
+
+    def __init__(self, server_id, parent=None):
+        super(OTServerAccountsModel, self).__init__(parent)
+        source_model = OTAccountsModel()
+        self.setSourceModel(source_model)
+        self.setFilterKeyColumn(OTAccountsModel.SERVER)
+        self.setFilterRole(QtCore.Qt.UserRole)
+        self.setFilterFixedString(server_id)
+        self.setDynamicSortFilter(True)

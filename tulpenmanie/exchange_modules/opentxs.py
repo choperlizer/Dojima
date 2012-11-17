@@ -21,16 +21,31 @@ import otapi
 from PyQt4 import QtCore, QtGui
 
 import tulpenmanie.markets
+import tulpenmanie.exchanges
 import tulpenmanie.exchange
 import tulpenmanie.data.ticker
+import tulpenmanie.model.ot.accounts
 import tulpenmanie.model.ot.assets
+import tulpenmanie.model.ot.markets
 import tulpenmanie.ot.contract
+import tulpenmanie.ui.ot.nym
+import tulpenmanie.ui.ot.offer
+import tulpenmanie.ui.ot.views
 
 # i don't really want to import gui stuff here
 import tulpenmanie.ui.ot.account
 
 
 logger = logging.getLogger(__name__)
+
+
+def saveMarketAccountSettings(server_id, market_id, b_ac_id, c_ac_id):
+    settings = QtCore.QSettings()
+    settings.beginGroup('OT-defaults')
+    settings.beginGroup(server_id)
+    settings.beginGroup(market_id)
+    settings.setValue('base_account', b_ac_id)
+    settings.setValue('counter_account', c_ac_id)
 
 
 class OTExchangeProxy(object):
@@ -41,18 +56,225 @@ class OTExchangeProxy(object):
         self.exchange_object = None
         self.market_map = dict()
 
+    @property
+    def name(self):
+        return otapi.OT_API_GetServer_Name(self.id)
+
     def getExchangeObject(self):
         if self.exchange_object is None:
             self.exchange_object = OTExchange(self.id)
 
         return self.exchange_object
 
-    @property
-    def name(self):
-        return otapi.OT_API_GetServer_Name(self.id)
-
     def getMapping(self, key):
         return self.market_map[key]
+
+    def nextPage(self, wizard=None):
+        return OTServerWizardPage(self.name, self.id, wizard)
+
+
+class OTServerWizardPage(QtGui.QWizardPage):
+
+    def __init__(self, title, server_id, wizard):
+        super(OTServerWizardPage, self).__init__(wizard)
+        self.server_id = server_id
+        self.setTitle(title)
+        self.setSubTitle(
+            QtCore.QCoreApplication.translate('OTServerWizardPage',
+                "Select accounts to match a new or existing market.",
+                "This is the the heading underneath the title on the "
+                "OT page in the markets wizard."))
+
+    def changeBaseAsset(self, asset_id):
+        self.base_accounts_model.setFilterFixedString(asset_id)
+
+    def changeCounterAsset(self, asset_id):
+        self.counter_accounts_model.setFilterFixedString(asset_id)
+
+    #def changeMarket(self, market_id):
+        #print market_id
+
+    def changeNym(self, nym_id):
+        self.nym_accounts_model.setFilterFixedString(nym_id)
+
+    def initializePage(self):
+        self.nyms_model = tulpenmanie.model.ot.nyms.model
+        self.markets_model = tulpenmanie.model.ot.markets.OTMarketsModel(
+            self.server_id)
+        accounts_model = tulpenmanie.model.ot.accounts.OTServerAccountsModel(
+            self.server_id)
+
+        simple_accounts_model = tulpenmanie.model.ot.accounts.OTAccountsProxyModel()
+        simple_accounts_model.setSourceModel(accounts_model)
+        simple_accounts_model.setFilterRole(QtCore.Qt.UserRole)
+        simple_accounts_model.setFilterKeyColumn(accounts_model.TYPE)
+        simple_accounts_model.setFilterFixedString('s')
+        simple_accounts_model.setDynamicSortFilter(True)
+
+        self.nym_accounts_model = tulpenmanie.model.ot.accounts.OTAccountsProxyModel()
+        self.nym_accounts_model.setSourceModel(simple_accounts_model)
+        self.nym_accounts_model.setFilterRole(QtCore.Qt.UserRole)
+        self.nym_accounts_model.setFilterKeyColumn(accounts_model.NYM)
+        self.nym_accounts_model.setDynamicSortFilter(True)
+
+        self.base_accounts_model = tulpenmanie.model.ot.accounts.OTAccountsProxyModel()
+        self.base_accounts_model.setSourceModel(self.nym_accounts_model)
+        self.base_accounts_model.setFilterRole(QtCore.Qt.UserRole)
+        self.base_accounts_model.setFilterKeyColumn(accounts_model.ASSET)
+        self.base_accounts_model.setDynamicSortFilter(True)
+
+        self.counter_accounts_model = tulpenmanie.model.ot.accounts.OTAccountsProxyModel()
+        self.counter_accounts_model.setSourceModel(self.nym_accounts_model)
+        self.counter_accounts_model.setFilterRole(QtCore.Qt.UserRole)
+        self.counter_accounts_model.setFilterKeyColumn(accounts_model.ASSET)
+        self.counter_accounts_model.setDynamicSortFilter(True)
+
+        self.markets_view = tulpenmanie.ui.ot.views.MarketTableView()
+        self.markets_view.setSelectionBehavior(self.markets_view.SelectRows)
+        self.markets_view.setSelectionMode(self.markets_view.SingleSelection)
+        self.markets_view.setModel(self.markets_model)
+        self.markets_view.setShowGrid(False)
+
+        self.nym_combo = tulpenmanie.ui.ot.views.ComboBox()
+        self.nym_combo.setModel(self.nyms_model)
+        nym_label = QtGui.QLabel(
+            QtCore.QCoreApplication.translate('OTServerWizardPage',
+                                              "Server Nym:",
+                                              "The label next to the nym "
+                                              "combo box."))
+        nym_label.setBuddy(self.nym_combo)
+        new_nym_button = QtGui.QPushButton(
+            QtCore.QCoreApplication.translate('OTServerWizardPage',
+                                              "New Nym",
+                                              "The button next to the nym"
+                                              "combo box."))
+        self.base_account_combo = QtGui.QComboBox()
+        base_label = QtGui.QLabel(
+            QtCore.QCoreApplication.translate('OTServerWizardPage',
+                                              "Base account:",
+                                              "The account of the base asset to "
+                                              "use with this market."))
+        base_label.setBuddy(self.base_account_combo)
+        self.counter_account_combo = QtGui.QComboBox()
+        counter_label = QtGui.QLabel(
+            QtCore.QCoreApplication.translate('OTServerWizardPage',
+                                              "Counter account:",
+                                              "The account of the counter"
+                                              "currency to use with this"
+                                              "market."))
+        counter_label.setBuddy(self.counter_account_combo)
+
+        self.base_account_combo.setModel(self.base_accounts_model)
+        self.counter_account_combo.setModel(self.counter_accounts_model)
+
+        new_offer_button = QtGui.QPushButton(
+            QtCore.QCoreApplication.translate('OTServerWizardPage',
+                                              "New Offer",
+                                              "Button to pop up the new offer "
+                                              "dialog."))
+
+        new_account_button = QtGui.QPushButton(
+            QtCore.QCoreApplication.translate('OTServerWizardPage',
+                                              "New Account",
+                                              "Button to pop up the new account "
+                                              "dialog."))
+
+        refresh_markets_button = QtGui.QPushButton(
+            QtCore.QCoreApplication.translate('OTServerWizardPage',
+                                              "Refresh Markets",
+                                              "Button to refresh the listed "
+                                              "markets on the server."))
+
+        # Layout could use some work, sizes look wrong
+        layout = QtGui.QGridLayout()
+        layout.addWidget(self.markets_view, 0,0, 1,4)
+        layout.addWidget(nym_label, 1,0)
+        layout.addWidget(self.nym_combo, 1,1, 1,2)
+        layout.addWidget(new_nym_button, 1,3)
+        layout.addWidget(base_label, 2,0, 1,2)
+        layout.addWidget(counter_label, 2,2, 1,2)
+        layout.addWidget(self.base_account_combo, 3,0, 1,2)
+        layout.addWidget(self.counter_account_combo, 3,2, 1,2)
+        layout.addWidget(new_offer_button, 4,0)
+        layout.addWidget(new_account_button, 4,3)
+        layout.addWidget(refresh_markets_button, 4,2)
+        self.setLayout(layout)
+
+        self.markets_view.baseChanged.connect(self.changeBaseAsset)
+        self.markets_view.counterChanged.connect(self.changeCounterAsset)
+        #self.markets_view.marketChanged.connect(self.changeMarket)
+
+        self.base_account_combo.currentIndexChanged.connect(
+            self.completeChanged.emit)
+        self.counter_account_combo.currentIndexChanged.connect(
+            self.completeChanged.emit)
+
+        new_nym_button.clicked.connect(self.showNewNymDialog)
+        new_offer_button.clicked.connect(self.showNewOfferDialog)
+        new_account_button.clicked.connect(self.showNewAccountDialog)
+        refresh_markets_button.clicked.connect(self.refreshMarkets)
+        self.nym_combo.otIdChanged.connect(self.changeNym)
+        # need to use a nym_id instead of a row integer
+        #self.changeNym(0)
+
+    def isComplete(self):
+        return (self.base_account_combo.currentIndex() !=
+                self.counter_account_combo.currentIndex())
+
+    def isFinalPage(self):
+        return True
+
+    def refreshMarkets(self):
+        self.markets_model.refresh(self.nym_combo.getOTID())
+
+    def showNewAccountDialog(self):
+        dialog = tulpenmanie.ui.ot.account.NewAccountDialog(self.server_id, self)
+        if dialog.exec_():
+            self.nym_accounts_model.refresh()
+
+    def showNewNymDialog(self):
+        dialog = tulpenmanie.ui.ot.nym.CreateNymDialog(self)
+        if dialog.exec_():
+            self.nyms_model.refresh()
+
+    def showNewOfferDialog(self):
+        dialog = tulpenmanie.ui.ot.offer.NewOfferDialog(self.server_id)
+        if dialog.exec_():
+            self.refreshMarkets()
+
+    def validatePage(self):
+        nym_id = self.nym_combo.itemData(self.nym_combo.currentIndex(),
+                                         QtCore.Qt.UserRole)
+        b_ac_id = self.base_account_combo.itemData(
+            self.base_account_combo.currentIndex(),
+            QtCore.Qt.UserRole)
+        c_ac_id = self.counter_account_combo.itemData(
+            self.counter_account_combo.currentIndex(),
+            QtCore.Qt.UserRole)
+
+        b_as_id = otapi.OT_API_GetAccountWallet_AssetTypeID( str(b_ac_id))
+        c_as_id = otapi.OT_API_GetAccountWallet_AssetTypeID( str(c_ac_id))
+
+        storable = otapi.QueryObject(otapi.STORED_OBJ_MARKET_LIST,
+                                     'markets', self.server_id,
+                                     'market_data.bin')
+        market_list = otapi.MarketList.ot_dynamic_cast(storable)
+        market_id = None
+        for i in range(market_list.GetMarketDataCount()):
+            data = market_list.GetMarketData(i)
+            if (data.asset_type_id == b_as_id and
+                data.currency_type_id == c_as_id):
+                saveMarketAccountSettings(self.server_id, data.market_id,
+                                   b_ac_id, c_ac_id)
+
+        # get the base asset factor and set the scale to that
+
+        contract = tulpenmanie.ot.contract.CurrencyContract(b_as_id)
+        factor = contract.getFactor()
+
+        return True
+
+        # Now do whatever MainWindow does and create that dock thing
 
 
 class OTExchange(QtCore.QObject):
@@ -73,9 +295,8 @@ class OTExchange(QtCore.QObject):
         # market_id -> scale
         self.scales = dict()
 
-        storable = otapi.QueryObject(otapi.STORED_OBJ_MARKET_LIST,
-                                     'markets', self.server_id,
-                                     'market_data.bin')
+        storable = otapi.QueryObject(otapi.STORED_OBJ_MARKET_LIST, 'markets',
+                                     self.server_id, 'market_data.bin')
         market_list = otapi.MarketList.ot_dynamic_cast(storable)
         for i in range(market_list.GetMarketDataCount()):
             data = market_list.GetMarketData(i)
@@ -181,6 +402,12 @@ class OTExchange(QtCore.QObject):
         c_contract = tulpenmanie.ot.contract.CurrencyContract(c_asset_id)
         return ( b_contract.getFactor(), c_contract.getFactor(), )
 
+    def getRemotePair(self, market_id):
+        return self.assets[market_id]
+
+    def getScale(self, market_id):
+        return int(self.scales[market_id])
+
     def getTickerProxy(self, market_id):
         if market_id not in self.ticker_proxies:
             ticker_proxy = tulpenmanie.data.ticker.TickerProxy(self)
@@ -188,10 +415,8 @@ class OTExchange(QtCore.QObject):
             return ticker_proxy
         return self.ticker_proxies[market_id]
 
-    def getRemotePair(self, market_id):
-        return self.assets[market_id]
-
     def populateMenuBar(self, menu_bar, market_id):
+
         # Make submenus
         exchange_menu = menu_bar.getExchangeMenu()
         nyms_menu = CurrentNymMenu(
@@ -350,15 +575,13 @@ class OTExchange(QtCore.QObject):
 
     def setDefaultAccounts(self, marketId):
         # I guess we could just read from settings each time, but ram is cheap
-        baseAccountId, counterAccountId = self.accounts[marketId]
         settings = QtCore.QSettings()
         settings.beginGroup('OT-defaults')
         settings.beginGroup(self.server_id)
         settings.setValue('nym', self.nym_id)
-        settings.endGroup()
-        settings.beginGroup(marketId)
-        settings.setValue('base_account', baseAccountId)
-        settings.setValue('counter_account', counterAccountId)
+
+        b_ac_id, c_ac_id = self.accounts[marketId]
+        saveMarketAccountSettings(self.server_id, marketId, b_ac_id, c_ac_id)
 
     def setTickerStreamState(self, state, market_id):
         if state is True:
@@ -698,5 +921,7 @@ def parse_servers():
             exchange_proxy.market_map[market_data.market_id] = local_pair
             tulpenmanie.markets.container.addExchange(exchange_proxy,
                                                        local_pair)
+        if exchange_proxy:
+            tulpenmanie.exchanges.container.addExchange(exchange_proxy)
 
 parse_servers()
