@@ -120,6 +120,9 @@ class ExchangeDockWidget(QtGui.QDockWidget, ErrorHandling):
         if not hasattr(self.exchange_obj, 'getScale'):
             return
 
+        proxy = self.exchange_obj.getAccountValidityProxy(self.remote_market)
+        proxy.accountValidityChanged.connect(self.enableAccount)
+
         action = self.menu_bar.getMarketMenu().addAction(
             QtCore.QCoreApplication.translate('ScaleSelectDialog',
                                               "Select market scale",
@@ -127,6 +130,16 @@ class ExchangeDockWidget(QtGui.QDockWidget, ErrorHandling):
                                               "the ScaleSelectDialog"))
 
         action.triggered.connect(self.showScaleSelectDialog)
+        
+        #self.exchange_obj.checkAccountValidity(self.remote_market)
+
+    def enableAccount(self, enable):
+        if enable and (self.account_obj is None):
+            self.createAccountWidget()
+            return
+
+        if self.account_widget:
+            self.account_widget.enableAccount(enable)
 
     def enableExchange(self, enable):
         self.setEnabled(enable)

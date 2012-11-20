@@ -258,7 +258,6 @@ class ShowTradeDockAction(QtGui.QAction):
         self.dock.enableExchange(state)
 
     def createDock(self):
-
         marketPair = self.exchange_proxy.remoteToLocal(self.marketID)
         self.dock = tulpenmanie.ui.exchange.ExchangeDockWidget(
                 self.exchange_proxy, marketPair, self.marketID, self)

@@ -23,6 +23,7 @@ from PyQt4 import QtCore, QtGui
 import tulpenmanie.markets
 import tulpenmanie.exchanges
 import tulpenmanie.exchange
+import tulpenmanie.data.account
 import tulpenmanie.data.ticker
 import tulpenmanie.model.ot.accounts
 import tulpenmanie.model.ot.assets
@@ -77,11 +78,9 @@ class OTExchangeProxy(object, tulpenmanie.exchange.ExchangeProxy):
     #    return self.local_market_map[remoteMarketID]
 
     def getRemoteMarketIDs(self, localPair):
-        print self.local_market_map
         return self.local_market_map[ str(localPair)]
 
     def getPrettyMarketName(self, remote_market_id):
-        print "marketid", remote_market_id
         storable = otapi.QueryObject(otapi.STORED_OBJ_MARKET_LIST,
                                      'markets', self.id,
                                      'market_data.bin')
@@ -89,7 +88,6 @@ class OTExchangeProxy(object, tulpenmanie.exchange.ExchangeProxy):
         for i in range(market_list.GetMarketDataCount()):
             data = market_list.GetMarketData(i)
             if data.market_id == remote_market_id: break
-            print "market scale", data.scale
             return QtCore.QCoreApplication.translate('OTExchangeProxy',
                 "Scale %1",
                 "The market scale, there should be a note on this somewhere "
@@ -316,6 +314,7 @@ class OTExchange(QtCore.QObject, tulpenmanie.exchange.Exchange):
         super(OTExchange, self).__init__(parent)
         self.server_id = serverID
         self.account_object = None
+        self.account_validity_proxies = dict()
         self.ticker_proxies = dict()
         self.ticker_clients = dict()
         # market_id -> [base_id, counter_id]
@@ -398,6 +397,7 @@ class OTExchange(QtCore.QObject, tulpenmanie.exchange.Exchange):
 
         if self.account_object:
             self.account_object.changeBaseAccount(market_id, account_id)
+        self.checkAccountValidity(market_id)
 
     def changeCounterAccount(self, market_id, account_id):
         settings = QtCore.QSettings()
@@ -413,6 +413,14 @@ class OTExchange(QtCore.QObject, tulpenmanie.exchange.Exchange):
 
         if self.account_object:
             self.account_object.changeCounterAccount(market_id, account_id)
+        self.checkAccountValidity(market_id)
+
+    def checkAccountValidity(self, market_id):
+        if market_id not in self.account_validity_proxies:
+            return
+        proxy = self.account_validity_proxies[market_id]
+        proxy.accountValidityChanged.emit(
+            (None not in self.accounts[market_id]) )
 
     def echoTicker(self, market_id=None):
         self.readMarketList()
@@ -437,6 +445,13 @@ class OTExchange(QtCore.QObject, tulpenmanie.exchange.Exchange):
 
     def getScale(self, market_id):
         return int(self.scales[market_id])
+
+    def getAccountValidityProxy(self, market_id):
+        if market_id not in self.account_validity_proxies:
+            validity_proxy = tulpenmanie.data.account.AccountValidityProxy(self)
+            self.account_validity_proxies[market_id] = validity_proxy
+            return validity_proxy
+        return self.account_validity_proxies[market_id]
 
     def getTickerProxy(self, market_id):
         if market_id not in self.ticker_proxies:
@@ -604,7 +619,6 @@ class OTExchange(QtCore.QObject, tulpenmanie.exchange.Exchange):
             self.readTrades(market_id)
 
     def setDefaultAccounts(self, marketId):
-        # I guess we could just read from settings each time, but ram is cheap
         settings = QtCore.QSettings()
         settings.beginGroup('OT-defaults')
         settings.beginGroup(self.server_id)
@@ -618,27 +632,6 @@ class OTExchange(QtCore.QObject, tulpenmanie.exchange.Exchange):
             self.startTickerStream(market_id)
             return
         self.stopTickerStream(market_id)
-
-    def showAccountDialog(self, market_id, parent=None):
-        base_id, counter_id = self.assets[market_id]
-        dialog = tulpenmanie.ui.ot.account.MarketAccountsDialog(self.server_id,
-                                                                base_id,
-                                                                counter_id,
-                                                                parent)
-        if dialog.exec_():
-            b_ac_i = str(dialog.getBaseAccountId())
-            c_ac_i = str(dialog.getCounterAccountId())
-            assert (otapi.OT_API_GetAccountWallet_NymID(b_ac_i)
-                    == otapi.OT_API_GetAccountWallet_NymID(c_ac_i))
-            assert (otapi.OT_API_GetAccountWallet_ServerID(b_ac_i)
-                    == otapi.OT_API_GetAccountWallet_ServerID(c_ac_i))
-
-            self.nym_id = str(dialog.getNymId())
-            self.accounts[market_id] = (b_ac_i, c_ac_i)
-            self.setDefaultAccounts(market_id)
-            return True
-
-        return False
 
     def startTickerStream(self, market_id=None):
         if self.ticker_clients == 0:
@@ -856,6 +849,7 @@ class ChangeAccountAction(QtGui.QAction):
 
 
 class NymAccountMenu(QtGui.QMenu):
+
     template = QtCore.QCoreApplication.translate('OTExchange',
                                                  "Current account: %1",
                                                  "%1 will be replaced with the "
