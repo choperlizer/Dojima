@@ -48,13 +48,14 @@ def saveMarketAccountSettings(server_id, market_id, b_ac_id, c_ac_id):
     settings.setValue('counter_account', c_ac_id)
 
 
-class OTExchangeProxy(object):
+class OTExchangeProxy(object, tulpenmanie.exchange.ExchangeProxy):
 
     def __init__(self, serverId, marketList):
         self.id = serverId
         self.market_list = marketList
         self.exchange_object = None
-        self.market_map = dict()
+        self.local_market_map = dict()
+        self.remote_market_map = dict()
 
     @property
     def name(self):
@@ -66,17 +67,47 @@ class OTExchangeProxy(object):
 
         return self.exchange_object
 
-    def getMapping(self, key):
-        return self.market_map[key]
+    def getLocalMapping(self, key):
+        return self.local_market_map[key]
+
+    def getRemoteMapping(self, key):
+        return self.remote_market_map[key]
+
+    #def getLocalMarketIDs(self, remoteMarketID):
+    #    return self.local_market_map[remoteMarketID]
+
+    def getRemoteMarketIDs(self, localPair):
+        print self.local_market_map
+        return self.local_market_map[ str(localPair)]
+
+    def getPrettyMarketName(self, remote_market_id):
+        print "marketid", remote_market_id
+        storable = otapi.QueryObject(otapi.STORED_OBJ_MARKET_LIST,
+                                     'markets', self.id,
+                                     'market_data.bin')
+        market_list = otapi.MarketList.ot_dynamic_cast(storable)
+        for i in range(market_list.GetMarketDataCount()):
+            data = market_list.GetMarketData(i)
+            if data.market_id == remote_market_id: break
+            print "market scale", data.scale
+            return QtCore.QCoreApplication.translate('OTExchangeProxy',
+                "Scale %1",
+                "The market scale, there should be a note on this somewhere "
+                "around here.").arg(data.scale)
+        return "couldn't find scale"
 
     def nextPage(self, wizard=None):
         return OTServerWizardPage(self.name, self.id, wizard)
 
+    def remoteToLocal(self, marketID):
+        return self.remote_market_map[marketID]
+
 
 class OTServerWizardPage(QtGui.QWizardPage):
 
-    def __init__(self, title, server_id, wizard):
-        super(OTServerWizardPage, self).__init__(wizard)
+    def __init__(self, title, server_id, parent):
+        super(OTServerWizardPage, self).__init__(parent)
+        self.wizard = parent
         self.server_id = server_id
         self.setTitle(title)
         self.setSubTitle(
@@ -148,14 +179,14 @@ class OTServerWizardPage(QtGui.QWizardPage):
                                               "New Nym",
                                               "The button next to the nym"
                                               "combo box."))
-        self.base_account_combo = QtGui.QComboBox()
+        self.base_account_combo = tulpenmanie.ui.ot.views.ComboBox()
         base_label = QtGui.QLabel(
             QtCore.QCoreApplication.translate('OTServerWizardPage',
                                               "Base account:",
                                               "The account of the base asset to "
                                               "use with this market."))
         base_label.setBuddy(self.base_account_combo)
-        self.counter_account_combo = QtGui.QComboBox()
+        self.counter_account_combo = tulpenmanie.ui.ot.views.ComboBox()
         counter_label = QtGui.QLabel(
             QtCore.QCoreApplication.translate('OTServerWizardPage',
                                               "Counter account:",
@@ -214,12 +245,14 @@ class OTServerWizardPage(QtGui.QWizardPage):
         new_account_button.clicked.connect(self.showNewAccountDialog)
         refresh_markets_button.clicked.connect(self.refreshMarkets)
         self.nym_combo.otIdChanged.connect(self.changeNym)
-        # need to use a nym_id instead of a row integer
-        #self.changeNym(0)
+
+        # select
+        self.markets_view.selectRow(0)
+        self.nym_combo.currentIndexChanged.emit(0)
 
     def isComplete(self):
-        return (self.base_account_combo.currentIndex() !=
-                self.counter_account_combo.currentIndex())
+        return (self.base_account_combo.getOTID() !=
+                self.counter_account_combo.getOTID())
 
     def isFinalPage(self):
         return True
@@ -243,14 +276,9 @@ class OTServerWizardPage(QtGui.QWizardPage):
             self.refreshMarkets()
 
     def validatePage(self):
-        nym_id = self.nym_combo.itemData(self.nym_combo.currentIndex(),
-                                         QtCore.Qt.UserRole)
-        b_ac_id = self.base_account_combo.itemData(
-            self.base_account_combo.currentIndex(),
-            QtCore.Qt.UserRole)
-        c_ac_id = self.counter_account_combo.itemData(
-            self.counter_account_combo.currentIndex(),
-            QtCore.Qt.UserRole)
+        nym_id = self.nym_combo.getOTID()
+        b_ac_id = self.base_account_combo.getOTID()
+        c_ac_id = self.counter_account_combo.getOTID()
 
         b_as_id = otapi.OT_API_GetAccountWallet_AssetTypeID( str(b_ac_id))
         c_as_id = otapi.OT_API_GetAccountWallet_AssetTypeID( str(c_ac_id))
@@ -275,9 +303,11 @@ class OTServerWizardPage(QtGui.QWizardPage):
         return True
 
         # Now do whatever MainWindow does and create that dock thing
+        # scratch that, just save the settings, and the when the wizard closes
+        # the mainwindow can reload the markets
 
 
-class OTExchange(QtCore.QObject):
+class OTExchange(QtCore.QObject, tulpenmanie.exchange.Exchange):
 
     exchange_error_signal = QtCore.pyqtSignal(str)
     balance_proxies = dict()
@@ -912,15 +942,24 @@ def parse_servers():
                 row, assets_mapping_model.LOCAL_ID).text()
 
             local_pair = local_base_id + '_' + local_counter_id
+            local_pair = str(local_pair)
 
             if exchange_proxy is None:
                 exchange_proxy = OTExchangeProxy(server_id, market_list)
 
-            exchange_proxy.market_map[local_pair] = market_data.market_id
-            # may not need this reverse map but whatever
-            exchange_proxy.market_map[market_data.market_id] = local_pair
+
+            if local_pair in exchange_proxy.local_market_map:
+                local_map = exchange_proxy.local_market_map[local_pair]
+            else:
+                local_map = list()
+                exchange_proxy.local_market_map[local_pair] = local_map
+
+            if market_data.market_id not in local_map:
+                local_map.append(market_data.market_id)
+
+            exchange_proxy.remote_market_map[market_data.market_id] = local_pair
             tulpenmanie.markets.container.addExchange(exchange_proxy,
-                                                       local_pair)
+                                                      local_pair)
         if exchange_proxy:
             tulpenmanie.exchanges.container.addExchange(exchange_proxy)
 

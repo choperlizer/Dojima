@@ -79,9 +79,31 @@ class MainWindow(QtGui.QMainWindow):
 
         self.setDockNestingEnabled(True)
 
-        self.parse_markets()
+        self.refreshMarkets()
 
-        self.docks = set()
+    def refreshMarkets(self):
+        for market_container in tulpenmanie.markets.container:
+            if market_container.pair in self.markets_menu:
+                market_menu = self.markets_menu.getMarketMenu(
+                    market_container.pair)
+            else:
+                market_menu = self.markets_menu.addMarketMenu(
+                    market_container.pair, market_container.prettyName())
+
+            for exchange_proxy in market_container:
+                # This exchange proxy has multiple markets, we only want
+                # the ones that mapped to the local pair
+                if exchange_proxy.id in market_menu:
+                    exchange_menu = market_menu.getExchangeMenu(
+                        exchange_proxy.id)
+                else:
+                    exchange_menu = market_menu.addExchangeMenu(
+                        exchange_proxy.id, exchange_proxy.name)
+                    for market_id in exchange_proxy.getRemoteMarketIDs(
+                            str(market_container.pair)):
+                        if market_id not in exchange_menu:
+                            action = exchange_menu.addMarketAction(
+                                exchange_proxy, market_id)
 
     def showAddMarketsWizard(self):
         wizard = tulpenmanie.ui.market.AddMarketsWizard(self)
@@ -91,16 +113,16 @@ class MainWindow(QtGui.QMainWindow):
         dialog = tulpenmanie.ui.edit.EditDefinitionsDialog(self)
         dialog.exec_()
 
-
     def parse_markets(self):
         for market in tulpenmanie.markets.container:
             if market.pair in self.markets_menu:
-                menu = self.markets_menu.getSubmenu(market.pair)
+                menu = self.markets_menu.getSubMenu(market.pair)
             else:
-                menu = self.markets_menu.addSubmenu(market.pair,
+                menu = self.markets_menu.addSubMenu(market.pair,
                                                     market.prettyName())
 
             for exchange_proxy in market:
+
                 action = ShowTradeDockAction(exchange_proxy, market.pair, self)
                 menu.addAction(action)
 
@@ -144,9 +166,32 @@ class MainWindow(QtGui.QMainWindow):
         event.accept()
 
 
+# Don't nest the menu building, this way the exchange proxy is always available
+
+class ExchangeMarketsMenu(QtGui.QMenu):
+
+    def __init__(self, exchange_id, exchange_name, parent=None):
+        super(ExchangeMarketsMenu, self).__init__(exchange_name, parent)
+        self.actions = dict()
+
+    def __contains__(self, market_id):
+        return (market_id in self.actions)
+
+    def addMarketAction(self, exchangeProxy, marketID):
+        action = ShowTradeDockAction(exchangeProxy, marketID, self)
+        self.addAction(action)
+        return action
+
+    def getAction(self, remote_market_id):
+        return self.actions[remote_market_id]
+
+    def getMainWindow(self):
+        return self.parent().getMainWindow()
+
+
 class MarketsMenu(QtGui.QMenu):
 
-    def __init__(self, parent=None):
+    def __init__(self, parent):
         super(MarketsMenu, self).__init__(
             QtCore.QCoreApplication.translate("MainWindow", "&market"),
             parent)
@@ -155,37 +200,51 @@ class MarketsMenu(QtGui.QMenu):
     def __contains__(self, marketId):
         return (marketId in self.submenus)
 
-    def getSubmenu(self, marketId):
-        return self.submenus[marketId]
-
-    def addSubmenu(self, marketId, marketName):
-        submenu = MarketSubMenu(marketName, self)
+    def addMarketMenu(self, marketId, marketName):
+        submenu = MarketMenu(marketId, marketName, self)
         self.addMenu(submenu)
         self.submenus[marketId] = submenu
         return submenu
 
+    def getMarketMenu(self, marketId):
+        return self.submenus[marketId]
 
-class MarketSubMenu(QtGui.QMenu):
+    def getMainWindow(self):
+        return self.parent()
 
-    def __init__(self, marketName, parent=None):
-        super(MarketSubMenu, self).__init__(marketName, parent)
-        # now I have to deal with exchanges with multiple markets for a pair
+
+class MarketMenu(QtGui.QMenu):
+
+    def __init__(self, marketID, marketName, parent=None):
+        super(MarketMenu, self).__init__(marketName, parent)
+        self.exchanges = dict()
+
+    def __contains__(self, exchange_id):
+        return (exchange_id in self.exchanges)
+
+    def getExchangeMenu(self, exchangeID):
+        return self.exchanges[exchangeID]
+
+    def addExchangeMenu(self, exchangeID, exchangeName):
+        menu = ExchangeMarketsMenu(exchangeID, exchangeName, self)
+        self.addMenu(menu)
+        self.exchanges[exchangeID] = menu
+        return menu
+
+    def getMainWindow(self):
+        return self.parent().getMainWindow()
+
 
 class ShowTradeDockAction(QtGui.QAction):
 
-    def __init__(self, exchangeProxy, marketPair, parent):
-        super(ShowTradeDockAction, self).__init__(exchangeProxy.name,
-                                                    parent)
+    def __init__(self, exchangeProxy, marketID, parent):
+        super(ShowTradeDockAction, self).__init__(parent)
         self.setCheckable(True)
         self.exchange_proxy = exchangeProxy
-        self.market_pair = marketPair
+        self.marketID = marketID
         self.dock = None
 
-        # now I need to overwrite the activate method to show the dialog
-        # if I want the market pair I can get that from the parent() menu
-
-        # this action will also have to display something to differentiate
-        # markets with different minimum orders
+        self.setText(self.exchange_proxy.getPrettyMarketName(marketID))
 
         self.triggered.connect(self.enableExchange)
 
@@ -199,12 +258,12 @@ class ShowTradeDockAction(QtGui.QAction):
         self.dock.enableExchange(state)
 
     def createDock(self):
-        # these nested docks may not be needed, but rather a set
-        main_window = self.parent()
 
+        marketPair = self.exchange_proxy.remoteToLocal(self.marketID)
         self.dock = tulpenmanie.ui.exchange.ExchangeDockWidget(
-                self.exchange_proxy, self.market_pair, self)
-        main_window.addDockWidget(QtCore.Qt.LeftDockWidgetArea, self.dock)
+                self.exchange_proxy, marketPair, self.marketID, self)
+        self.parent().getMainWindow().addDockWidget(
+            QtCore.Qt.LeftDockWidgetArea, self.dock)
         # may not need this to keep the dock instance alive
         #main_window.docks.add(dock)
 

@@ -20,6 +20,12 @@ import tulpenmanie.data.balance
 #import tulpenmanie.data.orders
 
 
+class ExchangeProxy:
+
+    def getPrettyInterMarketName(self, remoteMarketID):
+        raise NotImplementedError
+
+
 class Exchange:
 
     def echoTicker(self, remoteMarketID):

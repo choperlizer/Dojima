@@ -19,6 +19,11 @@ from tulpenmanie.model.commodities import commodities_model
 
 class MarketsContainer(object):
 
+    """ A container for containers that hold ExchangeProxys.
+
+        Each ExchangeProxy may contain multiple markets.
+    """
+
     def __init__(self):
         self.markets = dict()
 

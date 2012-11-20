@@ -38,7 +38,7 @@ class ErrorHandling(object):
 
 class ExchangeDockWidget(QtGui.QDockWidget, ErrorHandling):
 
-    def __init__(self, exchangeProxy, marketPair, action, parent=None):
+    def __init__(self, exchangeProxy, marketPair, marketID, action, parent=None):
         exchange_name = exchangeProxy.name
         self.base_id, self.counter_id = marketPair.split('_')
 
@@ -59,7 +59,7 @@ class ExchangeDockWidget(QtGui.QDockWidget, ErrorHandling):
 
         super(ExchangeDockWidget, self).__init__(title, parent)
 
-        self.remote_market = exchangeProxy.getMapping(marketPair)
+        self.remote_market = marketID
 
         self.account_obj = None
         self.exchange_obj = exchangeProxy.getExchangeObject()

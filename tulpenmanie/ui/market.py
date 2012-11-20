@@ -27,8 +27,9 @@ logger = logging.getLogger(__name__)
 
 class AddMarketsWizard(QtGui.QWizard):
 
-    def __init__(self, parent=None):
+    def __init__(self, parent):
         super(AddMarketsWizard, self).__init__(parent)
+        self.main_window = parent
         self.addPage(SelectExchangePage(self))
 
 
