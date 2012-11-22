@@ -1,4 +1,4 @@
-# Tulpenmanie
+# Dōjima
 A graphical markets client in PyQt4 that aims to provide a normalized 
 trading experience across disparate markets, exchanges, and assets, with a 
 GUI targeted at users with multi-monitor and tiling window managers.
@@ -21,11 +21,11 @@ If you don't want to commit to a sudo, you can install to ~/.local
 
     python setup.py install --user
     # You'll need ~/.local/bin in your PATH or 
-    # you'll have to run the command  ~/.local/bin/tulpenmanie
+    # you'll have to run the command  ~/.local/bin/dojima
 
 ## Notes
 ### Getting started
-Tulpenmanie makes no assumptions about what you trade, so you must first define
+Dōjima makes no assumptions about what you trade, so you must first define
 commodities, markets, and set exchange settings in the options->definitions
 menu.
 
@@ -40,7 +40,7 @@ Requests are queue in the following descending priority:
 
 ### Credential storage
 Settings and API credentials are stored plain-text. On POSIX systems there are at
-'~/.config/Emery Hemingway/tulpenmanie.conf' and on windows they are stored in 
+'~/.config/Emery/dojima.conf' and on windows they are stored in 
 the registry.
 
 ### Exchange Modules
