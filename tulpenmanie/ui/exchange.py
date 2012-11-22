@@ -130,7 +130,7 @@ class ExchangeDockWidget(QtGui.QDockWidget, ErrorHandling):
                                               "the ScaleSelectDialog"))
 
         action.triggered.connect(self.showScaleSelectDialog)
-        
+
         #self.exchange_obj.checkAccountValidity(self.remote_market)
 
     def enableAccount(self, enable):
@@ -242,32 +242,13 @@ class AccountWidget(QtGui.QWidget, ErrorHandling):
         self.account_obj = account_object
         self.market_id = parent.remote_market
 
-        if parent.base_factor > 1:
-            BaseSpinBox = tulpenmanie.ui.widget.AssetDecimalSpinBox
-            BaseAmountLabel = tulpenmanie.ui.widget.AssetDecimalAmountLabel
-            BaseBalanceLabel = tulpenmanie.ui.widget.BalanceDecimalLabel
-        else:
-            BaseSpinBox = tulpenmanie.ui.widget.AssetIntSpinBox
-            BaseAmountLabel = tulpenmanie.ui.widget.AssetIntAmountLabel
-            BaseBalanceLabel = tulpenmanie.ui.widget.BalanceIntLabel
-
-        if parent.counter_factor > 1:
-            CounterSpinBox = tulpenmanie.ui.widget.AssetDecimalSpinBox
-            CounterAmountLabel = tulpenmanie.ui.widget.AssetDecimalAmountLabel
-            CounterBalanceLabel = tulpenmanie.ui.widget.BalanceDecimalLabel
-        else:
-            CounterSpinBox = tulpenmanie.ui.widget.AssetIntSpinBox
-            CounterAmountLabel = tulpenmanie.ui.widget.AssetIntAmountLabel
-            CounterBalanceLabel = tulpenmanie.ui.widget.BalanceIntLabel
-        # Now use the widget class references below
-
         # Create UI
         layout = QtGui.QGridLayout()
 
-        self.base_balance_label = BaseBalanceLabel(
-            parent.base_factor, parent.base_precision)
-        self.counter_balance_label = CounterBalanceLabel(
-                parent.counter_factor, parent.counter_precision)
+        self.base_balance_label = tulpenmanie.ui.widget.AssetAmountView(
+            parent.base_factor)
+        self.counter_balance_label = tulpenmanie.ui.widget.AssetAmountView(
+            parent.counter_factor)
 
         refresh_balance_action = QtGui.QAction(
             QtCore.QCoreApplication.translate('AccountWidget',
@@ -282,30 +263,24 @@ class AccountWidget(QtGui.QWidget, ErrorHandling):
             label.setContextMenuPolicy(QtCore.Qt.ActionsContextMenu)
             label.addAction(refresh_balance_action)
 
-        layout.addWidget(self.base_balance_label, 0,0, 1,3)
-        layout.addWidget(self.counter_balance_label, 0,3, 1,3)
+        self.ask_amount_spin = tulpenmanie.ui.widget.AssetSpinBox(
+            parent.base_factor)
+        self.bid_amount_spin = tulpenmanie.ui.widget.AssetSpinBox(
+            parent.base_factor)
 
-        self.ask_amount_spin = BaseSpinBox(parent.base_factor,
-                                           parent.base_precision)
+        self.ask_price_spin = tulpenmanie.ui.widget.AssetSpinBox(
+            parent.counter_factor)
 
-        self.bid_amount_spin = BaseSpinBox(parent.base_factor,
-                                           parent.base_precision)
+        self.bid_price_spin = tulpenmanie.ui.widget.AssetSpinBox(
+            parent.counter_factor)
 
-        self.ask_price_spin = CounterSpinBox(parent.counter_factor,
-                                             parent.counter_precision)
+        self.ask_estimate_view = tulpenmanie.ui.widget.AssetAmountView(
+            parent.counter_factor)
+        self.ask_estimate_view.setDisabled(True)
 
-        self.bid_price_spin = CounterSpinBox(parent.counter_factor,
-                                             parent.counter_precision)
-
-        self.ask_amount_label = CounterAmountLabel(
-            parent.counter_factor, parent.counter_precision)
-        self.ask_counter_estimate_label = CounterAmountLabel(
-            parent.counter_factor, parent.counter_precision)
-
-        self.bid_amount_label = CounterAmountLabel(
-            parent.counter_factor, parent.counter_precision)
-        self.bid_counter_estimate_label = CounterAmountLabel(
-            parent.counter_factor, parent.counter_precision)
+        self.bid_estimate_view = tulpenmanie.ui.widget.AssetAmountView(
+            parent.counter_factor)
+        self.bid_estimate_view.setDisabled(True)
 
         # Set the prefixi and suffixi
         base_prefix = commodities_model.item(
@@ -333,15 +308,15 @@ class AccountWidget(QtGui.QWidget, ErrorHandling):
         if counter_prefix:
             for widget in (self.counter_balance_label,
                            self.ask_price_spin, self.bid_price_spin,
-                           self.ask_amount_label,
-                           self.bid_amount_label):
+                           self.ask_estimate_view,
+                           self.bid_estimate_view):
                 widget.setPrefix(counter_prefix)
 
         if counter_suffix:
             for widget in (self.counter_balance_label,
                            self.ask_price_spin, self.bid_price_spin,
-                           self.ask_amount_label,
-                           self.bid_amount_label):
+                           self.ask_estimate_view,
+                           self.bid_estimate_view):
                 widget.setSuffix(counter_suffix)
 
         ask_button = QtGui.QPushButton(
@@ -380,19 +355,22 @@ class AccountWidget(QtGui.QWidget, ErrorHandling):
         at_seperator = QtCore.QCoreApplication.translate('AccountWidget',
                                                          "@", "amount @ price")
 
-        layout.addWidget(self.ask_amount_spin, 2,0)
-        layout.addWidget(QtGui.QLabel(at_seperator), 2,1)
-        layout.addWidget(self.ask_price_spin, 2,2)
-        layout.addWidget(ask_button, 3,0, 2,1)
-        layout.addWidget(self.ask_amount_label, 4,2,)
-        layout.addWidget(self.ask_counter_estimate_label, 4,2,)
+        layout.addWidget(self.base_balance_label, 0,0, 1,3)
+        layout.addWidget(self.counter_balance_label, 0,3, 1,3)
 
-        layout.addWidget(self.bid_amount_spin, 2,3)
-        layout.addWidget(QtGui.QLabel(at_seperator), 2,4)
-        layout.addWidget(self.bid_price_spin, 2,5)
-        layout.addWidget(bid_button, 3,3, 2,1)
-        layout.addWidget(self.bid_amount_label, 3,5)
-        layout.addWidget(self.bid_counter_estimate_label, 4,5)
+        layout.addWidget(self.ask_amount_spin, 1,0)
+        layout.addWidget(QtGui.QLabel(at_seperator), 1,1)
+        layout.addWidget(self.ask_price_spin, 1,2)
+
+        layout.addWidget(ask_button, 2,0, 1,2)
+        layout.addWidget(self.ask_estimate_view, 2,2)
+
+        layout.addWidget(self.bid_amount_spin, 1,3)
+        layout.addWidget(QtGui.QLabel(at_seperator), 1,4)
+        layout.addWidget(self.bid_price_spin, 1,5)
+
+        layout.addWidget(bid_button, 2,3, 1,2)
+        layout.addWidget(self.bid_estimate_view, 2,5)
 
         for spin in (self.ask_amount_spin, self.bid_amount_spin,
                      self.ask_price_spin,self.bid_price_spin):
@@ -432,14 +410,11 @@ class AccountWidget(QtGui.QWidget, ErrorHandling):
         self.setLayout(layout)
 
         # inter-widget connections
-        self.ask_amount_spin.valueChanged[int].connect(
-            self.ask_amount_changed)
-        self.bid_amount_spin.valueChanged[int].connect(
-            self.bid_amount_changed)
+        self.ask_amount_spin.editingFinished.connect(self.ask_offer_changed)
+        self.bid_amount_spin.editingFinished.connect(self.bid_offer_changed)
 
-        self.ask_price_spin.valueChanged[int].connect(self.ask_price_changed)
-        self.bid_price_spin.valueChanged[int].connect(self.bid_price_changed)
-
+        self.ask_price_spin.editingFinished.connect(self.ask_offer_changed)
+        self.bid_price_spin.editingFinished.connect(self.bid_offer_changed)
 
         # Connect to account
         # these are remote ids, not local
@@ -470,15 +445,15 @@ class AccountWidget(QtGui.QWidget, ErrorHandling):
             b_ac_id)
         self.base_balance_proxy.balance.connect(
             self.base_balance_label.setValue)
-        self.base_balance_proxy.balance_changed.connect(
-            self.base_balance_label.change_value)
+        #self.base_balance_proxy.balance_changed.connect(
+        #    self.base_balance_label.change_value)
 
         self.counter_balance_proxy = self.account_obj.getBalanceProxy(
             c_ac_id)
         self.counter_balance_proxy.balance.connect(
             self.counter_balance_label.setValue)
-        self.counter_balance_proxy.balance_changed.connect(
-            self.counter_balance_label.change_value)
+        #self.counter_balance_proxy.balance_changed.connect(
+        #    self.counter_balance_label.change_value)
 
         offers_model = self.account_obj.getOffersModel(self.market_id)
         # SELLING == OT_TRUE, BUYING == OT_FALSE
@@ -530,25 +505,29 @@ class AccountWidget(QtGui.QWidget, ErrorHandling):
             offer_id = item.text()
             self.account_obj.cancelBidOffer(self.market_id, offer_id)
 
-    def ask_amount_changed(self, base_amount):
-        if not base_amount:
-            self.ask_amount_label.clear()
-            return
+    def ask_offer_changed(self):
+        amount = self.ask_amount_spin.value()
+        if not amount: return
         price = self.ask_price_spin.value()
-        if not price:
-            self.ask_amount_label.clear()
-            return
-        self.change_ask_counter(base_amount, price)
+        if not price: return
 
-    def ask_price_changed(self, price):
-        if not price:
-            self.ask_amount_label.clear()
-            return
-        base_amount = self.ask_amount_spin.value()
-        if not base_amount:
-            self.ask_amount_label.clear()
-            return
-        self.change_ask_counter(base_amount, price)
+        estimate = amount * price
+        commission = self.account_obj.getCommission(estimate, self.market_id)
+        if commission: estimate -= commission
+
+        self.ask_estimate_view.setValue(estimate)
+
+    def bid_offer_changed(self):
+        amount = self.bid_amount_spin.value()
+        if not amount: return
+        price = self.bid_price_spin.value()
+        if not price: return
+
+        estimate = amount * price
+        commission = self.account_obj.getCommission(estimate, self.market_id)
+        if commission: estimate -= commission
+
+        self.bid_estimate_view.setValue(estimate)
 
     def changeAccount(self, market_id):
         print "market changed for", market_id
@@ -562,12 +541,14 @@ class AccountWidget(QtGui.QWidget, ErrorHandling):
             return
         print "account_obj does have valid accounts"
 
+        """
         if hasattr(self, 'base_balance_proxy'):
             self.base_balance_proxy.balance_changed.disconnect(
                 self.base_balance_label.change_value)
         if hasattr(self, 'counter_balance_proxy'):
             self.counter_balance_proxy.balance_changed.disconnect(
                 self.counter_balance_label.change_value)
+        """
 
         b_ac_id, c_ac_id = self.account_obj.getAccountPair(self.market_id)
 
@@ -587,43 +568,19 @@ class AccountWidget(QtGui.QWidget, ErrorHandling):
 
     def change_ask_counter(self, base_amount, price):
         counter_amount = base_amount * price
-        self.ask_amount_label.setValue(counter_amount)
-        commission = self.account_obj.getCommission(counter_amount,
-                                                self.market_id)
+        #self.ask_amount_label.setValue(counter_amount)
+
         if commission:
-            self.ask_counter_estimate_label.setValue(counter_amount - commission)
-            return
-        self.ask_counter_estimate_label.clear()
+            counter_amount -= commission
+
+        self.ask_estimate_view.setValue(counter_amount)
 
     def change_bid_counter(self, base_amount, price):
         counter_amount = base_amount * price
-        self.bid_amount_label.setValue(counter_amount)
         commission = self.account_obj.getCommission(counter_amount,
                                                 self.market_id)
         if commission:
-            self.bid_counter_estimate_label.setValue(counter_amount - commission)
-        else:
-            self.bid_counter_estimate_label.clear()
-
-    def bid_amount_changed(self, base_amount):
-        if not base_amount:
-            self.bid_amount_label.clear()
-            return
-        price = self.bid_price_spin.value()
-        if not price:
-            self.bid_amount_label.clear()
-            return
-        self.change_bid_counter(base_amount, price)
-
-    def bid_price_changed(self, price):
-        if not price:
-            self.bid_amount_label.clear()
-            return
-        base_amount = self.bid_amount_spin.value()
-        if not base_amount:
-            self.bid_amount_label.clear()
-        else:
-            self.change_bid_counter(base_amount, price)
+            counter_amount -= commission
 
     def refreshBalance(self):
         self.account_obj.refreshBalance(self.market_id)

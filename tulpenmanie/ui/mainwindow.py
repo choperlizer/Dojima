@@ -81,7 +81,7 @@ class MainWindow(QtGui.QMainWindow):
 
         self.refreshMarkets()
 
-    def refreshMarkets(self):
+    def refreshMarkets(self, showNew=False):
         for market_container in tulpenmanie.markets.container:
             if market_container.pair in self.markets_menu:
                 market_menu = self.markets_menu.getMarketMenu(
@@ -104,6 +104,7 @@ class MainWindow(QtGui.QMainWindow):
                         if market_id not in exchange_menu:
                             action = exchange_menu.addMarketAction(
                                 exchange_proxy, market_id)
+                            if showNew: action.toggle()
 
     def showAddMarketsWizard(self):
         wizard = tulpenmanie.ui.market.AddMarketsWizard(self)
@@ -113,60 +114,6 @@ class MainWindow(QtGui.QMainWindow):
         dialog = tulpenmanie.ui.edit.EditDefinitionsDialog(self)
         dialog.exec_()
 
-    def parse_markets(self):
-        for market in tulpenmanie.markets.container:
-            if market.pair in self.markets_menu:
-                menu = self.markets_menu.getSubMenu(market.pair)
-            else:
-                menu = self.markets_menu.addSubMenu(market.pair,
-                                                    market.prettyName())
-
-            for exchange_proxy in market:
-
-                action = ShowTradeDockAction(exchange_proxy, market.pair, self)
-                menu.addAction(action)
-
-    """
-    def _parse_exchanges(self):
-
-                    self.markets[local_market]['menu'].addAction(
-                        exchange_dock.enable_exchange_action)
-
-                    exchange_docks_dict[exchange_name] = exchange_dock
-
-                enable = markets_item.child(
-                    market_row, exchange_item.MARKET_ENABLE).text()
-                if enable == "true":
-                    enable = True
-                else:
-                    enable = False
-                exchange_dock.enable_exchange(enable)
-                exchange_dock.enable_exchange_action.setChecked(enable)
-
-                account_widget = exchange_dock.account_widget
-                if not account_widget and account_object:
-                    account_widget = tulpenmanie.ui.exchange.AccountWidget(
-                        account_object, remote_pair, exchange_dock)
-                    account_widget.enable_account(enable)
-                if account_widget and not account_object:
-                    exchange_dock.account_widget = None
-                    account_widget.deleteLater()
-    """
-
-        #self.parse_models()
-
-    # TODO make the edit dialog do this
-    def closeEvent(self, event):
-        tulpenmanie.model.commodities.commodities_model.submit()
-        #tulpenmanie.model.markets.markets_model.submit()
-        #tulpenmanie.model.exchanges.exchanges_model.submit()
-
-        otapi.OT_API_Cleanup()
-
-        event.accept()
-
-
-# Don't nest the menu building, this way the exchange proxy is always available
 
 class ExchangeMarketsMenu(QtGui.QMenu):
 

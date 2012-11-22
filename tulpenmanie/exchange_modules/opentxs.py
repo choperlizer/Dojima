@@ -461,7 +461,6 @@ class OTExchange(QtCore.QObject, tulpenmanie.exchange.Exchange):
         return self.ticker_proxies[market_id]
 
     def populateMenuBar(self, menu_bar, market_id):
-
         # Make submenus
         exchange_menu = menu_bar.getExchangeMenu()
         nyms_menu = CurrentNymMenu(

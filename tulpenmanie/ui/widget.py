@@ -19,126 +19,6 @@ from PyQt4.QtCore import pyqtProperty
 
 from tulpenmanie.model.commodities import commodities_model
 
-
-# The problem the numbers need to be prefixed with 0. and some 0s
-# Maybe they should all display decimals
-
-
-class _AssetLabel(QtGui.QLineEdit):
-
-    def setPrefix(self, prefix):
-        self.prefix = prefix
-
-    def setSuffix(self, suffix):
-        self.suffix = suffix
-
-
-class _AssetIntLabel(_AssetLabel):
-
-    def __init__(self, factor=None, precision=None, parent=None):
-        super(_AssetLabel, self).__init__(parent,
-                                          readOnly=True)
-        self.setAlignment(QtCore.Qt.AlignLeft)
-        self.prefix = None
-        self.suffix = None
-
-    def textFromValue(self, value):
-        text = QtCore.QString().setNum(value)
-        if self.prefix:
-            text.prepend(self.prefix)
-        if self.suffix:
-            text.append(self.suffix)
-
-        return text
-
-class _AssetDecimalLabel(_AssetLabel):
-
-    def __init__(self, factor, precision, parent=None):
-        super(_AssetLabel, self).__init__(parent)
-        self.setAlignment(QtCore.Qt.AlignLeft)
-        self.factor = float(factor)
-        self.precision = precision
-        self.prefix = None
-        self.suffix = None
-
-    def textFromValue(self, value):
-        if self.factor > 1:
-            value /= self.factor
-            value = round(value, self.precision)
-
-        text = QtCore.QString().setNum(value)
-
-        if self.prefix:
-            text.prepend(self.prefix)
-        if self.suffix:
-            text.append(self.suffix)
-        return text
-
-
-class _AssetAmountLabel():
-
-    def setValue(self, value):
-        self.setText(self.textFromValue(value))
-
-class AssetIntAmountLabel(_AssetIntLabel, _AssetAmountLabel):
-    pass
-class AssetDecimalAmountLabel(_AssetDecimalLabel, _AssetAmountLabel):
-    pass
-
-
-class _BalanceLabel():
-
-    steady_style = 'color : black'
-    increase_style = 'color : green'
-    decrease_style = 'color : red'
-
-    def setValue(self, value):
-        if value == self.value:
-            self.setStyleSheet(self.steady_style)
-            if not self.estimated:
-                return
-
-        elif self.value and value > self.value:
-            self.setStyleSheet(self.increase_style)
-        elif self.value and value < self.value:
-            self.setStyleSheet(self.decrease_style)
-
-        self.value = value
-
-        text = self.textFromValue(value)
-        self.setText(text)
-        self.setToolTip(QtCore.QCoreApplication.translate(
-            "balance display widget", "liquid balance"))
-        self.estimated = False
-
-    def change_value(self, change):
-        value = self.value + change
-
-        self.setStyleSheet(self.steady_style)
-        self.setText(self.textFromValue(value))
-        self.setToolTip(QtCore.QCoreApplication.translate(
-            "balance display widget", "estimated liquid balance"))
-        self.estimated = True
-
-
-class BalanceIntLabel(_AssetIntLabel, _BalanceLabel):
-
-    def __init__(self, factor=None, precision=None, parent=None):
-        super(BalanceIntLabel, self).__init__(parent)
-        self.setAlignment(QtCore.Qt.AlignHCenter)
-        self.value = None
-        self.estimated = True
-
-
-class BalanceDecimalLabel(_AssetDecimalLabel, _BalanceLabel):
-
-    def __init__(self, factor, precision, parent=None):
-        super(BalanceDecimalLabel, self).__init__(factor, precision, parent)
-        self.setAlignment(QtCore.Qt.AlignHCenter)
-        self.value = None
-        self.estimated = True
-
-
 class _AssetLCDWidget(QtGui.QLCDNumber):
 
     white_palette = QtGui.QPalette(QtGui.QApplication.palette())
@@ -164,24 +44,24 @@ class _AssetLCDWidget(QtGui.QLCDNumber):
         self.setStyleSheet('background : black')
         self.setSegmentStyle(self.Flat)
         self.steady_palette = self.white_palette
-        self.value = None
+        self._value = None
 
     def setValue(self, value):
-        if value == self.value:
+        if value == self._value:
             if self.palette is not self.steady_palette:
                 self.setPalette(self.steady_palette)
                 return
 
-        elif self.value and value > self.value:
+        elif self._value and value > self._value:
             self.setPalette(self.green_palette)
             self.steady_palette = self.light_green_palette
-        elif self.value and value < self.value:
+        elif self._value and value < self._value:
             self.setPalette(self.red_palette)
             self.steady_palette = self.light_red_palette
         else:
             self.setPalette(self.steady_palette)
 
-        self.value = value
+        self._value = value
         self.display(value)
 
 
@@ -212,36 +92,43 @@ class BitcoinSpin(QtGui.QDoubleSpinBox):
         self.setDecimals(8)
 
 
-class AssetDecimalSpinBox(QtGui.QDoubleSpinBox):
+class AssetAmountView(QtGui.QLineEdit):
 
-    decimal_point = QtCore.QLocale().decimalPoint()
-    # This valueChanged may not get used since it takes an int
-    valueChanged = QtCore.pyqtSignal(int)
+    def __init__(self, factor=1, parent=None):
+        super(AssetAmountView, self).__init__(parent, readOnly=True)
+        self.factor = factor
+        self.prefix = None
+        self.suffix = None
+        self._value = None
 
-    def __init__(self, factor, precision, parent=None):
-        super(AssetDecimalSpinBox, self).__init__(parent)
+    def setFactor(self, factor):
         self.factor = float(factor)
-        self.setDecimals(precision)
-        self.precision = precision
-        self.setRange(0, (factor * 10000) -1 )
+
+    def setPrefix(self, prefix):
+        self.prefix = prefix
+
+    def setSuffix(self, suffix):
+        self.suffix = suffix
 
     def setValue(self, value):
-        value /= self.factor
-        value = round(value, self.precision)
-        super(AssetDecimalSpinBox, self).setValue(value)
+        self._value = value
+        self.setText(self.textFromValue(value))
+
+    def textFromValue(self, value):
+        if self.factor > 1:
+            value /= self.factor
+            #value = round(value, self.precision)
+
+        text = QtCore.QString().setNum(value)
+        if self.prefix:
+            text.prepend(self.prefix)
+        if self.suffix:
+            text.append(self.suffix)
+
+        return text
 
     def value(self):
-        text = self.cleanText().remove(self.decimal_point)
-        value, ok = text.toInt()
-        assert ok
-        return value
-
-
-class AssetIntSpinBox(QtGui.QSpinBox):
-
-    def __init__(self, factor=1, precision=None, parent=None):
-        super(AssetIntSpinBox, self).__init__(parent)
-        self.setRange(0, (factor * 10000) -1 )
+        return self._value
 
 
 class AssetSpinBox(QtGui.QDoubleSpinBox):
@@ -249,11 +136,11 @@ class AssetSpinBox(QtGui.QDoubleSpinBox):
     # TODO avoid precision for now
 
     decimal_point = QtCore.QLocale().decimalPoint()
-    valueChanged = QtCore.pyqtSignal(int)
+    #valueChanged = QtCore.pyqtSignal(int)
 
-    def __init__(self, parent=None):
+    def __init__(self, factor=1, parent=None):
         super(AssetSpinBox, self).__init__(parent)
-        self.factor = 1
+        self.factor = factor
         self.precision = None
         self.scale = None
 
@@ -274,6 +161,7 @@ class AssetSpinBox(QtGui.QDoubleSpinBox):
         self.setMaximum( step * 99 )
 
     def setValue(self, value):
+        self._value = value
         if self.factor > 1:
             value /= self.factor
         if self.precision is not None:
@@ -315,7 +203,9 @@ class AssetSpinBox(QtGui.QDoubleSpinBox):
         if self.factor > 1:
             value *= self.factor
 
+        #self.valueChanged.emit(value)
         return value
+
 
 class ScaleSpin(QtGui.QSpinBox):
 

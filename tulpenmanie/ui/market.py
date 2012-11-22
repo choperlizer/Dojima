@@ -32,6 +32,14 @@ class AddMarketsWizard(QtGui.QWizard):
         self.main_window = parent
         self.addPage(SelectExchangePage(self))
 
+    """
+
+    def done(self, result):
+        self.parent().reloadMarkets(True)
+    # can't just do it like that because every market for a given scale
+    # would be shown.
+    """
+
 
 class SelectExchangePage(QtGui.QWizardPage):
 
