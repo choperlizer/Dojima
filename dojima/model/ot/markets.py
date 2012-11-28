@@ -63,22 +63,21 @@ class OTMarketsModel(QtGui.QStandardItemModel):
     def getMarketId(self, row):
         return self.market_ids[row]
 
-    def headerData(self, section, orientation, role=QtCore.Qt.DisplayRole):
-        if orientation == QtCore.Qt.Horizontal:
-            if section == self.BASE:
-                return QtCore.QCoreApplication.translate('OTMarketsModel',
-                                                         "Base")
-            if section == self.COUNTER:
-                return QtCore.QCoreApplication.translate('OTMarketsModel',
-                                                         "Counter")
-            if section == self.SCALE:
-                return QtCore.QCoreApplication.translate('OTMarketsModel',
-                                                         "Scale")
-            if section == self.VOLUME:
-                return QtCore.QCoreApplication.translate('OTMarketsModel',
-                                                         "Volume")
-        return section
-
+    def headerData(self, section, orientation, role):
+        if role == QtCore.Qt.DisplayRole:
+            if orientation == QtCore.Qt.Horizontal:
+                if section == self.BASE:
+                    return QtCore.QCoreApplication.translate('OTMarketsModel',
+                                                             "Base")
+                if section == self.COUNTER:
+                    return QtCore.QCoreApplication.translate('OTMarketsModel',
+                                                             "Counter")
+                if section == self.SCALE:
+                    return QtCore.QCoreApplication.translate('OTMarketsModel',
+                                                             "Scale")
+                if section == self.VOLUME:
+                    return QtCore.QCoreApplication.translate('OTMarketsModel',
+                                                             "Volume")
     def refresh(self, nym_id):
         # TODO error handling
         otapi.OT_API_getMarketList(self.server_id, nym_id)

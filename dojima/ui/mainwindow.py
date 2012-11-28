@@ -20,7 +20,6 @@ import otapi
 from PyQt4 import QtCore, QtGui
 
 import dojima.markets
-from dojima.model.commodities import commodities_model
 #This next import registers the exchanges into dojima.markets
 from dojima.exchange_modules import *
 import dojima.ui.exchange
@@ -29,7 +28,6 @@ import dojima.ui.market
 import dojima.ui.ot.action
 import dojima.ui.transfer.bitcoin
 
-import pdb
 
 logger = logging.getLogger(__name__)
 
@@ -82,6 +80,12 @@ class MainWindow(QtGui.QMainWindow):
         self.refreshMarkets()
 
     def refreshMarkets(self, showNew=False):
+        dojima.exchanges.refresh()
+
+        for market_container in dojima.markets.container:
+            for exchange_proxy in market_container:
+                print "market:", market_container.pair, "exchange:", exchange_proxy.id
+
         for market_container in dojima.markets.container:
             if market_container.pair in self.markets_menu:
                 market_menu = self.markets_menu.getMarketMenu(
@@ -104,11 +108,13 @@ class MainWindow(QtGui.QMainWindow):
                         if market_id not in exchange_menu:
                             action = exchange_menu.addMarketAction(
                                 exchange_proxy, market_id)
-                            if showNew: action.toggle()
+                            if showNew:
+                                action.trigger()
 
     def showAddMarketsWizard(self):
         wizard = dojima.ui.market.AddMarketsWizard(self)
-        wizard.show()
+        wizard.exec_()
+        self.refreshMarkets(True)
 
     def showEditDefinitionsDialog(self):
         dialog = dojima.ui.edit.EditDefinitionsDialog(self)

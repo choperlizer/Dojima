@@ -20,7 +20,7 @@ from PyQt4 import QtCore, QtGui
 
 import dojima.ui.widget
 #import dojima.model.orders
-from dojima.model.commodities import commodities_model
+import dojima.model.commodities
 
 logger =  logging.getLogger(__name__)
 
@@ -44,15 +44,15 @@ class ExchangeDockWidget(QtGui.QDockWidget, ErrorHandling):
 
         # Building the pretty name again
         # there will probably be problems when commodities are deleted
-        search = commodities_model.findItems(self.base_id)
+        search = dojima.model.commodities.local_model.findItems(self.base_id)
         self.base_row = search[0].row()
-        base_name = commodities_model.item(self.base_row,
-                                           commodities_model.NAME).text()
+        base_name = dojima.model.commodities.local_model.item(self.base_row,
+                                           dojima.model.commodities.local_model.NAME).text()
 
-        search = commodities_model.findItems(self.counter_id)
+        search = dojima.model.commodities.local_model.findItems(self.counter_id)
         self.counter_row = search[0].row()
-        counter_name = commodities_model.item(self.counter_row,
-                                              commodities_model.NAME).text()
+        counter_name = dojima.model.commodities.local_model.item(self.counter_row,
+                                              dojima.model.commodities.local_model.NAME).text()
         title = QtCore.QCoreApplication.translate(
             'ExchangeDockWidget', "%1 - %2 / %3", "exchange name, base, counter"
             ).arg(exchange_name).arg(base_name).arg(counter_name)
@@ -68,13 +68,14 @@ class ExchangeDockWidget(QtGui.QDockWidget, ErrorHandling):
         # get our display parameters
         self.base_factor, self.counter_factor = self.exchange_obj.getFactors(
             self.remote_market)
+        self.scale = self.exchange_obj.getScale(self.remote_market)
 
-        self.base_precision, ok = commodities_model.item(
-            self.base_row, commodities_model.PRECISION).text().toInt()
+        self.base_precision, ok = dojima.model.commodities.local_model.item(
+            self.base_row, dojima.model.commodities.local_model.PRECISION).text().toInt()
         if not ok: self.base_precision = 0
 
-        self.counter_precision, ok = commodities_model.item(
-            self.counter_row, commodities_model.PRECISION).text().toInt()
+        self.counter_precision, ok = dojima.model.commodities.local_model.item(
+            self.counter_row, dojima.model.commodities.local_model.PRECISION).text().toInt()
         if not ok: self.counter_precision = 0
 
         #Widgets
@@ -117,21 +118,16 @@ class ExchangeDockWidget(QtGui.QDockWidget, ErrorHandling):
 
         # Exchanges may store a reference to this menu and update it
         self.exchange_obj.populateMenuBar(self.menu_bar, self.remote_market)
-        if not hasattr(self.exchange_obj, 'getScale'):
-            return
 
         proxy = self.exchange_obj.getAccountValidityProxy(self.remote_market)
         proxy.accountValidityChanged.connect(self.enableAccount)
 
-        action = self.menu_bar.getMarketMenu().addAction(
-            QtCore.QCoreApplication.translate('ScaleSelectDialog',
-                                              "Select market scale",
-                                              "Title of a menu action to show "
-                                              "the ScaleSelectDialog"))
-
-        action.triggered.connect(self.showScaleSelectDialog)
-
-        #self.exchange_obj.checkAccountValidity(self.remote_market)
+    def changeMarket(self, market_id):
+        print "market change requested, market id:", market_id
+        self.exchange_obj.setTickerStreamState(self.remote_market, False)
+        self.remote_market = marked_id
+        self.exchange_obj.setTickerStreamState(self.remote_market, True)
+        self.exchange_obj.echoTicker(self.remote_market)
 
     def enableAccount(self, enable):
         if enable and (self.account_obj is None):
@@ -193,13 +189,6 @@ class ExchangeDockWidget(QtGui.QDockWidget, ErrorHandling):
         ticker_proxy.last_signal.connect(self.last_widget.setValue)
         ticker_proxy.bid_signal.connect(self.bid_widget.setValue)
 
-    def showScaleSelectDialog(self):
-        dialog = ScaleSelectDialog(
-            self.base_factor, self.base_precision,
-            self.exchange_obj.getScale(self.remote_market))
-        if dialog.exec_():
-            self.setScale(dialog.getScale())
-
 
 class ExchangeDockWidgetMenuBar(QtGui.QMenuBar):
 
@@ -240,15 +229,15 @@ class AccountWidget(QtGui.QWidget, ErrorHandling):
 
         # Data
         self.account_obj = account_object
-        self.market_id = parent.remote_market
+        self.dock.remote_market = parent.remote_market
 
         # Create UI
         layout = QtGui.QGridLayout()
 
         self.base_balance_label = dojima.ui.widget.AssetAmountView(
-            parent.base_factor)
+            factor=parent.base_factor)
         self.counter_balance_label = dojima.ui.widget.AssetAmountView(
-            parent.counter_factor)
+            factor=parent.counter_factor)
 
         refresh_balance_action = QtGui.QAction(
             QtCore.QCoreApplication.translate('AccountWidget',
@@ -264,34 +253,34 @@ class AccountWidget(QtGui.QWidget, ErrorHandling):
             label.addAction(refresh_balance_action)
 
         self.ask_amount_spin = dojima.ui.widget.AssetSpinBox(
-            parent.base_factor)
+            factor=parent.base_factor, scale=parent.scale)
         self.bid_amount_spin = dojima.ui.widget.AssetSpinBox(
-            parent.base_factor)
+            factor=parent.base_factor, scale=parent.scale)
 
         self.ask_price_spin = dojima.ui.widget.AssetSpinBox(
-            parent.counter_factor)
+            factor=parent.counter_factor, scale=parent.scale)
 
         self.bid_price_spin = dojima.ui.widget.AssetSpinBox(
-            parent.counter_factor)
+            factor=parent.counter_factor, scale=parent.scale)
 
         self.ask_estimate_view = dojima.ui.widget.AssetAmountView(
-            parent.counter_factor)
+            factor=parent.counter_factor)
         self.ask_estimate_view.setDisabled(True)
 
         self.bid_estimate_view = dojima.ui.widget.AssetAmountView(
-            parent.counter_factor)
+            factor=parent.counter_factor)
         self.bid_estimate_view.setDisabled(True)
 
         # Set the prefixi and suffixi
-        base_prefix = commodities_model.item(
-            parent.base_row, commodities_model.PREFIX).text()
-        counter_prefix = commodities_model.item(
-            parent.counter_row, commodities_model.PREFIX).text()
+        base_prefix = dojima.model.commodities.local_model.item(
+            parent.base_row, dojima.model.commodities.local_model.PREFIX).text()
+        counter_prefix = dojima.model.commodities.local_model.item(
+            parent.counter_row, dojima.model.commodities.local_model.PREFIX).text()
 
-        base_suffix = commodities_model.item(
-            parent.base_row, commodities_model.SUFFIX).text()
-        counter_suffix = commodities_model.item(
-            parent.counter_row, commodities_model.SUFFIX).text()
+        base_suffix = dojima.model.commodities.local_model.item(
+            parent.base_row, dojima.model.commodities.local_model.SUFFIX).text()
+        counter_suffix = dojima.model.commodities.local_model.item(
+            parent.counter_row, dojima.model.commodities.local_model.SUFFIX).text()
 
         if base_prefix:
             for widget in (self.base_balance_label,
@@ -376,10 +365,10 @@ class AccountWidget(QtGui.QWidget, ErrorHandling):
                      self.ask_price_spin,self.bid_price_spin):
             spin.setMaximum(999999)
 
-        self.ask_offers_view = QtGui.QTableView()
+        self.ask_offers_view = dojima.ui.widget.OffersView()
         layout.addWidget(self.ask_offers_view, 5,0, 1,3)
 
-        self.bid_offers_view = QtGui.QTableView()
+        self.bid_offers_view = dojima.ui.widget.OffersView()
         layout.addWidget(self.bid_offers_view, 5,3, 1,3)
 
         for view in self.ask_offers_view, self.bid_offers_view:
@@ -388,11 +377,6 @@ class AccountWidget(QtGui.QWidget, ErrorHandling):
             view.setShowGrid(False)
             view.verticalHeader().hide()
             view.setContextMenuPolicy(QtCore.Qt.ActionsContextMenu)
-            view.setColumnHidden(0, True)
-            #count = offers_model.columnCount()
-            #while count > 4:
-            #    count -= 1
-            #    view.setColumnHiddden(count, True)
 
         #Refresh offers action
         refresh_offers_action = QtGui.QAction(
@@ -433,13 +417,13 @@ class AccountWidget(QtGui.QWidget, ErrorHandling):
             self.setDisabled(True)
             return
 
-        if not self.account_obj.hasAccount(self.market_id):
+        if not self.account_obj.hasAccount(self.dock.remote_market):
             self.setDisabled(True)
             return
 
         self.setEnabled(True)
 
-        b_ac_id, c_ac_id = self.account_obj.getAccountPair(self.market_id)
+        b_ac_id, c_ac_id = self.account_obj.getAccountPair(self.dock.remote_market)
 
         self.base_balance_proxy = self.account_obj.getBalanceProxy(
             b_ac_id)
@@ -455,55 +439,51 @@ class AccountWidget(QtGui.QWidget, ErrorHandling):
         #self.counter_balance_proxy.balance_changed.connect(
         #    self.counter_balance_label.change_value)
 
-        offers_model = self.account_obj.getOffersModel(self.market_id)
-        # SELLING == OT_TRUE, BUYING == OT_FALSE
-        self.asks_model = QtGui.QSortFilterProxyModel()
-        self.asks_model.setSourceModel(offers_model)
-        self.asks_model.setFilterKeyColumn(3)
-        self.asks_model.setFilterFixedString('a')
-        self.asks_model.setDynamicSortFilter(True)
+        offers_model = self.account_obj.getOffersModel(self.dock.remote_market)
+        self.asks_model = dojima.data.offers.AsksFilterModel(offers_model)
+        self.bids_model = dojima.data.offers.BidsFilterModel(offers_model)
+
         self.ask_offers_view.setModel(self.asks_model)
-
-        self.bids_model = QtGui.QSortFilterProxyModel()
-        self.bids_model.setSourceModel(offers_model)
-        self.bids_model.setFilterKeyColumn(3)
-        self.bids_model.setFilterFixedString('b')
-        self.bids_model.setDynamicSortFilter(True)
         self.bid_offers_view.setModel(self.bids_model)
+        self.ask_offers_view.hideColumns()
+        self.bid_offers_view.hideColumns()
 
-        self.account_obj.refresh(self.market_id)
+        offers_model.dataChanged.connect(self.ask_offers_view.hideColumns)
+        offers_model.dataChanged.connect(self.bid_offers_view.hideColumns)
+
+        self.account_obj.refresh(self.dock.remote_market)
 
     def _ask_limit(self):
         amount = self.ask_amount_spin.value()
         price = self.ask_price_spin.value()
-        self.account_obj.placeAskLimitOffer(self.market_id, amount, price)
+        self.account_obj.placeAskLimitOffer(self.dock.remote_market, amount, price)
 
     def _bid_limit(self):
         amount = self.bid_amount_spin.value()
         price = self.bid_price_spin.value()
-        self.account_obj.placeBidLimitOffer(self.market_id, amount, price)
+        self.account_obj.placeBidLimitOffer(self.dock.remote_market, amount, price)
 
     def _ask_market(self):
         amount = self.ask_amount_spin.value()
-        self.account_obj.placeAskMarketOffer(self.market_id, amount)
+        self.account_obj.placeAskMarketOffer(self.dock.remote_market, amount)
 
     def _bid_market(self):
         amount = self.bid_amount_spin.value()
-        self.account_obj.placeBidMarketOffer(self.market_id, amount)
+        self.account_obj.placeBidMarketOffer(self.dock.remote_market, amount)
 
     def _cancel_ask(self):
         row = self.ask_offers_view.currentIndex().row()
-        item = self.asks_model.item(row, 0)
-        if item:
-            offer_id = item.text()
-            self.account_obj.cancelAskOffer(self.market_id, offer_id)
+        index = self.asks_model.index(row, dojima.data.offers.ID)
+        offer_id = self.asks_model.data(index)
+        if offer_id:
+            self.account_obj.cancelAskOffer(offer_id, self.dock.remote_market)
 
     def _cancel_bid(self):
         row = self.bid_offers_view.currentIndex().row()
-        item = self.bids_model.item(row, 0)
-        if item:
-            offer_id = item.text()
-            self.account_obj.cancelBidOffer(self.market_id, offer_id)
+        index = self.bids_model.index(row, dojima.data.offers.ID)
+        offer_id = self.bids_model.data(index)
+        if offer_id:
+            self.account_obj.cancelBidOffer(offer_id, self.dock.remote_market)
 
     def ask_offer_changed(self):
         amount = self.ask_amount_spin.value()
@@ -512,7 +492,7 @@ class AccountWidget(QtGui.QWidget, ErrorHandling):
         if not price: return
 
         estimate = amount * price
-        commission = self.account_obj.getCommission(estimate, self.market_id)
+        commission = self.account_obj.getCommission(estimate, self.dock.remote_market)
         if commission: estimate -= commission
 
         self.ask_estimate_view.setValue(estimate)
@@ -524,7 +504,7 @@ class AccountWidget(QtGui.QWidget, ErrorHandling):
         if not price: return
 
         estimate = amount * price
-        commission = self.account_obj.getCommission(estimate, self.market_id)
+        commission = self.account_obj.getCommission(estimate, self.dock.remote_market)
         if commission: estimate -= commission
 
         self.bid_estimate_view.setValue(estimate)
@@ -532,7 +512,7 @@ class AccountWidget(QtGui.QWidget, ErrorHandling):
     def changeAccount(self, market_id):
         print "market changed for", market_id
         # maybe this slot should receive an account id
-        if market_id != self.market_id:
+        if market_id != self.dock.remote_market:
             print "but it's not ours"
             return
 
@@ -550,21 +530,21 @@ class AccountWidget(QtGui.QWidget, ErrorHandling):
                 self.counter_balance_label.change_value)
         """
 
-        b_ac_id, c_ac_id = self.account_obj.getAccountPair(self.market_id)
+        b_ac_id, c_ac_id = self.account_obj.getAccountPair(self.dock.remote_market)
 
         self.base_balance_proxy = self.account_obj.getBalanceProxy(b_ac_id)
         self.base_balance_proxy.balance.connect(
             self.base_balance_label.setValue)
-        self.base_balance_proxy.balance_changed.connect(
-            self.base_balance_label.change_value)
+        #self.base_balance_proxy.balance_changed.connect(
+        #    self.base_balance_label.change_value)
 
         self.counter_balance_proxy = self.account_obj.getBalanceProxy(c_ac_id)
         self.counter_balance_proxy.balance.connect(
             self.counter_balance_label.setValue)
-        self.counter_balance_proxy.balance_changed.connect(
-            self.counter_balance_label.change_value)
+        #self.counter_balance_proxy.balance_changed.connect(
+        #    self.counter_balance_label.change_value)
 
-        self.account_obj.refreshBalance(self.market_id)
+        self.account_obj.refreshBalance(self.dock.remote_market)
 
     def change_ask_counter(self, base_amount, price):
         counter_amount = base_amount * price
@@ -578,62 +558,9 @@ class AccountWidget(QtGui.QWidget, ErrorHandling):
     def change_bid_counter(self, base_amount, price):
         counter_amount = base_amount * price
         commission = self.account_obj.getCommission(counter_amount,
-                                                self.market_id)
+                                                self.dock.remote_market)
         if commission:
             counter_amount -= commission
 
     def refreshBalance(self):
-        self.account_obj.refreshBalance(self.market_id)
-
-
-class ScaleSelectDialog(QtGui.QDialog):
-
-    def __init__(self, factor, precision, current_scale, parent=None):
-        super(ScaleSelectDialog, self).__init__(parent)
-        if factor > 1:
-            AmountView = dojima.ui.widget.AssetDecimalAmountLabel
-        else:
-            AmountView = dojima.ui.widget.AssetIntAmountLabel
-
-        self.power_spin = QtGui.QSpinBox()
-        self.power_spin.setValue(current_scale / 10)
-        self.power_spin.valueChanged[int].connect(self.changePower)
-
-        self.scale_view = AmountView(factor, precision)
-
-        self.scale_view.setReadOnly(True)
-
-        button_box = QtGui.QDialogButtonBox(QtGui.QDialogButtonBox.Ok |
-                                            QtGui.QDialogButtonBox.Cancel)
-
-        layout = QtGui.QFormLayout()
-        layout.addRow(
-            QtCore.QCoreApplication.translate('ScaleSelectDialog',
-                                              "Scale base power:",
-                                              "The market base (2, 10, 16) "
-                                              "shall be risen to the the power "
-                                              "of scale base power to derive "
-                                              "the market scale."),
-            self.power_spin)
-
-        layout.addRow(
-            QtCore.QCoreApplication.translate('ScaleSelectDialog',
-                                              "Market scale:",
-                                              "Market scale or granularity  "
-                                              "is a multiplier that affects "
-                                              "the size of orders, a scale of "
-                                              "ten means all orders must be a "
-                                              "multiple of ten."),
-            self.scale_view)
-        layout.addRow(button_box)
-        self.setLayout(layout)
-
-        button_box.accepted.connect(self.accept)
-        button_box.rejected.connect(self.reject)
-
-    def changePower(self, power):
-        value = pow(10, power)
-        self.scale_view.setValue(value)
-
-    def getScale(self):
-        return self.scale_spin.value()
+        self.account_obj.refreshBalance(self.dock.remote_market)

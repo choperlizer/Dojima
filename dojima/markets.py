@@ -15,7 +15,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 
-from dojima.model.commodities import commodities_model
+import dojima.model.commodities
 
 class MarketsContainer(object):
 
@@ -53,13 +53,13 @@ class ExchangesContainer(object):
         self.exchanges.append(exchangeProxy)
 
     def prettyName(self):
-        search = commodities_model.findItems(self.base)
-        base_name = commodities_model.item(
-            search[0].row(), commodities_model.NAME).text()
+        search = dojima.model.commodities.local_model.findItems(self.base)
+        base_name = dojima.model.commodities.local_model.item(
+            search[0].row(), dojima.model.commodities.local_model.NAME).text()
 
-        search = commodities_model.findItems(self.counter)
-        counter_name = commodities_model.item(
-            search[0].row(), commodities_model.NAME).text()
+        search = dojima.model.commodities.local_model.findItems(self.counter)
+        counter_name = dojima.model.commodities.local_model.item(
+            search[0].row(), dojima.model.commodities.local_model.NAME).text()
 
         return (base_name + ' / ' + counter_name)
 

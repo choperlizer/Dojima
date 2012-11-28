@@ -17,8 +17,6 @@
 from PyQt4 import QtCore, QtGui
 from PyQt4.QtCore import pyqtProperty
 
-from dojima.model.commodities import commodities_model
-
 class _AssetLCDWidget(QtGui.QLCDNumber):
 
     white_palette = QtGui.QPalette(QtGui.QApplication.palette())
@@ -138,27 +136,41 @@ class AssetSpinBox(QtGui.QDoubleSpinBox):
     decimal_point = QtCore.QLocale().decimalPoint()
     #valueChanged = QtCore.pyqtSignal(int)
 
-    def __init__(self, factor=1, parent=None):
+    def __init__(self, factor=1, precision=None, scale=None, parent=None):
         super(AssetSpinBox, self).__init__(parent)
         self.factor = factor
         self.precision = None
-        self.scale = None
+        self.scale = scale
+
+        if (scale is not None and scale >1):
+            step = factor * scale
+
+            self.setSingleStep(step)
+            self.setMaximum(step * 99)
 
     def setFactor(self, factor):
+        # TODO 'type="decimal" factor="1000" decimal_power="3"' maybe pow() here?
         self.factor = factor
-        self.setSingleStep(10.0 * factor)
-        # TODO check this
-        if self.scale:
-            maximum = (factor * scale) - factor
-            self.setMaximum(maximum)
+        step = factor
+
+        if (self.scale is not None and self.scale > 1):
+            step *= self.scale
+
+        self.setSingleStep(step)
+        self.setMaximum(step * 99)
 
     def setPrecision(self, precision):
         self.precision = precision
+        raise NotImplementedError
 
     def setScale(self, scale):
-        step = pow(10, scale)
+        """1, 10, 100, etc"""
+        step = scale
+        if self.factor > 1:
+            step *= self.factor
+
         self.setSingleStep(step)
-        self.setMaximum( step * 99 )
+        self.setMaximum(step * 99 )
 
     def setValue(self, value):
         self._value = value
@@ -200,11 +212,21 @@ class AssetSpinBox(QtGui.QDoubleSpinBox):
 
         value, ok = text.toInt()
         assert ok
+
         if self.factor > 1:
             value *= self.factor
 
-        #self.valueChanged.emit(value)
         return value
+
+
+class OffersView(QtGui.QTableView):
+
+    def hideColumns(self):
+        print "hideColumns hit"
+        self.hideColumn(0)
+        self.hideColumn(3)
+        self.hideColumn(4)
+        self.hideColumn(5)
 
 
 class ScaleSpin(QtGui.QSpinBox):

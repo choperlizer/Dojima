@@ -19,7 +19,7 @@ import os.path
 
 from PyQt4 import QtCore, QtGui
 
-from dojima.model.commodities import commodities_model
+import dojima.model.commodities
 
 
 class EditWidget(QtGui.QWidget):
@@ -68,15 +68,15 @@ class EditWidget(QtGui.QWidget):
         self.setLayout(layout)
 
         # Model
-        self.list_view.setModel(commodities_model)
-        self.list_view.setModelColumn(commodities_model.NAME)
+        self.list_view.setModel(dojima.model.commodities.local_model)
+        self.list_view.setModelColumn(dojima.model.commodities.local_model.NAME)
 
         self.mapper = QtGui.QDataWidgetMapper(self)
-        self.mapper.setModel(commodities_model)
-        self.mapper.addMapping(prefix_edit, commodities_model.PREFIX)
-        self.mapper.addMapping(suffix_edit, commodities_model.SUFFIX)
+        self.mapper.setModel(dojima.model.commodities.local_model)
+        self.mapper.addMapping(prefix_edit, dojima.model.commodities.local_model.PREFIX)
+        self.mapper.addMapping(suffix_edit, dojima.model.commodities.local_model.SUFFIX)
         self.mapper.addMapping(precision_spin,
-                               commodities_model.PRECISION)
+                               dojima.model.commodities.local_model.PRECISION)
 
         # Connect
         self.list_view.commodityChanged.connect(self.mapper.setCurrentModelIndex)
@@ -84,15 +84,15 @@ class EditWidget(QtGui.QWidget):
         delete_button.clicked.connect(self.delete)
 
         # Select
-        index = commodities_model.index(0, commodities_model.NAME)
+        index = dojima.model.commodities.local_model.index(0, dojima.model.commodities.local_model.NAME)
         self.list_view.setCurrentIndex(index)
         self.mapper.toFirst()
 
     def new(self):
-        row = commodities_model.new_commodity()
+        row = dojima.model.commodities.local_model.new_commodity()
         self.mapper.setCurrentIndex(row)
-        index = commodities_model.index(
-            row, commodities_model.NAME)
+        index = dojima.model.commodities.local_model.index(
+            row, dojima.model.commodities.local_model.NAME)
         self.list_view.setCurrentIndex(index)
         self.list_view.setFocus()
         self.list_view.edit(index)
@@ -100,7 +100,7 @@ class EditWidget(QtGui.QWidget):
     def delete(self):
         # TODO Check if any markets use the selected commodity
         row = self.mapper.currentIndex()
-        commodities_model.removeRow(row)
+        dojima.model.commodities.local_model.removeRow(row)
 
 
 class CommoditiesListView(QtGui.QListView):
@@ -151,21 +151,27 @@ class NewCommodityDialog(QtGui.QDialog):
 
     def submit(self):
         # TODO search for redundant commodities
-        self.row = commodities_model.rowCount()
+        self.row = dojima.model.commodities.local_model.rowCount()
 
         item = QtGui.QStandardItem(QtCore.QUuid.createUuid().toString()[1:-1])
-        commodities_model.setItem(self.row, commodities_model.UUID, item)
+        dojima.model.commodities.local_model.setItem(
+            self.row, dojima.model.commodities.local_model.ID, item)
 
         item = QtGui.QStandardItem(self.name_edit.text())
-        commodities_model.setItem(self.row, commodities_model.NAME, item)
+        dojima.model.commodities.local_model.setItem(
+            self.row, dojima.model.commodities.local_model.NAME, item)
 
         item = QtGui.QStandardItem(self.prefix_edit.text())
-        commodities_model.setItem(self.row, commodities_model.PREFIX, item)
+        dojima.model.commodities.local_model.setItem(
+            self.row, dojima.model.commodities.local_model.PREFIX, item)
 
         item = QtGui.QStandardItem(self.suffix_edit.text())
-        commodities_model.setItem(self.row, commodities_model.SUFFIX, item)
+        dojima.model.commodities.local_model.setItem(
+            self.row, dojima.model.commodities.local_model.SUFFIX, item)
 
         item = QtGui.QStandardItem(self.precision_spin.text())
-        commodities_model.setItem(self.row, commodities_model.PRECISION, item)
-        commodities_model.submit()
+        dojima.model.commodities.local_model.setItem(
+            self.row, dojima.model.commodities.local_model.PRECISION, item)
+        
+        dojima.model.commodities.local_model.submit()
         self.accept()

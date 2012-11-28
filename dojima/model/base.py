@@ -36,7 +36,7 @@ class FlatSettingsModel(QtGui.QStandardItemModel):
         for row, uuid in enumerate(self.settings.childGroups()):
             self.settings.beginGroup(uuid)
             item = QtGui.QStandardItem(uuid)
-            self.setItem(row, self.UUID, item)
+            self.setItem(row, self.ID, item)
             for setting, column in self.SETTINGS_MAP:
                 item = QtGui.QStandardItem(self.settings.value(setting))
                 self.setItem(row, column, item)
@@ -48,7 +48,7 @@ class FlatSettingsModel(QtGui.QStandardItemModel):
         rows = range(self.rowCount())
         self.settings.remove('')
         for row in rows:
-            uuid = self.item(row, self.UUID).text()
+            uuid = self.item(row, self.ID).text()
             self.settings.beginGroup(uuid)
             for setting, column in self.SETTINGS_MAP:
                 value =  self.item(row, column).text()
@@ -57,7 +57,7 @@ class FlatSettingsModel(QtGui.QStandardItemModel):
         return True
     
     def delete_row(self, row):
-        uuid = self.item(self.UUID, row).text()
+        uuid = self.item(self.ID, row).text()
         self.settings.remove(uuid)
         self.removeRow(row)
 

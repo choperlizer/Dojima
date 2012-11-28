@@ -26,7 +26,13 @@ class ExchangesContainer(object):
         return len(self.exchanges)
 
     def addExchange(self, exchange_proxy):
-        self.exchanges[exchange_proxy.name] = exchange_proxy
+        self.exchanges[exchange_proxy.id] = exchange_proxy
 
-        
+    def refresh(self):
+        for proxy in self.exchanges.values():
+            proxy.refreshMarkets()
+
 container = ExchangesContainer()
+
+def refresh():
+    container.refresh()

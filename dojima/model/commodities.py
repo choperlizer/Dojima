@@ -19,11 +19,11 @@ from PyQt4 import QtCore, QtGui
 import dojima.model.base
 
 
-class CommoditiesModel(dojima.model.base.FlatSettingsModel):
+class LocalCommoditiesModel(dojima.model.base.FlatSettingsModel):
 
-    name = 'commodities'
+    name = 'local_commodities'
     COLUMNS = 5
-    UUID, NAME, PREFIX, SUFFIX, PRECISION = range(COLUMNS)
+    ID, NAME, PREFIX, SUFFIX, PRECISION = range(COLUMNS)
     SETTINGS_MAP = (('name', NAME), ('prefix', PREFIX),
                     ('suffix', SUFFIX), ('precision', PRECISION))
 
@@ -35,5 +35,31 @@ class CommoditiesModel(dojima.model.base.FlatSettingsModel):
         self.appendRow(items)
         return items[0].row()
 
+
+class RemoteCommoditiesModel(dojima.model.base.FlatSettingsModel):
+
+    name = 'remote_commodities'
+    COLUMNS = 2
+    ID, LOCAL_ID = range(COLUMNS)
+    SETTINGS_MAP = (('local', LOCAL_ID),)
+
+    def map(self, remote_id, local_id):
+        search = self.findItems(remote_id)
+        if search:
+            self.item(search[0].row(), self.LOCAL_ID).setData(local_id)
+            return
+
+        self.appendRow( (QtGui.QStandardItem(remote_id),
+                         QtGui.QStandardItem(local_id),) )
+
+    def getLocalToRemoteMap(self, local_id):
+        search = self.findItems(local_id, QtCore.Qt.MatchExactly, self.LOCAL_ID)
+        return self.item(search[0].row(), ID).text()
+
+    def hasMap(self, remote_id):
+        search = self.findItems(remote_id)
+        return bool(search)
+
     #TODO can't instantiate until after we have an app
-commodities_model = CommoditiesModel()
+local_model = LocalCommoditiesModel()
+remote_model = RemoteCommoditiesModel()

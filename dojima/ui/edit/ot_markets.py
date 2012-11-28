@@ -20,7 +20,7 @@ import otapi
 import dojima.ot.contract
 import dojima.model.ot.servers
 import dojima.model.ot.assets
-from dojima.model.commodities import commodities_model
+import dojima.model.commodities
 from dojima.ui.edit.commodity import NewCommodityDialog
 
 
@@ -105,8 +105,8 @@ class AssetMappingDialog(QtGui.QDialog):
 
         # UI
         self.commodity_combo = QtGui.QComboBox()
-        self.commodity_combo.setModel(commodities_model)
-        self.commodity_combo.setModelColumn(commodities_model.NAME)
+        self.commodity_combo.setModel(dojima.model.commodities.local_model)
+        self.commodity_combo.setModelColumn(dojima.model.commodities.local_model.NAME)
         self.commodity_combo.setToolTip(
             QtCore.QCoreApplication.translate('AssetMappingDialog',
                 """Map this Open Transactions Asset to a locally defined  """
@@ -180,7 +180,7 @@ class AssetMappingDialog(QtGui.QDialog):
         self.row = search[0].row()
         commodity_id = self.model.item(self.row, self.model.LOCAL_ID).text()
 
-        search = commodities_model.findItems(commodity_id)
+        search = dojima.model.commodities.local_model.findItems(commodity_id)
         if not search: return
 
         commodity_row = search[0].row()
@@ -219,9 +219,9 @@ class AssetMappingDialog(QtGui.QDialog):
 
     def submit(self):
         # this needs to reject() the dialog if everything isn't right
-        commodity_id = commodities_model.item(
-            self.commodity_combo.currentIndex(), commodities_model.UUID).text()
-        print commodity_id
+        commodity_id = dojima.model.commodities.local_model.item(
+            self.commodity_combo.currentIndex(), dojima.model.commodities.local_model.UUID
+            ).text()
 
         if self.row is None:
             self.row = self.model.rowCount()

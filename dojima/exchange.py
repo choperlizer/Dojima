@@ -40,7 +40,10 @@ class Exchange:
         raise NotImplementedError
 
     def getFactors(self, remoteMarketID):
-        raise NotImplementedError
+        return (1, 1,)
+
+    def getScale(self, remoteMarketID):
+        return 1
 
     def getTickerProxy(self, remoteMarketID):
         raise NotImplementedError
@@ -62,10 +65,10 @@ class ExchangeAccount:
         request.send()
         self._replies.add(request)
 
-    def cancelAskOffer(self, remoteMarketID, offerID):
+    def cancelAskOffer(self, offerId, remoteMarketID):
         raise NotImplementedError
 
-    def cancelBidOffer(self, remoteMarketID, offerID):
+    def cancelBidOffer(self, offerId, remoteMarketID):
         raise NotImplementedError
 
     def getCommission(self, remoteMarketID, amount):

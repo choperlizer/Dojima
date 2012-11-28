@@ -19,6 +19,8 @@ import logging
 from PyQt4 import QtCore, QtGui
 
 import dojima.exchanges
+import dojima.model.commodities
+import dojima.ui.edit.commodity
 import dojima.ui.ot.contract
 
 
@@ -32,8 +34,9 @@ class AddMarketsWizard(QtGui.QWizard):
         self.main_window = parent
         self.addPage(SelectExchangePage(self))
 
-    """
+        self.commodities_page_id = self.addPage(MapCommoditiesPage(self))
 
+    """
     def done(self, result):
         self.parent().reloadMarkets(True)
     # can't just do it like that because every market for a given scale
@@ -45,7 +48,6 @@ class SelectExchangePage(QtGui.QWizardPage):
 
     def __init__(self, parent):
         super(SelectExchangePage, self).__init__(parent)
-        self.wizard = parent
         self.setTitle(
             QtCore.QCoreApplication.translate('AddMarketsWizard',
                                               "Exchanges",
@@ -79,7 +81,7 @@ class SelectExchangePage(QtGui.QWizardPage):
         for exchange_proxy in dojima.exchanges.container:
             list_item = ExchangeListItem(exchange_proxy.name, self.list_widget)
             list_item.setNextPageId(
-                self.wizard.addPage(exchange_proxy.nextPage()))
+                self.wizard().addPage(exchange_proxy.nextPage(self.wizard())))
 
         self.list_widget.sortItems()
         self.list_widget.setCurrentRow(0)
@@ -94,6 +96,92 @@ class SelectExchangePage(QtGui.QWizardPage):
         dialog = dojima.ui.ot.contract.ServerContractImportDialog()
         if dialog.exec_():
             self.refreshServers()
+
+
+class MapCommoditiesPage(QtGui.QWizardPage):
+
+    def __init__(self, parent):
+        super(MapCommoditiesPage, self).__init__(parent)
+        self.setFinalPage(True)
+
+    def initializePage(self):
+        self.setTitle(
+            QtCore.QCoreApplication.translate('AddMarketsWizard',
+                                              "Commodities",
+                                              "Title of commodities mapping "
+                                              "page."))
+        self.setSubTitle(
+            QtCore.QCoreApplication.translate('AddMarketsWizard',
+                "Each commodity must be locally defined.",
+                "The commodities page subtitle"))
+        self.base_combo = QtGui.QComboBox()
+        self.counter_combo = QtGui.QComboBox()
+
+        self.base_combo.setModel(
+            dojima.model.commodities.local_model)
+        self.counter_combo.setModel(
+            dojima.model.commodities.local_model)
+
+        self.base_combo.setModelColumn(
+            dojima.model.commodities.local_model.NAME)
+        self.counter_combo.setModelColumn(
+            dojima.model.commodities.local_model.NAME)
+
+        new_local_base_button = QtGui.QPushButton(
+            QtCore.QCoreApplication.translate('AddMarketsWizard',
+                                              "New Local",
+                                              "New locally defined commidity."))
+        new_local_counter_button = QtGui.QPushButton(
+            QtCore.QCoreApplication.translate('AddMarketsWizard',
+                                              "New Local",
+                                              "New locally defined commidity."))
+
+        # TODO get rid of one of these buttons if it's not going to be used
+
+        button_box = QtGui.QDialogButtonBox()
+        button_box.addButton(new_local_base_button, button_box.ActionRole)
+
+        # layout
+        layout = QtGui.QFormLayout()
+        # TODO get the asset names, or translate
+        layout.addRow(self.field('base_remote_commodity_name'),
+                      self.base_combo)
+        layout.addRow(self.field('counter_remote_commodity_name'),
+                      self.counter_combo)
+        layout.addWidget(button_box)
+        self.setLayout(layout)
+
+        new_local_base_button.clicked.connect(
+            self.showNewBaseCommodityDialog)
+        new_local_counter_button.clicked.connect(
+            self.showNewCounterCommodityDialog)
+
+    def isFinalPage(self):
+        return True
+
+    def showNewBaseCommodityDialog(self):
+        dialog = dojima.ui.edit.commodity.NewCommodityDialog(self)
+        dialog.exec_()
+
+    def showNewCounterCommodityDialog(self):
+        dialog = dojima.ui.edit.commodity.NewCommodityDialog(self)
+        dialog.exec_()
+
+    def validatePage(self):
+        dojima.model.commodities.remote_model.map(
+            self.field('base_remote_commodity_id'),
+            dojima.model.commodities.local_model.item(
+                self.base_combo.currentIndex(),
+                dojima.model.commodities.local_model.ID).text())
+
+        dojima.model.commodities.remote_model.map(
+            self.field('counter_remote_commodity_id'),
+            dojima.model.commodities.local_model.item(
+                self.counter_combo.currentIndex(),
+                dojima.model.commodities.local_model.ID).text())
+
+        return dojima.model.commodities.remote_model.submit()
+
 
 class ExchangeListItem(QtGui.QListWidgetItem):
 
