@@ -68,6 +68,8 @@ class ExchangeDockWidget(QtGui.QDockWidget, ErrorHandling):
         # get our display parameters
         self.base_factor, self.counter_factor = self.exchange_obj.getFactors(
             self.remote_market)
+        self.base_power, self.counter_power = self.exchange_obj.getPowers(
+            self.remote_market)
         self.scale = self.exchange_obj.getScale(self.remote_market)
 
         self.base_precision, ok = dojima.model.commodities.local_model.item(
@@ -253,15 +255,17 @@ class AccountWidget(QtGui.QWidget, ErrorHandling):
             label.addAction(refresh_balance_action)
 
         self.ask_amount_spin = dojima.ui.widget.AssetSpinBox(
-            factor=parent.base_factor, scale=parent.scale)
+            factor=parent.base_factor, power=parent.base_power,
+            scale=parent.scale)
         self.bid_amount_spin = dojima.ui.widget.AssetSpinBox(
-            factor=parent.base_factor, scale=parent.scale)
+            factor=parent.base_factor, power=parent.base_power,
+            scale=parent.scale)
 
         self.ask_price_spin = dojima.ui.widget.AssetSpinBox(
-            factor=parent.counter_factor, scale=parent.scale)
+            factor=parent.counter_factor, power=parent.counter_power)
 
         self.bid_price_spin = dojima.ui.widget.AssetSpinBox(
-            factor=parent.counter_factor, scale=parent.scale)
+            factor=parent.counter_factor, power=parent.counter_power)
 
         self.ask_estimate_view = dojima.ui.widget.AssetAmountView(
             factor=parent.counter_factor)

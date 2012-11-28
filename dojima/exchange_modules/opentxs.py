@@ -401,8 +401,8 @@ class OTServerWizardPage(QtGui.QWizardPage):
         # thes
 
 
-        contract = dojima.ot.contract.CurrencyContract(b_as_id)
-        factor = contract.getFactor()
+        #contract = dojima.ot.contract.CurrencyContract(b_as_id)
+        #factor = contract.getFactor()
 
         return True
 
@@ -541,11 +541,18 @@ class OTExchange(QtCore.QObject, dojima.exchange.Exchange):
 
         return self.account_object
 
+    # TODO getFactors and getPowers will probably change with the OT high API
     def getFactors(self, market_id):
         b_asset_id, c_asset_id = self.assets[market_id]
         b_contract = dojima.ot.contract.CurrencyContract(b_asset_id)
         c_contract = dojima.ot.contract.CurrencyContract(c_asset_id)
         return ( b_contract.getFactor(), c_contract.getFactor(), )
+
+    def getPowers(self, market_id):
+        b_asset_id, c_asset_id = self.assets[market_id]
+        b_contract = dojima.ot.contract.CurrencyContract(b_asset_id)
+        c_contract = dojima.ot.contract.CurrencyContract(c_asset_id)
+        return ( b_contract.getPower(), c_contract.getPower(), )
 
     def getRemotePair(self, market_id):
         return self.assets[market_id]

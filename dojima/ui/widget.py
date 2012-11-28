@@ -131,18 +131,35 @@ class AssetAmountView(QtGui.QLineEdit):
 
 class AssetSpinBox(QtGui.QDoubleSpinBox):
 
-    # TODO avoid precision for now
+    # factor and scale will determine step size and maximum
+    # power will determine tha decimals
+    # type will determine the base
+
+    # precision can be avoided for now
 
     decimal_point = QtCore.QLocale().decimalPoint()
     #valueChanged = QtCore.pyqtSignal(int)
 
-    def __init__(self, factor=1, precision=None, scale=None, parent=None):
-        super(AssetSpinBox, self).__init__(parent)
+    def __init__(self, factor=1, power=0, precision=None, scale=None,
+                 base="decimal", parent=None):
+        if base != "decimal":
+            raise NotImplementedError("%s base not supported" % base)
         self.factor = factor
-        self.precision = None
+        print self.factor
+        self.power = power
+        self.precision = precision
         self.scale = scale
 
-        if (scale is not None and scale >1):
+        # need something to round with if scale is set
+        if scale > 1:
+            # This wont work with non-decimal numbers
+            self.scale_round_digits = -len(str(scale)) + 1
+            print "self.scale_round_digits", self.scale_round_digits
+
+        # The super contructor calls textFromValue and maybe others so set
+        # attributes first
+        super(AssetSpinBox, self).__init__(parent, decimals=power)
+        if (scale is not None and scale > 1):
             step = factor * scale
 
             self.setSingleStep(step)
@@ -171,6 +188,10 @@ class AssetSpinBox(QtGui.QDoubleSpinBox):
 
         self.setSingleStep(step)
         self.setMaximum(step * 99 )
+
+        if scale > 1:
+            # This wont work with non-decimal numbers
+            self.scale_round_digits = scale * 10
 
     def setValue(self, value):
         self._value = value
@@ -203,32 +224,37 @@ class AssetSpinBox(QtGui.QDoubleSpinBox):
         return value
 
     def valueFromText(self, text):
-        text.remove(self.decimal_point)
-
         if self.prefix():
             text.remove(self.prefix())
         if self.suffix():
             text.remove(self.suffix())
 
-        value, ok = text.toInt()
-        assert ok
+        if self.factor > 1:
+            value, converted_ok = text.toDouble()
+        else:
+            value, converted_ok = text.toInt()
+        if not converted_ok:
+            return 0
+
+        if self.scale > 1:
+            value = round(value, self.scale_round_digits)
 
         if self.factor > 1:
             value *= self.factor
 
-        return value
+        return int(value)
 
 
 class OffersView(QtGui.QTableView):
 
     def hideColumns(self):
-        print "hideColumns hit"
         self.hideColumn(0)
         self.hideColumn(3)
         self.hideColumn(4)
         self.hideColumn(5)
 
 
+        # I think this can go
 class ScaleSpin(QtGui.QSpinBox):
 
     def __init__(self, parent=None):
@@ -240,7 +266,6 @@ class ScaleSpin(QtGui.QSpinBox):
     def stepBy(self, steps):
         self.scale += steps
         self.setMinimum(self.value())
-        print self.scale
         value = pow(10, self.scale)
         self.setValue(value)
         self.setMaximum(value * 10)

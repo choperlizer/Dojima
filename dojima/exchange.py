@@ -40,7 +40,10 @@ class Exchange:
         raise NotImplementedError
 
     def getFactors(self, remoteMarketID):
-        return (1, 1,)
+        raise NotImplementedError
+
+    def getPower(self, remoteMarketID):
+        raise NotImplementedError
 
     def getScale(self, remoteMarketID):
         return 1

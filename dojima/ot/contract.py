@@ -34,7 +34,7 @@ class CurrencyContract(object):
         #    assetTypeId, dojima.ot.getSigningNym())
 
         self.contract = otapi.OT_API_GetAssetType_Contract(assetTypeId)
-       
+
         self.name = None
         self.tla = None
         self.symbol = None
@@ -63,7 +63,8 @@ class CurrencyContract(object):
             self.parseContractXml()
         return self.factor
 
-    def getDecimalPower(self):
+    def getPower(self):
+        # TODO reconcile what is power and decimal_power
         if self.decimal_power is None:
             self.parseContractXml()
         return self.decimal_power
