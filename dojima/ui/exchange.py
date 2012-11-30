@@ -375,12 +375,49 @@ class AccountWidget(QtGui.QWidget, ErrorHandling):
         self.bid_offers_view = dojima.ui.widget.OffersView()
         layout.addWidget(self.bid_offers_view, 5,3, 1,3)
 
+
+        self.ask_price_delegate = dojima.ui.widget.OfferItemDelegate(
+            prefix=counter_prefix, suffix=counter_suffix,
+            factor=parent.counter_factor)
+
+        self.ask_offers_view.setItemDelegateForColumn(dojima.data.offers.PRICE,
+                                                      self.ask_price_delegate)
+
+        self.bid_price_delegate = dojima.ui.widget.OfferItemDelegate(
+            prefix=counter_prefix, suffix=counter_suffix,
+            factor=parent.counter_factor)
+
+        self.bid_offers_view.setItemDelegateForColumn(dojima.data.offers.PRICE,
+                                                      self.bid_price_delegate)
+
+
+        self.ask_outstanding_delegate = dojima.ui.widget.OfferItemDelegate(
+            prefix=base_prefix, suffix=base_suffix,
+            factor=parent.base_factor)
+
+        self.ask_offers_view.setItemDelegateForColumn(
+            dojima.data.offers.OUTSTANDING, self.ask_outstanding_delegate)
+
+        self.bid_outstanding_delegate = dojima.ui.widget.OfferItemDelegate(
+            prefix=base_prefix, suffix=base_suffix,
+            factor=parent.base_factor)
+
+        self.bid_offers_view.setItemDelegateForColumn(
+            dojima.data.offers.OUTSTANDING, self.bid_outstanding_delegate)
+
         for view in self.ask_offers_view, self.bid_offers_view:
             view.setSelectionMode(QtGui.QListView.SingleSelection)
             view.setSelectionBehavior(QtGui.QListView.SelectRows)
             view.setShowGrid(False)
             view.verticalHeader().hide()
             view.setContextMenuPolicy(QtCore.Qt.ActionsContextMenu)
+
+
+            #base_offer_delegate = dojima.ui.widget.OfferItemDelegate(
+            #    factor=parent.base_factor,
+            #    prefix=base_prefix, suffix=base_suffix)
+            #view.setItemDelegateForColumn(dojima.data.offers.OUTSTANDING,
+            #                              base_offer_delegate)
 
         #Refresh offers action
         refresh_offers_action = QtGui.QAction(

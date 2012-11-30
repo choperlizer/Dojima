@@ -883,17 +883,22 @@ class OTExchangeAccount(QtCore.QObject, dojima.exchange.ExchangeAccount):
             self.offers_model.setItem(row, dojima.data.offers.ID, item)
 
             # Offer price
-            price = QtCore.QString().setNum( int(offer.price_per_scale)
-                                             * int(offer.minimum_increment)
-                                             * int(offer.scale) )
+            value = ( int(offer.price_per_scale)
+                      * int(offer.minimum_increment)
+                      * int(offer.scale) )
+
+            item = QtGui.QStandardItem()
+            item.setData(value, QtCore.Qt.UserRole)
             self.offers_model.setItem(row, dojima.data.offers.PRICE,
-                                      QtGui.QStandardItem(price))
+                                      item)
 
             # Offer outstanding
-            outstanding = QtCore.QString().setNum( int(offer.total_assets)
-                                                   - int(offer.finished_so_far))
+            value = ( int(offer.total_assets)
+                      - int(offer.finished_so_far) )
+            item = QtGui.QStandardItem()
+            item.setData(value, QtCore.Qt.UserRole)
             self.offers_model.setItem(row, dojima.data.offers.OUTSTANDING,
-                                      QtGui.QStandardItem(outstanding))
+                                      item)
 
             # Offer type
             if offer.selling:

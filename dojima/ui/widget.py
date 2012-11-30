@@ -17,6 +17,8 @@
 from PyQt4 import QtCore, QtGui
 from PyQt4.QtCore import pyqtProperty
 
+import dojima.data.offers
+
 class _AssetLCDWidget(QtGui.QLCDNumber):
 
     white_palette = QtGui.QPalette(QtGui.QApplication.palette())
@@ -145,7 +147,6 @@ class AssetSpinBox(QtGui.QDoubleSpinBox):
         if base != "decimal":
             raise NotImplementedError("%s base not supported" % base)
         self.factor = factor
-        print self.factor
         self.power = power
         self.precision = precision
         self.scale = scale
@@ -252,6 +253,72 @@ class OffersView(QtGui.QTableView):
         self.hideColumn(3)
         self.hideColumn(4)
         self.hideColumn(5)
+
+
+class OfferItemDelegate(QtGui.QItemDelegate):
+    # I tried styleitemdelegate but got segfaults
+
+    def __init__(self, factor=1, prefix=None, suffix=None, parent=None):
+        super(OfferItemDelegate, self).__init__(parent)
+
+        if factor > 1:
+            self.factor = float(factor)
+        else:
+            self.factor = factor
+
+        self.prefix = prefix
+        self.suffix = suffix
+
+    def paint(self, painter, option, index):
+        value = index.model().data(index, QtCore.Qt.UserRole)
+        print "row", index.row(), "of", index.model().rowCount()
+
+        if self.factor > 1:
+            value /= self.factor
+
+        text = QtCore.QString().setNum(value)
+
+        if self.prefix:
+            text.prepend(self.prefix)
+        if self.suffix:
+            text.append(self.suffix)
+
+        option.displayAlignment = (QtCore.Qt.AlignRight |
+                                   QtCore.Qt.AlignVCenter)
+        self.drawDisplay(painter, option, option.rect, text)
+        self.drawFocus(painter, option, option.rect)
+
+
+class OfferStyledItemDelegate(QtGui.QStyledItemDelegate):
+
+    def __init__(self, factor=1, prefix=None, suffix=None, parent=None):
+        super(OfferStyledItemDelegate, self).__init__(parent)
+
+        if factor > 1:
+            self.factor = float(factor)
+        else:
+            self.factor = factor
+
+        self.prefix = prefix
+        self.suffix = suffix
+
+    def setEditorData(self, editor, index):
+        print type(editor)
+        value = index.model().data(index, QtCore.Qt.QUserRole)
+
+        if self.factor > 1:
+            value /= self.factor
+
+        text = QtCore.QString().setNum(value)
+
+        if self.prefix:
+            text.prepend(self.prefix)
+        if self.suffix:
+            text.append(self.suffix)
+
+            #option.displayAlignment = (QtCore.QtAlignRight |
+            #                       QtCore.Qt.AlignVCenter)
+        editor.setText(text)
 
 
         # I think this can go
