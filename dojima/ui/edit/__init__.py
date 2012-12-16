@@ -20,7 +20,7 @@ from PyQt4 import QtCore, QtGui
 import dojima.ui.edit.commodity
 #import dojima.ui.edit.market
 #import dojima.ui.edit.exchange
-import dojima.ui.edit.ot_markets
+#import dojima.ui.edit.ot_markets
 
 class EditDefinitionsDialog(QtGui.QDialog):
 
@@ -41,13 +41,12 @@ class EditDefinitionsDialog(QtGui.QDialog):
             dojima.ui.edit.exchange.EditWidget(),
             QtCore.QCoreApplication.translate('EditDefinitionsDialog',
                                               "&exchanges"))
-        """
         self.tab_widget.addTab(
             dojima.ui.edit.ot_markets.EditWidget(),
             QtCore.QCoreApplication.translate('EditDefinitionsDialog',
                                               "&OT markets"))
+        """
 
-        # TODO just connect once
         button_box = QtGui.QDialogButtonBox(
             QtGui.QDialogButtonBox.Close)
         button_box.rejected.connect(self.accept)

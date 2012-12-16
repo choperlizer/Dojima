@@ -30,19 +30,19 @@ class OTAssetsModel(QtGui.QStandardItemModel):
     def __init__(self, parent=None):
         super(OTAssetsModel, self).__init__(parent)
         self.asset_ids = list()
-        for i in range(otapi.OT_API_GetAssetTypeCount()):
-            asset_id = otapi.OT_API_GetAssetType_ID(i)
+        for i in range(otapi.OTAPI_Basic_GetAssetTypeCount()):
+            asset_id = otapi.OTAPI_Basic_GetAssetType_ID(i)
             self.addAsset(asset_id)
 
     def addAsset(self, asset_id):
-        item = QtGui.QStandardItem(otapi.OT_API_GetAssetType_Name(asset_id))
+        item = QtGui.QStandardItem(otapi.OTAPI_Basic_GetAssetType_Name(asset_id))
         item.setData(asset_id, QtCore.Qt.UserRole)
         self.appendRow(item)
         self.asset_ids.append(asset_id)
 
     def refresh(self):
-        for i in range(otapi.OT_API_GetAssetTypeCount()):
-            asset_id = otapi.OT_API_GetAssetType_ID(i)
+        for i in range(otapi.OTAPI_Basic_GetAssetTypeCount()):
+            asset_id = otapi.OTAPI_Basic_GetAssetType_ID(i)
             if asset_id not in self.asset_ids:
                 self.addAsset(asset_id)
 

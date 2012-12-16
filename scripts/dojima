@@ -16,8 +16,10 @@ from PyQt4 import QtCore, QtGui
 
 try:
     import otapi
-    otapi.OT_API_Init()
-    otapi.OT_API_LoadWallet()
+    otapi.OTAPI_Basic_AppStartup()
+    otapi.OTAPI_Basic_Init()
+    otapi.OTAPI_Basic_LoadWallet()
+    import dojmia.ot
 except ImportError:
     otapi = None
 
@@ -39,7 +41,6 @@ if __name__ == '__main__':
         log_level = logging.INFO
     elif args.debug:
         log_level = logging.DEBUG
-        #otapi.OT_API_Output(5, "logging test");
     else:
         log_level = logging.WARNING
     logging.basicConfig(level=log_level)
@@ -54,9 +55,11 @@ if __name__ == '__main__':
     # translator.load("farsi.qm")
     # app.installTranslator(translator)
     #end
-    
+
     from dojima.ui.mainwindow import MainWindow
     window = MainWindow()
     window.show()
 
     sys.exit(app.exec_())
+    if otapi:
+        otapi.OTAPI_Basic_AppShutdown()

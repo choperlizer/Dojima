@@ -19,58 +19,48 @@ import os
 import os.path
 import time
 
+import matplotlib.dates
 import numpy as np
 from PyQt4 import QtCore, QtGui
 
 import dojima.exchange
 
 
-logger = logging.getLogger(__name__)
+#logger = logging.getLogger(__name__)
 
 
 class DepthProxy(QtCore.QObject):
 
-    refreshed_signal = QtCore.pyqtSignal(np.ndarray)
+    refreshed = QtCore.pyqtSignal(np.ndarray)
 
-    def __init__(self, market_uuid, exchange_name,
-                 precision=2, parent=None):
+    def __init__(self, exchangeObj, marketId, parent=None):
         super(DepthProxy, self).__init__(parent)
-        self.storage_directory = str(QtGui.QDesktopServices.storageLocation(
-            QtGui.QDesktopServices.DataLocation))
+        self.exchange_obj = exchangeObj
+        self.market_id = marketId
 
-        self.precision = precision
-        self.exchange = dojima.exchange.get_exchange_object(exchange_name,
-                                                                 market_uuid)
-        self.exchange.depth_signal.connect(self._process_depth)
-
-    def get_array_filename(self):
-        array_filename = os.path.join(
-            self.storage_directory, '{}_{}_{}_depth.pickle'.format(market_uuid,
-                                                                   exchange_name,
-                                                                   int(time.time())))
-
-        return array_filename
+    def reload(self):
+        # TODO this is a temporary method, remove it when fetching the market offers works
+        self.exchange_obj.readDepth()
 
     def refresh(self):
-        #if self.depth is not None and self.depth.any():
-        #    self.refreshed_signal.emit(self.depth)
-        #else:
-        self.exchange.refresh_depth_data()
+        self.exchange_obj.refreshDepth(self.market_id)
 
-    def _process_depth(self, depth_data):
-        "depth data should be (asks(prices, amounts), bids(prices, amounts))"
+    def processDepth(self, asks, bids):
+        "depth data should be asks(prices, amounts), bids(prices, amounts)"
         times = list()
         price_steps = list()
         volume_sums = list()
-        step_size = 1.0 / pow(10, self.precision)
+        #step_size = 1.0 / pow(10, self.precision)
         now = time.time()
         now = matplotlib.dates.epoch2num(now)
 
         #bids
-        bids = np.array(depth_data[1], dtype=np.float).transpose()
+        print bids
+        bids = np.array(bids, dtype=np.float).transpose()
+        if not bids: return None
         bid_prices = bids[0]
         bid_volumes = bids[1]
-        floor = bid_prices.max().round(self.precision)
+        floor = bid_prices.max()#.round(self.precision)
         bottom = bid_prices.min()
 
         while floor > bottom:
@@ -85,10 +75,11 @@ class DepthProxy(QtCore.QObject):
         volume_sums.reverse()
 
         # asks
-        asks = np.array(depth_data[0], dtype=np.float).transpose()
+        asks = np.array(asks, dtype=np.float).transpose()
+        if not asks: return None
         ask_prices = asks[0]
         ask_volumes = bids[1]
-        ceiling = ask_prices.min().round(self.precision)
+        ceiling = ask_prices.min()#.round(self.precision)
         top = ask_prices.max()
 
         while ceiling < top:
@@ -100,13 +91,4 @@ class DepthProxy(QtCore.QObject):
             volume_sums.append(ask_volumes[index].sum())
 
         self.depth = np.array((times, price_steps, volume_sums)).transpose()
-        self.save()
-        self.refreshed_signal.emit(self.depth)
-
-    def save(self):
-        array_filename = self.get_array_filename()
-        directory = os.path.dirname(array_filename)
-        if not os.path.exists(directory):
-            os.makedir(directory)
-        self.depth.dump(self.get_array_filename)
-        logger.debug("saved depth data to %s", array_filename)
+        self.refreshed.emit(self.depth)

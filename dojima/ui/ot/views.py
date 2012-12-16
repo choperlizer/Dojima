@@ -49,25 +49,32 @@ class ComboBox(QtGui.QComboBox):
             str(self.itemData(row, QtCore.Qt.UserRole)))
 
     def getOTID(self):
-        print "getOTID called"
         return str(self.itemData(self.currentIndex(),
                                  QtCore.Qt.UserRole))
 
 
 class AccountComboBox(ComboBox):
+    """ QComboBox for OT accounts
+
+    This combo does not come with an model, but it does have
+    remote_commodity_id and remote_commodity_name Qt Properties.
+    
+    """
+    # TODO find a place to put an OT ID verification function
 
     @QtCore.pyqtProperty(str)
     def remote_commodity_id(self):
         ot_id = str(self.itemData(self.currentIndex(), QtCore.Qt.UserRole))
-        if ot_id is None:return ''
-        ot_id = otapi.OT_API_GetAccountWallet_AssetTypeID(ot_id)
-        if ot_id is None:return ''
+        if len(ot_id) != 43: return ''
+        ot_id = otapi.OTAPI_Basic_GetAccountWallet_AssetTypeID(ot_id)
+        if len(ot_id) != 43: return ''
         return ot_id
 
     @QtCore.pyqtProperty(str)
     def remote_commodity_name(self):
         ot_id = str(self.itemData(self.currentIndex(), QtCore.Qt.UserRole))
-        if ot_id is None:return ''
-        ot_id = otapi.OT_API_GetAccountWallet_AssetTypeID(ot_id)
-        if ot_id is None:return ''
-        return otapi.OT_API_GetAssetType_Name(ot_id)
+        if len(ot_id) != 43: return ''
+        ot_id = otapi.OTAPI_Basic_GetAccountWallet_AssetTypeID(ot_id)
+        if len(ot_id) != 43: return ''
+        print "got here, and ot_id is", ot_id, "."
+        return otapi.OTAPI_Basic_GetAssetType_Name(ot_id)

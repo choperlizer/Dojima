@@ -104,7 +104,7 @@ class _ContractImportDialog(QtGui.QDialog):
             #self.parent.ot_asset_model.dataChanged.emit(
         else:
             QtGui.QMessageBox.warning(self, subdialog_title,
-                                      otapi.OT_API_PeekMemlogFront())
+                                      otapi.OTAPI_Basic_PeekMemlogFront())
 
     def close(self):
         if self.import_occured is True:
@@ -114,9 +114,11 @@ class _ContractImportDialog(QtGui.QDialog):
 
 class AssetContractImportDialog(_ContractImportDialog):
 
-    contract_import_method = otapi.OT_API_AddAssetContract
+    def contract_import_method(self, text):
+        otapi.OTAPI_Basic_AddAssetContract(text)
 
-    
+
 class ServerContractImportDialog(_ContractImportDialog):
 
-    contract_import_method = otapi.OT_API_AddServerContract
+    def contract_import_method(self, text):
+        otapi.OTAPI_Basic_AddServerContract(text)

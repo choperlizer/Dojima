@@ -55,9 +55,9 @@ class SelectExchangePage(QtGui.QWizardPage):
                                               "page of the add markets wizard."))
         self.setSubTitle(
             QtCore.QCoreApplication.translate('AddMarketsWizard',
-                                              "Select the exchange hosting blah "
-                                              "blah blah.. \nTODO finish this "
-                                              "description"))
+                                              "Select the exchange hosting the "
+                                              "market you desire.",
+                                              "The subtitle paragragh."))
         self.list_widget = QtGui.QListWidget(self)
 
         add_server_button = QtGui.QPushButton(
@@ -117,10 +117,8 @@ class MapCommoditiesPage(QtGui.QWizardPage):
         self.base_combo = QtGui.QComboBox()
         self.counter_combo = QtGui.QComboBox()
 
-        self.base_combo.setModel(
-            dojima.model.commodities.local_model)
-        self.counter_combo.setModel(
-            dojima.model.commodities.local_model)
+        self.base_combo.setModel(dojima.model.commodities.local_model)
+        self.counter_combo.setModel(dojima.model.commodities.local_model)
 
         self.base_combo.setModelColumn(
             dojima.model.commodities.local_model.NAME)

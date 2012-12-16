@@ -51,6 +51,9 @@ class Exchange:
     def getTickerProxy(self, remoteMarketID):
         raise NotImplementedError
 
+    def getDepthProxy(self, remoteMarketID):
+        raise NotImplementedError
+
     def hasDefaultAccount(self, remoteMarketID):
         raise NotImplementedError
 

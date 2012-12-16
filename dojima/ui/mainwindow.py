@@ -81,11 +81,6 @@ class MainWindow(QtGui.QMainWindow):
 
     def refreshMarkets(self, showNew=False):
         dojima.exchanges.refresh()
-
-        for market_container in dojima.markets.container:
-            for exchange_proxy in market_container:
-                print "market:", market_container.pair, "exchange:", exchange_proxy.id
-
         for market_container in dojima.markets.container:
             if market_container.pair in self.markets_menu:
                 market_menu = self.markets_menu.getMarketMenu(
@@ -119,6 +114,8 @@ class MainWindow(QtGui.QMainWindow):
     def showEditDefinitionsDialog(self):
         dialog = dojima.ui.edit.EditDefinitionsDialog(self)
         dialog.exec_()
+
+        
 
 
 class ExchangeMarketsMenu(QtGui.QMenu):

@@ -69,7 +69,8 @@ class CreateNymDialog(QtGui.QDialog):
         error_title = QtCore.QCoreApplication.translate('CreateNymDialog',
                                                         "Error")
 
-        nym_id = otapi.OT_API_CreateNym(int(self.key_size_combo.currentText()))
+        nym_id = otapi.OTAPI_Basic_CreateNym(
+            int(self.key_size_combo.currentText()))
 
         if not nym_id:
             QtGui.QApplication.restoreOverrideCursor()
@@ -79,7 +80,7 @@ class CreateNymDialog(QtGui.QDialog):
 
         # TODO make a selectable default signing nym
         # to use for this sort of thing
-        otapi.OT_API_SetNym_Name(nym_id, nym_id, str(self.name_edit.text()))
+        otapi.OTAPI_Basic_SetNym_Name(nym_id, nym_id, str(self.name_edit.text()))
 
         QtGui.QApplication.restoreOverrideCursor()
         self.accept()

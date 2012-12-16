@@ -65,10 +65,10 @@ class OTAccountsModel(QtGui.QStandardItemModel, _OTAccountsModel):
     def __init__(self, parent=None):
         super(OTAccountsModel, self).__init__(parent)
 
-        self.row_count = otapi.OT_API_GetAccountCount()
+        self.row_count = otapi.OTAPI_Basic_GetAccountCount()
         # redundantly defined below
         for row in range(self.row_count):
-            account_id = otapi.OT_API_GetAccountWallet_ID(row)
+            account_id = otapi.OTAPI_Basic_GetAccountWallet_ID(row)
             self.addRow(account_id, row)
 
     def addRow(self, account_id, row=None):
@@ -76,26 +76,26 @@ class OTAccountsModel(QtGui.QStandardItemModel, _OTAccountsModel):
             row = self.rowCount()
 
         item = QtGui.QStandardItem(
-            otapi.OT_API_GetAccountWallet_Name(account_id))
+            otapi.OTAPI_Basic_GetAccountWallet_Name(account_id))
         item.setData(account_id, QtCore.Qt.UserRole)
         self.setItem(row, self.ACCOUNT, item)
 
-        ot_id = otapi.OT_API_GetAccountWallet_AssetTypeID(account_id)
-        item = QtGui.QStandardItem(otapi.OT_API_GetAssetType_Name(ot_id))
+        ot_id = otapi.OTAPI_Basic_GetAccountWallet_AssetTypeID(account_id)
+        item = QtGui.QStandardItem(otapi.OTAPI_Basic_GetAssetType_Name(ot_id))
         item.setData(ot_id, QtCore.Qt.UserRole)
         self.setItem(row, self.ASSET, item)
 
-        ot_id = otapi.OT_API_GetAccountWallet_NymID(account_id)
-        item = QtGui.QStandardItem(otapi.OT_API_GetNym_Name(ot_id))
+        ot_id = otapi.OTAPI_Basic_GetAccountWallet_NymID(account_id)
+        item = QtGui.QStandardItem(otapi.OTAPI_Basic_GetNym_Name(ot_id))
         item.setData(ot_id, QtCore.Qt.UserRole)
         self.setItem(row, self.NYM, item)
 
-        ot_id = otapi.OT_API_GetAccountWallet_ServerID(account_id)
-        item = QtGui.QStandardItem(otapi.OT_API_GetServer_Name(ot_id))
+        ot_id = otapi.OTAPI_Basic_GetAccountWallet_ServerID(account_id)
+        item = QtGui.QStandardItem(otapi.OTAPI_Basic_GetServer_Name(ot_id))
         item.setData(ot_id, QtCore.Qt.UserRole)
         self.setItem(row, self.SERVER, item)
 
-        account_type = otapi.OT_API_GetAccountWallet_Type(account_id)
+        account_type = otapi.OTAPI_Basic_GetAccountWallet_Type(account_id)
         if account_type == 'simple':
             item = QtGui.QStandardItem(self.simple_translation)
             item.setData('s', QtCore.Qt.UserRole)
@@ -109,12 +109,12 @@ class OTAccountsModel(QtGui.QStandardItemModel, _OTAccountsModel):
         self.setItem(row, self.TYPE, item)
 
         item = QtGui.QStandardItem(
-            otapi.OT_API_GetAccountWallet_Balance(account_id))
+            otapi.OTAPI_Basic_GetAccountWallet_Balance(account_id))
         self.setItem(row, self.BALANCE, item)
 
     def refresh(self):
-        for row in range(otapi.OT_API_GetAccountCount()):
-            account_id = otapi.OT_API_GetAccountWallet_ID(row)
+        for row in range(otapi.OTAPI_Basic_GetAccountCount()):
+            account_id = otapi.OTAPI_Basic_GetAccountWallet_ID(row)
             search = self.findItems(account_id)
             if not search: self.addRow(account_id)
 
@@ -129,7 +129,7 @@ class OTAccountsModel(QtGui.QStandardItemModel, _OTAccountsModel):
         row = index.row()
         account_id = str(self.item(row, self.ID).text())
         signer_nym = str(self.item(row, self.NYM_ID).text())
-        otapi.OT_API_SetAccountWallet_Name(account_id,
+        otapi.OTAPI_Basic_SetAccountWallet_Name(account_id,
                                            signer_nym,
                                            str(data))
         self.item(row, self.ACCOUNT).setText(data)

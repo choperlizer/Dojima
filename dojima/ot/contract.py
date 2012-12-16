@@ -33,7 +33,7 @@ class CurrencyContract(object):
         #self.xml = otapi.OT_API_VerifyAndRetrieveXMLContents(
         #    assetTypeId, dojima.ot.getSigningNym())
 
-        self.contract = otapi.OT_API_GetAssetType_Contract(assetTypeId)
+        self.contract = otapi.OTAPI_Basic_GetAssetType_Contract(assetTypeId)
 
         self.name = None
         self.tla = None

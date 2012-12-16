@@ -18,6 +18,7 @@ import logging
 
 from PyQt4 import QtCore, QtGui
 
+import dojima.ui.chart
 import dojima.ui.widget
 #import dojima.model.orders
 import dojima.model.commodities
@@ -44,15 +45,13 @@ class ExchangeDockWidget(QtGui.QDockWidget, ErrorHandling):
 
         # Building the pretty name again
         # there will probably be problems when commodities are deleted
-        search = dojima.model.commodities.local_model.findItems(self.base_id)
-        self.base_row = search[0].row()
-        base_name = dojima.model.commodities.local_model.item(self.base_row,
-                                           dojima.model.commodities.local_model.NAME).text()
+        self.base_row, self.counter_row = dojima.model.commodities.local_model.getRows(self.base_id, self.counter_id)
 
-        search = dojima.model.commodities.local_model.findItems(self.counter_id)
-        self.counter_row = search[0].row()
-        counter_name = dojima.model.commodities.local_model.item(self.counter_row,
-                                              dojima.model.commodities.local_model.NAME).text()
+        base_name = dojima.model.commodities.local_model.item(
+            self.base_row, 0).text()
+        counter_name = dojima.model.commodities.local_model.item(
+            self.counter_row, 0).text()
+
         title = QtCore.QCoreApplication.translate(
             'ExchangeDockWidget', "%1 - %2 / %3", "exchange name, base, counter"
             ).arg(exchange_name).arg(base_name).arg(counter_name)
@@ -196,7 +195,7 @@ class ExchangeDockWidgetMenuBar(QtGui.QMenuBar):
 
     def __init__(self, parent=None):
         super(ExchangeDockWidgetMenuBar, self).__init__(parent)
-        self.exchange = parent
+        self.dock = parent
         self.market_menu = self.addMenu(
             QtCore.QCoreApplication.translate('ExchangeDockWidgetMenuBar',
                                               "Market",
@@ -204,7 +203,7 @@ class ExchangeDockWidgetMenuBar(QtGui.QMenuBar):
                                               "to edit market settings."))
 
         self.exchange_menu = self.addMenu(
-            QtCore.QCoreApplication.translate('ExchangeDockWidgetMenuBar',
+            QtCore.QCoreApplication.translate('ExchangeDockWidget',
                                               "Exchange",
                                               "The title of a drop down menu "
                                               "to edit exchange settings."))
@@ -215,12 +214,27 @@ class ExchangeDockWidgetMenuBar(QtGui.QMenuBar):
                                               "The title of a drop down menu "
                                               "to edit account settings."))
 
+    def addDepthChartAction(self):
+        action = self.market_menu.addAction(
+            QtCore.QCoreApplication.translate('ExchangeDockWidget',
+                                              "Depth Chart",
+                                              "A menu action to show the current "
+                                              "offers depth cart."))
+        action.triggered.connect(self.showDepthChart)
+
     def getMarketMenu(self):
         return self.market_menu
+
     def getExchangeMenu(self):
         return self.exchange_menu
+
     def getAccountMenu(self):
         return self.account_menu
+
+    def showDepthChart(self):
+        proxy = self.dock.exchange_obj.getDepthProxy(self.dock.remote_market)
+        dialog = dojima.ui.chart.DepthDialog(proxy, self)
+        dialog.show()
 
 
 class AccountWidget(QtGui.QWidget, ErrorHandling):

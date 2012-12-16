@@ -200,21 +200,15 @@ class NewOfferDialog(QtGui.QDialog):
         increment = 1
         total = self.amount_spin.value() / scale # * increment
 
-        r = otapi.OT_API_issueMarketOffer(self.server_id,
-                                          self.nym_combo.getOTID(),
-                                          base_asset_id,
-                                          base_account_id,
-                                          counter_asset_id,
-                                          counter_account_id,
-                                          str(scale),
-                                          str(increment),
-                                          str(total),
-                                          str(self.price_spin.value()),
+        msg = objEasy.create_market_offer(self.server_id, self.nym_combo.getOTID(),
+                                          base_account_id, counter_account_id,
+                                          str(scale), str(increment),
+                                          str(total), str(self.price_spin.value()),
                                           offer_type)
 
         QtGui.QApplication.restoreOverrideCursor()
 
-        if r < 1:
+        if objEasy.VerifyMessageSuccess(msg) < 1:
             logger.error("issue market offer failed")
             self.getRequestNumber_queue.put(None)
             self.offer_queue.put( (market_id, total, price, buy_sell,) )

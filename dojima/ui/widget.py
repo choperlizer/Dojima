@@ -155,7 +155,6 @@ class AssetSpinBox(QtGui.QDoubleSpinBox):
         if scale > 1:
             # This wont work with non-decimal numbers
             self.scale_round_digits = -len(str(scale)) + 1
-            print "self.scale_round_digits", self.scale_round_digits
 
         # The super contructor calls textFromValue and maybe others so set
         # attributes first
@@ -271,7 +270,6 @@ class OfferItemDelegate(QtGui.QItemDelegate):
 
     def paint(self, painter, option, index):
         value = index.model().data(index, QtCore.Qt.UserRole)
-        print "row", index.row(), "of", index.model().rowCount()
 
         if self.factor > 1:
             value /= self.factor
@@ -303,7 +301,6 @@ class OfferStyledItemDelegate(QtGui.QStyledItemDelegate):
         self.suffix = suffix
 
     def setEditorData(self, editor, index):
-        print type(editor)
         value = index.model().data(index, QtCore.Qt.QUserRole)
 
         if self.factor > 1:
