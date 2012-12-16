@@ -29,11 +29,6 @@ class OTNymsModel(QtGui.QStandardItemModel):
             nym_id = otapi.OTAPI_Basic_GetNym_ID(i)
             self.addNym(nym_id)
 
-        self.setHorizontalHeaderLabels(
-            QtCore.QCoreApplication.translate('OTNymsModel', "Nym"
-                                              "this is the display "
-                                              "header for a nym list"),)
-
     def addNym(self, nym_id):
         item = QtGui.QStandardItem(otapi.OTAPI_Basic_GetNym_Name(nym_id))
         item.setData(nym_id, QtCore.Qt.UserRole)

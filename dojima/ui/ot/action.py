@@ -24,6 +24,7 @@ import dojima.ui.ot.contract
 import dojima.ui.ot.nym
 import dojima.ui.ot.servers
 
+#TODO finish the ImportNym... stuff
 
 class _DialogAction(QtGui.QAction):
 
@@ -38,8 +39,14 @@ class _DialogAction(QtGui.QAction):
 
 class CreateNymAction(_DialogAction):
 
-    title = QtCore.QCoreApplication.translate('CreateNymDialog', "create &nym")
+    title = QtCore.QCoreApplication.translate('CreateNymDialog', "Create &Nym")
     Dialog = dojima.ui.ot.nym.CreateNymDialog
+
+
+class ImportNymAction(_DialogAction):
+
+    title = QtCore.QCoreApplication.translate('ImportNymDialog', "Import Nym")
+    Dialog = dojima.ui.ot.contract.NymImportDialog
 
 
 class AssetContractImportAction(_DialogAction):
@@ -56,5 +63,6 @@ class ServersDialogAction(_DialogAction):
 
 
 actions = (CreateNymAction,
+           #ImportNymAction,
            AssetContractImportAction,
            ServersDialogAction)

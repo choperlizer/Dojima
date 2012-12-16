@@ -18,6 +18,7 @@ class ExchangesContainer(object):
 
     def __init__(self):
         self.exchanges = dict()
+        self.last = None
 
     def __iter__(self):
         return self.exchanges.values().__iter__()
@@ -27,6 +28,7 @@ class ExchangesContainer(object):
 
     def addExchange(self, exchange_proxy):
         self.exchanges[exchange_proxy.id] = exchange_proxy
+        self.last = exchange_proxy
 
     def refresh(self):
         for proxy in self.exchanges.values():

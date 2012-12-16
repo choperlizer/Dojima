@@ -115,7 +115,7 @@ class MainWindow(QtGui.QMainWindow):
         dialog = dojima.ui.edit.EditDefinitionsDialog(self)
         dialog.exec_()
 
-        
+
 
 
 class ExchangeMarketsMenu(QtGui.QMenu):

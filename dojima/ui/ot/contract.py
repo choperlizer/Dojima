@@ -20,8 +20,12 @@ import os.path
 import otapi
 from PyQt4 import QtCore, QtGui
 
+#!! TODO check the size of files before importing, else bad things might happen !!#
 
 class _ContractImportDialog(QtGui.QDialog):
+
+    file_filter = QtCore.QCoreApplication.translate('ContractImportDialog',
+                                                    "Open Transactions contract (*.otc)")
 
     def __init__(self, parent=None):
         super(_ContractImportDialog, self).__init__(parent)
@@ -30,9 +34,10 @@ class _ContractImportDialog(QtGui.QDialog):
         self.recent_dir = QtCore.QString(QtGui.QDesktopServices.HomeLocation)
 
         self.import_box = QtGui.QPlainTextEdit()
+        #TODO perhaps resize the box base on pasted text?
         self.import_box.setMinimumWidth(512)
         file_button = QtGui.QPushButton(QtCore.QCoreApplication.translate(
-            'ServerContractImportDialog', "File"))
+            'SContractImportDialog', "File"))
         paste_button = QtGui.QPushButton(QtCore.QCoreApplication.translate(
             'ContractImportDialog', "Paste"))
         import_button = QtGui.QPushButton(QtCore.QCoreApplication.translate(
@@ -61,9 +66,8 @@ class _ContractImportDialog(QtGui.QDialog):
         filenames = QtGui.QFileDialog.getOpenFileNames(self,
             QtCore.QCoreApplication.translate(
                 'ContractImportDialog', "select contract file"),
-            self.recent_dir,
-            QtCore.QCoreApplication.translate(
-                'ContractImportDialog', "Open Transactions contracts (*.otc)"))
+            self.recent_dir, self.file_filter)
+
         if not len(filenames):
             return
         self.recent_dir = os.path.dirname(str(filenames[-1]))
@@ -115,10 +119,19 @@ class _ContractImportDialog(QtGui.QDialog):
 class AssetContractImportDialog(_ContractImportDialog):
 
     def contract_import_method(self, text):
-        otapi.OTAPI_Basic_AddAssetContract(text)
+        return otapi.OTAPI_Basic_AddAssetContract(text)
+
+
+class NymImportDialog(_ContractImportDialog):
+
+    file_filter = QtCore.QCoreApplication.translate('NymImportDialog',
+                                                    "Nym public/private key (*)")
+
+    def contract_import_method(self, text):
+        return otapi.OTAPI_Basic_Wallet_ImportNym(text)
 
 
 class ServerContractImportDialog(_ContractImportDialog):
 
     def contract_import_method(self, text):
-        otapi.OTAPI_Basic_AddServerContract(text)
+        return otapi.OTAPI_Basic_AddServerContract(text)

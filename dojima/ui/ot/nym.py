@@ -17,9 +17,7 @@
 import otapi
 from PyQt4 import QtCore, QtGui
 
-
-# TODO get the factor and decorators for the account balances, or else
-# this is going to get confusing
+import dojima.ui.ot.views
 
 
 class CreateNymDialog(QtGui.QDialog):
@@ -84,3 +82,30 @@ class CreateNymDialog(QtGui.QDialog):
 
         QtGui.QApplication.restoreOverrideCursor()
         self.accept()
+
+
+class SelectNymDialog(QtGui.QDialog):
+
+    def __init__(self, parent=None):
+        super(SelectNymDialog, self).__init__(parent)
+
+        self.nym_combo = dojima.ui.ot.views.ComboBox()
+        self.nym_combo.setModel(dojima.model.ot.nyms.model)
+        button_box = QtGui.QDialogButtonBox(QtGui.QDialogButtonBox.Ok |
+                                            QtGui.QDialogButtonBox.Cancel)
+
+        layout = QtGui.QFormLayout()
+        layout.addRow(
+            QtCore.QCoreApplication.translate('SelectNymDialog',
+                                              "Nym:"),
+            self.nym_combo)
+        self.setLayout(layout)
+
+        layout.addRow(button_box)
+
+        button_box.accepted.connect(self.accept)
+        button_box.rejected.connect(self.reject)
+
+    @property
+    def nym_id(self):
+        return self.nym_combo.getOTID()

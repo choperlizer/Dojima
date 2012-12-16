@@ -437,12 +437,18 @@ class AccountWidget(QtGui.QWidget, ErrorHandling):
         refresh_offers_action = QtGui.QAction(
             "&refresh offers", self, triggered=self.account_obj.refreshOffers)
         #Cancel offer action
-        cancel_ask_action = QtGui.QAction("&cancel ask offer", self,
-                                          triggered=self._cancel_ask)
+        cancel_ask_action = QtGui.QAction(
+            QtCore.QCoreApplication.translate('AccountWidget',
+                                              "&cancel ask offer"),
+            self, triggered=self._cancel_ask)
+
         self.ask_offers_view.addAction(cancel_ask_action)
         self.ask_offers_view.addAction(refresh_offers_action)
-        cancel_bid_action = QtGui.QAction("&cancel bid offer", self,
-                                          triggered=self._cancel_bid)
+        cancel_bid_action = QtGui.QAction(
+            QtCore.QCoreApplication.translate('AccountWidget',
+                                              "&cancel bid offer"),
+            self, triggered=self._cancel_bid)
+        
         self.bid_offers_view.addAction(cancel_bid_action)
         self.bid_offers_view.addAction(refresh_offers_action)
 

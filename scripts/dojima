@@ -60,6 +60,8 @@ if __name__ == '__main__':
     window = MainWindow()
     window.show()
 
-    sys.exit(app.exec_())
+    r = app.exec_()
     if otapi:
         otapi.OTAPI_Basic_AppShutdown()
+
+    sys.exit(r)

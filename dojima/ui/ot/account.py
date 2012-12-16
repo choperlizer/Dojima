@@ -26,11 +26,9 @@ from dojima.ot import objEasy
 
 logger = logging.getLogger(__name__)
 
-
+"""
 # TODO get the factor and decorators for the account balances, or else
 # this is going to get confusing
-
-# TODO force an exchange/account object to only use accounts for a single nym
 
 class MarketAccountsDialog(QtGui.QDialog):
 
@@ -177,7 +175,7 @@ class MarketAccountsDialog(QtGui.QDialog):
         dialog = NewAccountDialog(self.server_id, self.counter_id, self)
         if dialog.exec_():
             self.counter_accounts_model.sort(self.accounts_model.NAME)
-
+"""
 
 class NewAccountDialog(QtGui.QDialog):
 
