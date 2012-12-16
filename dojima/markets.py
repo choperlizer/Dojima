@@ -35,6 +35,11 @@ class MarketsContainer(object):
         return len(self.markets)
 
     def addExchange(self, exchange_proxy, local_pair):
+        base, counter = local_pair.split('_')
+        b_row, c_row = dojima.model.commodities.local_model.getRows(base, counter)
+        if (b_row is None) or (c_row is None):
+            return
+
         if local_pair in self.markets:
             container = self.markets[local_pair]
         else:
@@ -56,7 +61,7 @@ class ExchangesContainer(object):
     def prettyName(self):
         base_name, counter_name = dojima.model.commodities.local_model.getNames(
             self.base, self.counter)
-        
+
         return (base_name + ' / ' + counter_name)
 
     def __iter__(self):

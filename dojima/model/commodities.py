@@ -85,10 +85,10 @@ class LocalCommoditiesModel(QtGui.QStandardItemModel):
 
         return row1, row2
 
-    def new_commodity(self):
+    def newCommodity(self):
         item = QtGui.QStandardItem()
         item.setData(QtCore.QUuid.createUuid().toString()[1:-1],
-                     QtCore.QtUserRole)
+                     QtCore.Qt.UserRole)
         items = [item]
         for column in range(self.COLUMNS -1):
             items.append(QtGui.QStandardItem())
@@ -119,7 +119,8 @@ class LocalCommoditiesModel(QtGui.QStandardItemModel):
         for row in rows:
             uuid = self.item(row, self.ID).data(QtCore.Qt.UserRole)
             settings.beginGroup(uuid)
-            for setting, column in settings_MAP:
+            settings.setValue('name', self.item(row, self.NAME).text())
+            for setting, column in self.SETTINGS_MAP:
                 value =  self.item(row, column).text()
                 settings.setValue(setting, value)
             settings.endGroup()

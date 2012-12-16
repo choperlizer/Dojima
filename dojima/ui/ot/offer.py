@@ -14,6 +14,8 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+import logging
+
 import otapi
 from PyQt4 import QtCore, QtGui
 
@@ -22,8 +24,9 @@ import dojima.ui.ot.nym
 import dojima.ui.ot.views
 import dojima.ui.widget
 
-#TODO trim debugger
-import pdb
+from dojima.ot import objEasy
+
+logger = logging.getLogger(__name__)
 
 class NewOfferDialog(QtGui.QDialog):
 
@@ -148,7 +151,7 @@ class NewOfferDialog(QtGui.QDialog):
             self.disableInputs(False)
 
         assert account_id
-        asset_id = otapi.OT_API_GetAccountWallet_AssetTypeID(str(account_id))
+        asset_id = otapi.OTAPI_Basic_GetAccountWallet_AssetTypeID(str(account_id))
         assert asset_id
         contract = dojima.ot.contract.CurrencyContract(asset_id)
         factor = contract.getFactor()
@@ -162,7 +165,7 @@ class NewOfferDialog(QtGui.QDialog):
             self.disableInputs(False)
 
         assert account_id
-        asset_id = otapi.OT_API_GetAccountWallet_AssetTypeID(str(account_id))
+        asset_id = otapi.OTAPI_Basic_GetAccountWallet_AssetTypeID(str(account_id))
         assert asset_id
         contract = dojima.ot.contract.CurrencyContract(asset_id)
         factor = contract.getFactor()
@@ -189,10 +192,10 @@ class NewOfferDialog(QtGui.QDialog):
         QtGui.QApplication.setOverrideCursor(QtCore.Qt.WaitCursor)
 
         base_account_id = self.base_account_combo.getOTID()
-        base_asset_id = otapi.OT_API_GetAccountWallet_AssetTypeID(
+        base_asset_id = otapi.OTAPI_Basic_GetAccountWallet_AssetTypeID(
             str(base_account_id))
         counter_account_id = self.counter_account_combo.getOTID()
-        counter_asset_id = otapi.OT_API_GetAccountWallet_AssetTypeID(
+        counter_asset_id = otapi.OTAPI_Basic_GetAccountWallet_AssetTypeID(
             str(counter_account_id))
 
         scale = self.scale_spin.value()

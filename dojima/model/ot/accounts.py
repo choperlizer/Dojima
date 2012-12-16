@@ -140,7 +140,7 @@ class OTAccountsModel(QtGui.QStandardItemModel, _OTAccountsModel):
 class OTAccountsProxyModel(QtGui.QSortFilterProxyModel, _OTAccountsModel):
 
     def refresh(self):
-        self.model().refresh()
+        self.sourceModel().refresh()
 
 
 class OTServerAccountsModel(OTAccountsProxyModel):
