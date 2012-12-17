@@ -23,9 +23,11 @@ malinvestment.
 ## Install
 Unfortunatly I have not figured out how to get this thing to run from
 within the repo, so it'll have to be installed with setup.py:
+
     sudo python setup.py install
 
 If you don't want to commit to a sudo, you can install to ~/.local:
+
     python setup.py install --user
     # You'll need ~/.local/bin in your PATH or 
     # you'll have to run the command  ~/.local/bin/dojima
