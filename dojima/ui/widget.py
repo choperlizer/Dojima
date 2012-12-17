@@ -132,7 +132,8 @@ class AssetAmountView(QtGui.QLineEdit):
 
 
 class AssetSpinBox(QtGui.QDoubleSpinBox):
-
+    #TODO make get value string method
+        
     # factor and scale will determine step size and maximum
     # power will determine tha decimals
     # type will determine the base

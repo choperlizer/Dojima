@@ -22,6 +22,7 @@ from PyQt4 import QtCore, QtGui
 import dojima.ui.ot.nym
 from dojima.ot import objEasy
 
+
 class MarketTableView(QtGui.QTableView):
 
     marketChanged = QtCore.pyqtSignal(str)
@@ -103,9 +104,9 @@ class ComboBox(QtGui.QComboBox):
 
     def __init__(self, parent=None):
         super(ComboBox, self).__init__(parent)
-        self.currentIndexChanged[int].connect(self.emitOtId)
+        self.currentIndexChanged[int].connect(self.emitOTID)
 
-    def emitOtId(self, row):
+    def emitOTID(self, row):
         self.otIdChanged.emit(
             str(self.itemData(row, QtCore.Qt.UserRole)))
 

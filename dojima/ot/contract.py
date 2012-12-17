@@ -62,6 +62,8 @@ class CurrencyContract(object):
     def getFactor(self):
         if self.factor is None:
             self.parseContractXml()
+            if self.factor is None:
+                self.factor = ""
         return self.factor
 
     def getPower(self):

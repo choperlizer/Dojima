@@ -218,7 +218,7 @@ class OTServerWizardPage(QtGui.QWizardPage):
         self.nyms_model = dojima.model.ot.nyms.model
         self.markets_model = dojima.model.ot.markets.OTMarketsModel(
             self.server_id)
-        accounts_model = dojima.model.ot.accounts.OTServerAccountsModel(
+        accounts_model = dojima.model.ot.accounts.OTAccountsServerModel(
             self.server_id)
 
         simple_accounts_model = dojima.model.ot.accounts.OTAccountsProxyModel()

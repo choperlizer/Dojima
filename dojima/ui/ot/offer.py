@@ -99,7 +99,7 @@ class NewOfferDialog(QtGui.QDialog):
 
         #model
         self.nyms_model = dojima.model.ot.nyms.model
-        accounts_model = dojima.model.ot.accounts.OTServerAccountsModel(
+        accounts_model = dojima.model.ot.accounts.OTAccountsServerModel(
             self.server_id)
 
         simple_accounts_model = dojima.model.ot.accounts.OTAccountsProxyModel()

@@ -15,14 +15,37 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import otapi
-from PyQt4 import QtCore
+from PyQt4 import QtCore, QtGui
 
 import dojima.model
 import dojima.model.ot
 
+class OTServersModel(QtGui.QStandardItemModel):
 
+    def __init__(self, parent=None):
+        super(OTServersModel, self).__init__(parent)
+        self.server_ids = list()
+        for i in range(otapi.OTAPI_Basic_GetServerCount()):
+            server_id = otapi.OTAPI_Basic_GetServer_ID(i)
+            self.addServer(server_id)
+
+    def addServer(self, server_id):
+        item = QtGui.QStandardItem(otapi.OTAPI_Basic_GetServer_Name(server_id))
+        item.setData(server_id, QtCore.Qt.UserRole)
+        self.appendRow(item)
+        self.server_ids.append(server_id)
+
+    def refresh(self):
+        for i in range(otapi.OTAPI_Basic_GetServerCount()):
+            server_id = otapi.OTAPI_Basic_GetServer_ID(i)
+            if not server_id in self.server_ids:
+                self.addServer(server_id)
+
+model = OTServersModel()
+
+
+"""
 class OTServersSimpleModel(dojima.model.ot.OTBaseModel):
-    """A stateless server model"""
 
     COLUMNS = 2
     ID, NAME = range(COLUMNS)
@@ -207,7 +230,7 @@ class MarketItem(object):
                     self.market_data.currency_type_id)
             if role == QtCore.Qt.UserRole:
                 return self.market_data.currency_type_id
-                    
+
     def flags(self):
         return (QtCore.Qt.ItemIsEnabled)
 
@@ -228,3 +251,4 @@ class MarketItem(object):
 
     def parent(self):
         return self.parentItem
+"""
