@@ -13,7 +13,6 @@ import sys
 
 from PyQt4 import QtCore, QtGui
 
-
 try:
     import otapi
     otapi.OTAPI_Basic_AppStartup()
@@ -57,11 +56,7 @@ if __name__ == '__main__':
     #end
 
     from dojima.ui.mainwindow import MainWindow
+
     window = MainWindow()
     window.show()
-
-    r = app.exec_()
-    if otapi:
-        otapi.OTAPI_Basic_AppShutdown()
-
-    sys.exit(r)
+    sys.exit(app.exec_())

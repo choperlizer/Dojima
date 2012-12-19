@@ -159,9 +159,8 @@ class OTServerWizardPage(QtGui.QWizardPage):
         self.setTitle(title)
         self.setSubTitle(
             QtCore.QCoreApplication.translate('OTServerWizardPage',
-                "Select accounts to match a new or existing market.\n"
-                "The market list must be refreshed manually, and a nym "
-                "must be selected to refresh.\n"
+                "Select accounts to match a new or existing market. "
+                "The market list must be refreshed manually, "
                 "Also, 'Refresh Markets' must be hit twice when using "
                 "an unregistered nym, I'm working on it...",
                 "This is the the heading underneath the title on the "

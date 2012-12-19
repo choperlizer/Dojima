@@ -145,16 +145,20 @@ class OTAccountsProxyModel(QtGui.QSortFilterProxyModel, _OTAccountsModel):
 
 class OTAccountsServerModel(OTAccountsProxyModel):
 
-    def __init__(self, server_id, parent=None):
+    def __init__(self, serverId=None, parent=None):
         super(OTAccountsServerModel, self).__init__(parent)
         source_model = OTAccountsModel()
         self.setSourceModel(source_model)
         self.setFilterKeyColumn(OTAccountsModel.SERVER)
         self.setFilterRole(QtCore.Qt.UserRole)
-        self.setFilterFixedString(server_id)
         self.setDynamicSortFilter(True)
+        if serverId:
+            self.setFilterFixedString(serverId)
 
-        
+    def setServer(self, serverId):
+        self.setFilterFixedString(serverId)
+
+
 class OTAccountsSimpleModel(OTAccountsProxyModel):
 
     def __init__(self, parent=None):

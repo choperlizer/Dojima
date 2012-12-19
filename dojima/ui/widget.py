@@ -133,7 +133,7 @@ class AssetAmountView(QtGui.QLineEdit):
 
 class AssetSpinBox(QtGui.QDoubleSpinBox):
     #TODO make get value string method
-        
+
     # factor and scale will determine step size and maximum
     # power will determine tha decimals
     # type will determine the base
@@ -165,6 +165,8 @@ class AssetSpinBox(QtGui.QDoubleSpinBox):
 
             self.setSingleStep(step)
             self.setMaximum(step * 99)
+        else:
+            self.setMaximum(999999999)
 
     def setFactor(self, factor):
         # TODO 'type="decimal" factor="1000" decimal_power="3"' maybe pow() here?

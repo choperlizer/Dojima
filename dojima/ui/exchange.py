@@ -93,9 +93,9 @@ class ExchangeDockWidget(QtGui.QDockWidget, ErrorHandling):
         row = 1
         for translation, stat in (
             (QtCore.QCoreApplication.translate(
-                'ExchangeDockWidget', "ask", "best ask price"), 'ask'),
-            (QtCore.QCoreApplication.translate(
                 'ExchangeDockWidget', "last", "price of last trade"), 'last'),
+            (QtCore.QCoreApplication.translate(
+                'ExchangeDockWidget', "ask", "best ask price"), 'ask'),
             (QtCore.QCoreApplication.translate(
                 'ExchangeDockWidget', "bid", "best bid price"), 'bid')):
 
@@ -268,26 +268,16 @@ class AccountWidget(QtGui.QWidget, ErrorHandling):
             label.setContextMenuPolicy(QtCore.Qt.ActionsContextMenu)
             label.addAction(refresh_balance_action)
 
-        self.ask_amount_spin = dojima.ui.widget.AssetSpinBox(
-            factor=parent.base_factor, power=parent.base_power,
-            scale=parent.scale)
-        self.bid_amount_spin = dojima.ui.widget.AssetSpinBox(
+        self.amount_spin = dojima.ui.widget.AssetSpinBox(
             factor=parent.base_factor, power=parent.base_power,
             scale=parent.scale)
 
-        self.ask_price_spin = dojima.ui.widget.AssetSpinBox(
+        self.price_spin = dojima.ui.widget.AssetSpinBox(
             factor=parent.counter_factor, power=parent.counter_power)
 
-        self.bid_price_spin = dojima.ui.widget.AssetSpinBox(
-            factor=parent.counter_factor, power=parent.counter_power)
-
-        self.ask_estimate_view = dojima.ui.widget.AssetAmountView(
+        self.estimate_view = dojima.ui.widget.AssetAmountView(
             factor=parent.counter_factor)
-        self.ask_estimate_view.setDisabled(True)
-
-        self.bid_estimate_view = dojima.ui.widget.AssetAmountView(
-            factor=parent.counter_factor)
-        self.bid_estimate_view.setDisabled(True)
+        self.estimate_view.setDisabled(True)
 
         # Set the prefixi and suffixi
         base_prefix = dojima.model.commodities.local_model.item(
@@ -301,94 +291,76 @@ class AccountWidget(QtGui.QWidget, ErrorHandling):
             parent.counter_row, dojima.model.commodities.local_model.SUFFIX).text()
 
         if base_prefix:
-            for widget in (self.base_balance_label,
-                           self.ask_amount_spin,
-                           self.bid_amount_spin):
+            for widget in (self.base_balance_label, self.amount_spin):
                 widget.setPrefix(base_prefix)
 
         if base_suffix:
-            for widget in (self.base_balance_label,
-                           self.ask_amount_spin,
-                           self.bid_amount_spin):
+            for widget in (self.base_balance_label, self.amount_spin):
                 widget.setSuffix(base_suffix)
 
         if counter_prefix:
             for widget in (self.counter_balance_label,
-                           self.ask_price_spin, self.bid_price_spin,
-                           self.ask_estimate_view,
-                           self.bid_estimate_view):
+                           self.price_spin,
+                           self.estimate_view):
                 widget.setPrefix(counter_prefix)
 
         if counter_suffix:
             for widget in (self.counter_balance_label,
-                           self.ask_price_spin, self.bid_price_spin,
-                           self.ask_estimate_view,
-                           self.bid_estimate_view):
+                           self.price_spin,
+                           self.estimate_view):
                 widget.setSuffix(counter_suffix)
 
-        ask_button = QtGui.QPushButton(
-            QtCore.QCoreApplication.translate('AccountWidget', "&ask",
-                                              "as in place ask offer"))
-        bid_button = QtGui.QPushButton(
-            QtCore.QCoreApplication.translate('AccountWidget', "&bid",
-                                              "as in place bid offer"))
-        ask_offer_menu = QtGui.QMenu()
-        ask_limit_action = QtGui.QAction(
-            QtCore.QCoreApplication.translate('AccountWidget', "limit offer"),
-            ask_button
-            )
-        ask_market_action = QtGui.QAction(
-            QtCore.QCoreApplication.translate('AccountWidget', "market offer"),
-            ask_button)
-        ask_market_action.setEnabled(False)
-        ask_offer_menu.addAction(ask_limit_action)
-        ask_offer_menu.addAction(ask_market_action)
-        ask_offer_menu.setDefaultAction(ask_limit_action)
-        ask_button.setMenu(ask_offer_menu)
+        offer_button = QtGui.QPushButton(
+            QtCore.QCoreApplication.translate('AccountWidget', "offer",
+                                              "as in place offer"))
+        offer_button_menu = QtGui.QMenu()
+        offer_ask_action = QtGui.QAction(
+            QtCore.QCoreApplication.translate('AccountWidget', "Ask"),
+            offer_button)
+        offer_bid_action = QtGui.QAction(
+            QtCore.QCoreApplication.translate('AccountWidget', "Bid"),
+            offer_button)
 
-        bid_offer_menu = QtGui.QMenu()
-        bid_limit_action = QtGui.QAction(
-            QtCore.QCoreApplication.translate('AccountWidget', "limit offer"),
-            bid_button)
-        bid_market_action = QtGui.QAction(
-            QtCore.QCoreApplication.translate('AccountWidget', "market offer"),
-            bid_button)
-        bid_market_action.setEnabled(False)
-        bid_offer_menu.addAction(bid_limit_action)
-        bid_offer_menu.addAction(bid_market_action)
-        bid_offer_menu.setDefaultAction(bid_limit_action)
-        bid_button.setMenu(bid_offer_menu)
+        offer_button_menu.addAction(offer_ask_action)
+        offer_button_menu.addAction(offer_bid_action)
+        offer_button.setMenu(offer_button_menu)
 
         at_seperator = QtCore.QCoreApplication.translate('AccountWidget',
                                                          "@", "amount @ price")
 
-        layout.addWidget(self.base_balance_label, 0,0, 1,3)
-        layout.addWidget(self.counter_balance_label, 0,3, 1,3)
+        layout.addWidget(self.base_balance_label, 0,0)
+        layout.addWidget(self.counter_balance_label, 0,1)
 
-        layout.addWidget(self.ask_amount_spin, 1,0)
-        layout.addWidget(QtGui.QLabel(at_seperator), 1,1)
-        layout.addWidget(self.ask_price_spin, 1,2)
+        sublayout = QtGui.QFormLayout()
 
-        layout.addWidget(ask_button, 2,0, 1,2)
-        layout.addWidget(self.ask_estimate_view, 2,2)
+        sublayout.addRow(
+            QtCore.QCoreApplication.translate('AccountWidget',
+                                              "Amount:",
+                                              "The offer amount label."),
+            self.amount_spin)
 
-        layout.addWidget(self.bid_amount_spin, 1,3)
-        layout.addWidget(QtGui.QLabel(at_seperator), 1,4)
-        layout.addWidget(self.bid_price_spin, 1,5)
+        sublayout.addRow(
+            QtCore.QCoreApplication.translate('AccountWidget',
+                                              "Price:",
+                                              "The offer price label."),
+            self.price_spin)
 
-        layout.addWidget(bid_button, 2,3, 1,2)
-        layout.addWidget(self.bid_estimate_view, 2,5)
+        #TODO disable the offer menu actions when bid is higher than ask and so on
+        # also disable the actions when either price or amount is 0
 
-        for spin in (self.ask_amount_spin, self.bid_amount_spin,
-                     self.ask_price_spin,self.bid_price_spin):
+        layout.addLayout(sublayout, 1,0, 1,2)
+
+        layout.addWidget(offer_button, 3,0)
+        layout.addWidget(self.estimate_view, 3,1)
+
+        for spin in (self.amount_spin, self.price_spin):
             spin.setMaximum(999999)
 
         self.ask_offers_view = dojima.ui.widget.OffersView()
-        layout.addWidget(self.ask_offers_view, 5,0, 1,3)
+        layout.addWidget(self.ask_offers_view, 4,0, 1,2)
 
         self.bid_offers_view = dojima.ui.widget.OffersView()
-        layout.addWidget(self.bid_offers_view, 5,3, 1,3)
-
+        layout.addWidget(self.bid_offers_view, 5,0, 1,2)
 
         self.ask_price_delegate = dojima.ui.widget.OfferItemDelegate(
             prefix=counter_prefix, suffix=counter_suffix,
@@ -448,18 +420,15 @@ class AccountWidget(QtGui.QWidget, ErrorHandling):
             QtCore.QCoreApplication.translate('AccountWidget',
                                               "&cancel bid offer"),
             self, triggered=self._cancel_bid)
-        
+
         self.bid_offers_view.addAction(cancel_bid_action)
         self.bid_offers_view.addAction(refresh_offers_action)
 
         self.setLayout(layout)
 
         # inter-widget connections
-        self.ask_amount_spin.editingFinished.connect(self.ask_offer_changed)
-        self.bid_amount_spin.editingFinished.connect(self.bid_offer_changed)
-
-        self.ask_price_spin.editingFinished.connect(self.ask_offer_changed)
-        self.bid_price_spin.editingFinished.connect(self.bid_offer_changed)
+        self.amount_spin.editingFinished.connect(self.offer_changed)
+        self.price_spin.editingFinished.connect(self.offer_changed)
 
         # Connect to account
         # these are remote ids, not local
@@ -468,8 +437,8 @@ class AccountWidget(QtGui.QWidget, ErrorHandling):
         self.account_obj.exchange_error_signal.connect(
             self.exchange_error_handler)
 
-        ask_limit_action.triggered.connect(self._ask_limit)
-        bid_limit_action.triggered.connect(self._bid_limit)
+        offer_ask_action.triggered.connect(self._ask_limit)
+        offer_bid_action.triggered.connect(self._bid_limit)
 
         self.enableAccount(True)
 
@@ -515,22 +484,14 @@ class AccountWidget(QtGui.QWidget, ErrorHandling):
         self.account_obj.refresh(self.dock.remote_market)
 
     def _ask_limit(self):
-        amount = self.ask_amount_spin.value()
-        price = self.ask_price_spin.value()
+        amount = self.amount_spin.value()
+        price = self.price_spin.value()
         self.account_obj.placeAskLimitOffer(self.dock.remote_market, amount, price)
 
     def _bid_limit(self):
-        amount = self.bid_amount_spin.value()
-        price = self.bid_price_spin.value()
+        amount = self.amount_spin.value()
+        price = self.price_spin.value()
         self.account_obj.placeBidLimitOffer(self.dock.remote_market, amount, price)
-
-    def _ask_market(self):
-        amount = self.ask_amount_spin.value()
-        self.account_obj.placeAskMarketOffer(self.dock.remote_market, amount)
-
-    def _bid_market(self):
-        amount = self.bid_amount_spin.value()
-        self.account_obj.placeBidMarketOffer(self.dock.remote_market, amount)
 
     def _cancel_ask(self):
         row = self.ask_offers_view.currentIndex().row()
@@ -546,29 +507,17 @@ class AccountWidget(QtGui.QWidget, ErrorHandling):
         if offer_id:
             self.account_obj.cancelBidOffer(offer_id, self.dock.remote_market)
 
-    def ask_offer_changed(self):
-        amount = self.ask_amount_spin.value()
+    def offer_changed(self):
+        amount = self.amount_spin.value()
         if not amount: return
-        price = self.ask_price_spin.value()
+        price = self.price_spin.value()
         if not price: return
 
         estimate = amount * price
         commission = self.account_obj.getCommission(estimate, self.dock.remote_market)
         if commission: estimate -= commission
 
-        self.ask_estimate_view.setValue(estimate)
-
-    def bid_offer_changed(self):
-        amount = self.bid_amount_spin.value()
-        if not amount: return
-        price = self.bid_price_spin.value()
-        if not price: return
-
-        estimate = amount * price
-        commission = self.account_obj.getCommission(estimate, self.dock.remote_market)
-        if commission: estimate -= commission
-
-        self.bid_estimate_view.setValue(estimate)
+        self.estimate_view.setValue(estimate)
 
     def changeAccount(self, market_id):
         print "market changed for", market_id
@@ -596,32 +545,12 @@ class AccountWidget(QtGui.QWidget, ErrorHandling):
         self.base_balance_proxy = self.account_obj.getBalanceProxy(b_ac_id)
         self.base_balance_proxy.balance.connect(
             self.base_balance_label.setValue)
-        #self.base_balance_proxy.balance_changed.connect(
-        #    self.base_balance_label.change_value)
 
         self.counter_balance_proxy = self.account_obj.getBalanceProxy(c_ac_id)
         self.counter_balance_proxy.balance.connect(
             self.counter_balance_label.setValue)
-        #self.counter_balance_proxy.balance_changed.connect(
-        #    self.counter_balance_label.change_value)
 
         self.account_obj.refreshBalance(self.dock.remote_market)
-
-    def change_ask_counter(self, base_amount, price):
-        counter_amount = base_amount * price
-        #self.ask_amount_label.setValue(counter_amount)
-
-        if commission:
-            counter_amount -= commission
-
-        self.ask_estimate_view.setValue(counter_amount)
-
-    def change_bid_counter(self, base_amount, price):
-        counter_amount = base_amount * price
-        commission = self.account_obj.getCommission(counter_amount,
-                                                self.dock.remote_market)
-        if commission:
-            counter_amount -= commission
 
     def refreshBalance(self):
         self.account_obj.refreshBalance(self.dock.remote_market)

@@ -89,6 +89,10 @@ class MainWindow(QtGui.QMainWindow):
 
         self.refreshMarkets()
 
+    def closeEvent(self, event):
+        otapi.OTAPI_Basic_AppShutdown()
+        event.accept()
+
     def refreshMarkets(self, showNew=False):
         dojima.exchanges.refresh()
         for market_container in dojima.markets.container:
@@ -124,7 +128,6 @@ class MainWindow(QtGui.QMainWindow):
     def showEditDefinitionsDialog(self):
         dialog = dojima.ui.edit.EditDefinitionsDialog(self)
         dialog.exec_()
-
 
 
 
@@ -222,7 +225,7 @@ class ShowTradeDockAction(QtGui.QAction):
         self.dock = dojima.ui.exchange.ExchangeDockWidget(
                 self.exchange_proxy, marketPair, self.marketID, self)
         self.parent().getMainWindow().addDockWidget(
-            QtCore.Qt.LeftDockWidgetArea, self.dock)
+            QtCore.Qt.TopDockWidgetArea, self.dock)
         # may not need this to keep the dock instance alive
         #main_window.docks.add(dock)
 
