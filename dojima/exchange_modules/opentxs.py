@@ -24,9 +24,8 @@ import dojima.markets
 import dojima.exchanges
 import dojima.exchange
 import dojima.data.account
-import dojima.data.depth
 import dojima.data.offers
-import dojima.data.ticker
+import dojima.data.market
 import dojima.model.ot.accounts
 import dojima.model.ot.assets
 import dojima.model.ot.markets
@@ -488,6 +487,7 @@ class OTExchange(QtCore.QObject, dojima.exchange.Exchange):
         self.ticker_proxies = dict()
         self.ticker_clients = dict()
         self.depth_proxies = dict()
+        self.trades_proxies = dict()
         # market_id -> [base_id, counter_id]
         self.assets = dict()
         # market_id -> [base_account_id, counter_account_id]
@@ -635,21 +635,31 @@ class OTExchange(QtCore.QObject, dojima.exchange.Exchange):
 
     def getDepthProxy(self, market_id):
         if market_id not in self.depth_proxies:
-            depth_proxy = dojima.data.depth.DepthProxy(self, market_id)
+            depth_proxy = dojima.data.market.DepthProxy(self, market_id)
             self.depth_proxies[market_id] = depth_proxy
             return depth_proxy
         return self.depth_proxies[market_id]
 
     def getTickerProxy(self, market_id):
         if market_id not in self.ticker_proxies:
-            ticker_proxy = dojima.data.ticker.TickerProxy(self)
+            ticker_proxy = dojima.data.market.TickerProxy(self)
             self.ticker_proxies[market_id] = ticker_proxy
             return ticker_proxy
         return self.ticker_proxies[market_id]
 
+    def getTradesProxy(self, market_id):
+        if market_id not in self.trades_proxies:
+            trades_proxy = dojima.data.market.TradesProxy(self, market_id)
+            self.trades_proxies[market_id] = trades_proxy
+            return trades_proxy
+        return self.trades_proxies[market_id]
+
     def populateMenuBar(self, menu_bar, market_id):
         # Make submenus
         exchange_menu = menu_bar.getExchangeMenu()
+        # Maybe the exchange UI stuff should test for depth and trades methods, then add
+        # menu actions from that side
+        menu_bar.addTradesChartAction()
         menu_bar.addDepthChartAction()
         nyms_menu = CurrentNymMenu(
             QtCore.QCoreApplication.translate('OTExchange', "No nym selected",
@@ -696,20 +706,6 @@ class OTExchange(QtCore.QObject, dojima.exchange.Exchange):
             # no sense changing the nym needlessly
             action.currentIDChanged.connect(self.changeNym)
 
-    def readMarketList(self):
-        storable = otapi.QueryObject(otapi.STORED_OBJ_MARKET_LIST,
-                                     'markets', self.server_id,
-                                     'market_data.bin')
-        if not storable: return
-        market_list = otapi.MarketList.ot_dynamic_cast(storable)
-        for i in range(market_list.GetMarketDataCount()):
-            data = market_list.GetMarketData(i)
-            if data.market_id in self.ticker_proxies:
-                proxy = self.ticker_proxies[data.market_id]
-                proxy.ask_signal.emit(int(data.current_ask))
-                proxy.last_signal.emit(int(data.last_sale_price))
-                proxy.bid_signal.emit(int(data.current_bid))
-
     def readDepth(self):
         for market_id, proxy in self.depth_proxies.items():
             storable = otapi.QueryObject(otapi.STORED_OBJ_OFFER_LIST_MARKET, 'markets',
@@ -734,9 +730,43 @@ class OTExchange(QtCore.QObject, dojima.exchange.Exchange):
 
             proxy.processDepth(asks, bids)
 
+    def readMarketList(self):
+        storable = otapi.QueryObject(otapi.STORED_OBJ_MARKET_LIST,
+                                     'markets', self.server_id,
+                                     'market_data.bin')
+        if not storable: return
+        market_list = otapi.MarketList.ot_dynamic_cast(storable)
+        for i in range(market_list.GetMarketDataCount()):
+            data = market_list.GetMarketData(i)
+            if data.market_id in self.ticker_proxies:
+                proxy = self.ticker_proxies[data.market_id]
+                proxy.ask_signal.emit(int(data.current_ask))
+                proxy.last_signal.emit(int(data.last_sale_price))
+                proxy.bid_signal.emit(int(data.current_bid))
+
+    def readTrades(self):
+        for market_id, proxy in self.trades_proxies.items():
+            storable = otapi.QueryObject(otapi.STORED_OBJ_TRADE_LIST_MARKET,
+                                         "markets", self.server_id,
+                                         "recent", market_id + ".bin")
+            trades = otapi.TradeListMarket.ot_dynamic_cast(storable)
+            if not trades: continue
+
+            epochs, prices, amounts = list(), list(), list()
+            for i in range(trades.GetTradeDataMarketCount()):
+                trade = trades.GetTradeDataMarket(i)
+                epochs.append( int(trade.date))
+                prices.append( float(trade.price))
+                amounts.append( float(trade.amount_sold))
+
+            proxy.processTrades(epochs, prices, amounts)
+
     def refreshDepth(self, market_id):
         # TODO take offer depth (amount of offers) into account
         self.getmarketoffers_queue.put(market_id)
+
+    def refreshTrades(self, market_id):
+        self.trades_queue.put(market_id)
 
     def currentScale(self, market_id):
         return self.scales[market_id]
@@ -824,7 +854,7 @@ class OTExchange(QtCore.QObject, dojima.exchange.Exchange):
                 logger.error("Failed to request recent trades.")
                 #self.trades_queue.put(market_id)
                 return
-            self.readTrades(market_id)
+            self.readTrades()
             return
 
         if not self.getmarketoffers_queue.empty():
@@ -836,15 +866,6 @@ class OTExchange(QtCore.QObject, dojima.exchange.Exchange):
                 logger.error("Falied to request market offers.")
                 return
             self.readDepth()
-            return
-
-    def readTrades(self, market_id):
-        logger.debug('reading %s trades', market_id)
-        storable = otapi.QueryObject(otapi.STORED_OBJ_TRADE_LIST_MARKET,
-                                     "markets", self.server_id,
-                                     "recent", market_id + ".bin")
-        trades = otapi.TradeListMarket.ot_dynamic_cast(storable)
-        if not trades:
             return
 
     def setDefaultAccounts(self, marketId):

@@ -213,7 +213,7 @@ class ExchangeDockWidgetMenuBar(QtGui.QMenuBar):
                                               "Account",
                                               "The title of a drop down menu "
                                               "to edit account settings."))
-
+        
     def addDepthChartAction(self):
         action = self.market_menu.addAction(
             QtCore.QCoreApplication.translate('ExchangeDockWidget',
@@ -221,6 +221,14 @@ class ExchangeDockWidgetMenuBar(QtGui.QMenuBar):
                                               "A menu action to show the current "
                                               "offers depth cart."))
         action.triggered.connect(self.showDepthChart)
+
+    def addTradesChartAction(self):
+        action = self.market_menu.addAction(
+            QtCore.QCoreApplication.translate('ExchangeDockWidget',
+                                              "Trades Chart",
+                                              "A menu action to show the current "
+                                              "the recent trades chart."))
+        action.triggered.connect(self.showTradesChart)
 
     def getMarketMenu(self):
         return self.market_menu
@@ -234,6 +242,11 @@ class ExchangeDockWidgetMenuBar(QtGui.QMenuBar):
     def showDepthChart(self):
         proxy = self.dock.exchange_obj.getDepthProxy(self.dock.remote_market)
         dialog = dojima.ui.chart.DepthDialog(proxy, self)
+        dialog.show()
+
+    def showTradesChart(self):
+        proxy = self.dock.exchange_obj.getTradesProxy(self.dock.remote_market)
+        dialog = dojima.ui.chart.TradesDialog(proxy, self)
         dialog.show()
 
 

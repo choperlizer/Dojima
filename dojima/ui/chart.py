@@ -24,16 +24,16 @@ import matplotlib.finance
 import tulpenmanie.data
 
 
-class DepthDialog(QtGui.QDialog):
+class _ChartDialog(QtGui.QDialog):
 
-    def __init__(self, depthProxy, parent=None):
-        super(DepthDialog, self).__init__(parent)
-        self.proxy = depthProxy
+    def __init__(self, proxy, parent=None):
+        super(_ChartDialog, self).__init__(parent)
+        self.proxy = proxy
 
         self.chart_canvas = ChartCanvas(self)
 
         self.refresh_button = QtGui.QPushButton(
-            QtCore.QCoreApplication.translate('DepthChartDialog',
+            QtCore.QCoreApplication.translate('ChartDialog',
                                               "Refresh"))
 
         button_box = QtGui.QDialogButtonBox()
@@ -53,6 +53,9 @@ class DepthDialog(QtGui.QDialog):
         self.refresh_button.setDisabled(True)
         self.proxy.refresh()
 
+
+class DepthDialog(_ChartDialog):
+        
     def plot(self, data):
         self.refresh_button.setEnabled(True)
         if data is None:
@@ -66,34 +69,7 @@ class DepthDialog(QtGui.QDialog):
         self.chart_canvas.draw()
 
 
-class TradesDialog(QtGui.QDialog):
-
-    def __init__(self, tradesProxy, parent=None):
-        super(TradesDialog, self).__init__(parent)
-        self.proxy = tradesProxy
-
-        self.chart_canvas = ChartCanvas(self)
-
-        self.refresh_button = QtGui.QPushButton(
-            QtCore.QCoreApplication.translate('DepthChartDialog',
-                                              "Refresh"))
-
-        button_box = QtGui.QDialogButtonBox()
-        button_box.addButton(self.refresh_button, button_box.ActionRole)
-
-        layout = QtGui.QVBoxLayout()
-        layout.addWidget(self.chart_canvas)
-        layout.addWidget(button_box)
-        self.setLayout(layout)
-
-        self.refresh_button.clicked.connect(self.requestRefresh)
-        self.proxy.refreshed.connect(self.plot)
-        self.proxy.reload()
-        self.requestRefresh()
-
-    def requestRefresh(self):
-        self.refresh_button.setDisabled(True)
-        self.proxy.refresh()
+class TradesDialog(_ChartDialog):
 
     def plot(self, data):
         self.refresh_button.setEnabled(True)
@@ -130,7 +106,7 @@ class ChartCanvas(FigureCanvas):
                                  model.UUID)
         row = search[0].row()
         commodity_uuid = model.item(row, model.COUNTER).text()
-
+n
         model =  tulpenmanie.commodity.model
         search = model.findItems(commodity_uuid,
                                  QtCore.Qt.MatchExactly,
