@@ -110,6 +110,10 @@ class ExchangeDockWidget(QtGui.QDockWidget, ErrorHandling):
             row += 2
 
         self.menu_bar = ExchangeDockWidgetMenuBar(self)
+        if hasattr(self.exchange_obj, 'getDepthProxy'):
+            self.menu_bar.addDepthChartAction()
+        if hasattr(self.exchange_obj, 'getTradesProxy'):
+            self.menu_bar.addTradesChartAction()
 
         self.layout = QtGui.QHBoxLayout()
         self.layout.setMenuBar(self.menu_bar)
@@ -213,7 +217,7 @@ class ExchangeDockWidgetMenuBar(QtGui.QMenuBar):
                                               "Account",
                                               "The title of a drop down menu "
                                               "to edit account settings."))
-        
+
     def addDepthChartAction(self):
         action = self.market_menu.addAction(
             QtCore.QCoreApplication.translate('ExchangeDockWidget',

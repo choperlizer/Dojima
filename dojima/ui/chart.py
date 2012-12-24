@@ -46,7 +46,6 @@ class _ChartDialog(QtGui.QDialog):
 
         self.refresh_button.clicked.connect(self.requestRefresh)
         self.proxy.refreshed.connect(self.plot)
-        self.proxy.reload()
         self.requestRefresh()
 
     def requestRefresh(self):
@@ -65,7 +64,7 @@ class DepthDialog(_ChartDialog):
                 QtCore.QCoreApplication.translate("DepthChartDialog",
                                                   "Not enough offer data to chart."))
             return
-        self.chart_canvas.axes.contour(data)
+        self.chart_canvas.axes.plot(data)
         self.chart_canvas.draw()
 
 
@@ -128,7 +127,7 @@ n
         formatter = matplotlib.ticker.FormatStrFormatter(str(format_string))
         self.axes.yaxis.set_major_formatter(formatter)
         """
-        self.axes.xaxis_date()
+        #self.axes.xaxis_date()
 
         self.cid = self.mpl_connect('button_press_event', self.onclick)
 

@@ -659,8 +659,6 @@ class OTExchange(QtCore.QObject, dojima.exchange.Exchange):
         exchange_menu = menu_bar.getExchangeMenu()
         # Maybe the exchange UI stuff should test for depth and trades methods, then add
         # menu actions from that side
-        menu_bar.addTradesChartAction()
-        menu_bar.addDepthChartAction()
         nyms_menu = CurrentNymMenu(
             QtCore.QCoreApplication.translate('OTExchange', "No nym selected",
                                               "The text that is displayed in "

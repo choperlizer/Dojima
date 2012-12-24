@@ -46,59 +46,48 @@ class _StatsProxy(QtCore.QObject):
 
 class DepthProxy(_StatsProxy):
 
-    def reload(self):
-        # TODO this is a temporary method, remove it when fetching the market offers works
-        self.exchange_obj.readDepth()
-
     def refresh(self):
         self.exchange_obj.refreshDepth(self.market_id)
 
     def processDepth(self, asks, bids):
         "depth data should be asks(prices, amounts), bids(prices, amounts)"
-        times = list()
         price_steps = list()
         volume_sums = list()
-        #step_size = 1.0 / pow(10, self.precision)
-        now = time.time()
-        now = matplotlib.dates.epoch2num(now)
 
         #bids
-        print bids
-        bids = np.array(bids, dtype=np.float).transpose()
-        if not bids: return None
-        bid_prices = bids[0]
-        bid_volumes = bids[1]
-        floor = bid_prices.max()#.round(self.precision)
-        bottom = bid_prices.min()
+        if bids:
+            bids = np.array(bids).transpose()
+            prices = bids[0]
+            volumes = bids[1]
+            floor = bid_prices.max()
+            bottom = bid_prices.min()
 
-        while floor > bottom:
-            floor -= step_size
-            index = bid_prices > floor
+            while floor > bottom:
+                floor -= step_size
+                array_mask = prices > floor
 
-            times.append(now)
-            price_steps.append(floor)
-            volume_sums.append(bid_volumes[index].sum())
+                price_steps.append(floor)
+                volume_sums.append(volumes[array_mask].sum())
 
-        price_steps.reverse()
-        volume_sums.reverse()
+                price_steps.reverse()
+                volume_sums.reverse()
 
         # asks
-        asks = np.array(asks, dtype=np.float).transpose()
-        if not asks: return None
-        ask_prices = asks[0]
-        ask_volumes = bids[1]
-        ceiling = ask_prices.min()#.round(self.precision)
-        top = ask_prices.max()
+        if asks:
+            asks = np.array(asks).transpose()
+            prices = asks[0]
+            volumes = asks[1]
+            ceiling = ask_prices.min()
+            top = ask_prices.max()
+            
+            while ceiling < top:
+                ceiling += step_size
+                array_mask = prices < ceiling
 
-        while ceiling < top:
-            ceiling += step_size
-            index = ask_prices < ceiling
+                price_steps.append(ceiling)
+                volume_sums.append(volumes[array_mask].sum())
 
-            times.append(now)
-            price_steps.append(ceiling)
-            volume_sums.append(ask_volumes[index].sum())
-
-        self.depth = np.array((times, price_steps, volume_sums)).transpose()
+        self.depth = np.array((price_steps, volume_sums)).transpose()
         self.refreshed.emit(self.depth)
 
 
