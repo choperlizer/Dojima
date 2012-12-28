@@ -221,7 +221,7 @@ class ShowTradeDockAction(QtGui.QAction):
         self.dock.enableExchange(state)
 
     def createDock(self):
-        marketPair = self.exchange_proxy.remoteToLocal(self.marketID)
+        marketPair = self.exchange_proxy.getRemoteToLocal(self.marketID)
         self.dock = dojima.ui.exchange.ExchangeDockWidget(
                 self.exchange_proxy, marketPair, self.marketID, self)
         self.parent().getMainWindow().addDockWidget(

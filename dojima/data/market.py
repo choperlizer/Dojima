@@ -53,14 +53,15 @@ class DepthProxy(_StatsProxy):
         "depth data should be asks(prices, amounts), bids(prices, amounts)"
         price_steps = list()
         volume_sums = list()
+        step_size = 0.001
 
         #bids
         if bids:
             bids = np.array(bids).transpose()
             prices = bids[0]
             volumes = bids[1]
-            floor = bid_prices.max()
-            bottom = bid_prices.min()
+            floor = prices.max()
+            bottom = prices.min()
 
             while floor > bottom:
                 floor -= step_size
@@ -69,17 +70,17 @@ class DepthProxy(_StatsProxy):
                 price_steps.append(floor)
                 volume_sums.append(volumes[array_mask].sum())
 
-                price_steps.reverse()
-                volume_sums.reverse()
+            price_steps.reverse()
+            volume_sums.reverse()
 
         # asks
         if asks:
             asks = np.array(asks).transpose()
             prices = asks[0]
             volumes = asks[1]
-            ceiling = ask_prices.min()
-            top = ask_prices.max()
-            
+            ceiling = prices.min()
+            top = prices.max()
+
             while ceiling < top:
                 ceiling += step_size
                 array_mask = prices < ceiling

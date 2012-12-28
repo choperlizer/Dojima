@@ -16,15 +16,33 @@
 
 from PyQt4 import QtCore
 
+import dojima.data.account
 import dojima.data.balance
 #import dojima.data.orders
 
 
 class ExchangeProxy:
 
+    def getLocaltoRemote(self, key):
+        return self.local_market_map[key]
+
     def getPrettyInterMarketName(self, remoteMarketID):
         raise NotImplementedError
 
+    def getRemoteMapping(self, key):
+        return self.remote_market_map[key]
+
+    def getRemoteMarketIDs(self, localPair):
+        return self.local_market_map[ str(localPair)]
+
+    def getRemoteToLocal(self, marketID):
+        return self.remote_market_map[marketID]
+
+    def refreshMarkets(self):
+        raise NotImplementedError
+
+    def nextPage(self, wizard):
+        raise NotImplementedError
 
 class Exchange:
 
@@ -39,6 +57,13 @@ class Exchange:
     def getAccountObject(self):
         raise NotImplementedError
 
+    def getAccountValidityProxy(self, marketID):
+        if marketID not in self.account_validity_proxies:
+            validity_proxy = dojima.data.account.AccountValidityProxy(self)
+            self.account_validity_proxies[marketID] = validity_proxy
+            return validity_proxy
+        return self.account_validity_proxies[marketID]
+
     def getFactors(self, remoteMarketID):
         raise NotImplementedError
 
@@ -48,8 +73,12 @@ class Exchange:
     def getScale(self, remoteMarketID):
         return 1
 
-    def getTickerProxy(self, remoteMarketID):
-        raise NotImplementedError
+    def getTickerProxy(self, market_id):
+        if market_id not in self.ticker_proxies:
+            ticker_proxy = dojima.data.market.TickerProxy(self)
+            self.ticker_proxies[market_id] = ticker_proxy
+            return ticker_proxy
+        return self.ticker_proxies[market_id]
 
     def getDepthProxy(self, remoteMarketID):
         raise NotImplementedError
@@ -58,9 +87,9 @@ class Exchange:
         raise NotImplementedError
 
     def populateMenuBar(self, menu, remoteMarketID):
-        raise NotImplementedError
+        pass
 
-    def setTickerStreamState(self, remoteMarketID):
+    def setTickerStreamState(self, state, remoteMarketID):
         raise NotImplementedError
 
 
@@ -96,7 +125,7 @@ class ExchangeAccount:
 
         return self.offers_proxies[remote_market]
 
-    def refresh(self):
+    def refresh(self, marketId):
         self.refreshOffers()
         self.refreshBalance()
 

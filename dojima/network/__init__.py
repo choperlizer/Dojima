@@ -120,8 +120,9 @@ class ExchangeRequest(object):
                                "application/x-www-form-urlencoded")
         query = QtCore.QUrl()
         if self.data:
-            for key, value in self.data['query'].items():
-                query.addQueryItem(key, str(value))
+            if self.data.has_key('query'):
+                for key, value in self.data['query'].items():
+                    query.addQueryItem(key, str(value))
         self.query = query.encodedQuery()
 
     def _extract_reply(self):
@@ -150,7 +151,7 @@ class ExchangeGETRequest(ExchangeRequest):
         self.reply.finished.connect(self._extract_reply)
         self.parent.replies.add(self)
 
-        
+
 class ExchangePOSTRequest(ExchangeRequest):
 
     def send(self):

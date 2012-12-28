@@ -19,7 +19,7 @@ from PyQt4.QtCore import pyqtProperty
 
 import dojima.data.offers
 
-class _AssetLCDWidget(QtGui.QLCDNumber):
+class AssetLCDWidget(QtGui.QLCDNumber):
 
     white_palette = QtGui.QPalette(QtGui.QApplication.palette())
     white_palette.setColor(QtGui.QPalette.WindowText,
@@ -39,12 +39,16 @@ class _AssetLCDWidget(QtGui.QLCDNumber):
     light_red_palette.setColor(QtGui.QPalette.WindowText,
                                QtGui.QColor.fromHsv(0, 128, 255))
 
-    def __init__(self, parent=None):
-        super(_AssetLCDWidget, self).__init__(parent)
+    def __init__(self, factor=1, parent=None):
+        super(AssetLCDWidget, self).__init__(parent)
+        self.factor = float(factor)
         self.setStyleSheet('background : black')
         self.setSegmentStyle(self.Flat)
         self.steady_palette = self.white_palette
         self._value = None
+
+    def setFactor(self, factor):
+        self.factor = float(factor)
 
     def setValue(self, value):
         if value == self._value:
@@ -62,26 +66,10 @@ class _AssetLCDWidget(QtGui.QLCDNumber):
             self.setPalette(self.steady_palette)
 
         self._value = value
+        if self.factor > 1:
+            value /= self.factor
+
         self.display(value)
-
-
-class AssetIntLCDWidget(_AssetLCDWidget):
-
-    def __init__(self, factor=None, precision=None, parent=None):
-        super(AssetIntLCDWidget, self).__init__(parent)
-
-
-class AssetDecimalLCDWidget(_AssetLCDWidget):
-
-    def __init__(self, factor=1, precision=0, parent=None):
-        super(AssetDecimalLCDWidget, self).__init__(parent)
-        self.precision= precision
-        self.factor = float(factor)
-
-    def display(self, value):
-        value /= self.factor
-        value = round(value, self.precision)
-        super(AssetDecimalLCDWidget, self).display(value)
 
 
 class BitcoinSpin(QtGui.QDoubleSpinBox):
@@ -96,7 +84,7 @@ class AssetAmountView(QtGui.QLineEdit):
 
     def __init__(self, factor=1, parent=None):
         super(AssetAmountView, self).__init__(parent, readOnly=True)
-        self.factor = factor
+        self.factor = float(factor)
         self.prefix = None
         self.suffix = None
         self._value = None
@@ -147,7 +135,7 @@ class AssetSpinBox(QtGui.QDoubleSpinBox):
                  base="decimal", parent=None):
         if base != "decimal":
             raise NotImplementedError("%s base not supported" % base)
-        self.factor = factor
+        self.factor = float(factor)
         self.power = power
         self.precision = precision
         self.scale = scale
@@ -170,7 +158,7 @@ class AssetSpinBox(QtGui.QDoubleSpinBox):
 
     def setFactor(self, factor):
         # TODO 'type="decimal" factor="1000" decimal_power="3"' maybe pow() here?
-        self.factor = factor
+        self.factor = float(factor)
         step = factor
 
         if (self.scale is not None and self.scale > 1):

@@ -34,12 +34,13 @@ class MarketsContainer(object):
     def __len__(self):
         return len(self.markets)
 
-    def addExchange(self, exchange_proxy, local_pair):
+    def addExchange(self, exchange_proxy, local_pair, local_base_id, local_counter_id):
         base, counter = local_pair.split('_')
-        b_row, c_row = dojima.model.commodities.local_model.getRows(base, counter)
+        b_row, c_row = dojima.model.commodities.local_model.getRows(local_base_id,
+                                                                    local_counter_id)
         if (b_row is None) or (c_row is None):
             return
-
+        
         if local_pair in self.markets:
             container = self.markets[local_pair]
         else:

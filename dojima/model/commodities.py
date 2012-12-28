@@ -127,21 +127,17 @@ class LocalCommoditiesModel(QtGui.QStandardItemModel):
         return True
 
 
-class RemoteCommoditiesModel(dojima.model.base.FlatSettingsModel):
+class RemoteCommoditiesModel(QtGui.QStandardItemModel):
 
     name = 'remote_commodities'
     COLUMNS = 2
     ID, LOCAL_ID = range(COLUMNS)
     SETTINGS_MAP = (('local', LOCAL_ID),)
 
-    def map(self, remote_id, local_id):
-        search = self.findItems(remote_id)
-        if search:
-            self.item(search[0].row(), self.LOCAL_ID).setData(local_id)
-            return
-
-        self.appendRow( (QtGui.QStandardItem(remote_id),
-                         QtGui.QStandardItem(local_id),) )
+    def __init__(self, parent=None):
+        super(RemoteCommoditiesModel, self).__init__(parent)
+        self.setColumnCount(self.COLUMNS)
+        self.revert()
 
     def getLocalToRemoteMap(self, local_id):
         search = self.findItems(local_id, QtCore.Qt.MatchExactly, self.LOCAL_ID)
@@ -158,6 +154,32 @@ class RemoteCommoditiesModel(dojima.model.base.FlatSettingsModel):
     def hasMap(self, remote_id):
         search = self.findItems(remote_id)
         return bool(search)
+
+    def map(self, remote_id, local_id):
+        search = self.findItems(remote_id)
+        if search:
+            self.item(search[0].row(), self.LOCAL_ID).setData(local_id)
+            return
+
+        self.appendRow( (QtGui.QStandardItem(remote_id),
+                         QtGui.QStandardItem(local_id),) )
+
+    def revert(self):
+        settings = QtCore.QSettings()
+        settings.beginGroup('remote_commodities')
+        for remote_id in settings.childKeys():
+            remote_item = QtGui.QStandardItem(remote_id)
+            local_item = QtGui.QStandardItem(settings.value(remote_id))
+            self.appendRow((remote_item, local_item,))
+
+    def submit(self):
+        settings = QtCore.QSettings()
+        settings.beginGroup('remote_commodities')
+        settings.remove('')
+        for row in range(self.rowCount()):
+            settings.setValue(self.item(row, self.ID).text(),
+                              self.item(row, self.LOCAL_ID).text())
+        return True
 
     #TODO can't instantiate until after we have an app
 local_model = LocalCommoditiesModel()

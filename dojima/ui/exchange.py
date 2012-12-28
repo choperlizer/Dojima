@@ -85,11 +85,6 @@ class ExchangeDockWidget(QtGui.QDockWidget, ErrorHandling):
         label_font = QtGui.QFont()
         label_font.setPointSize(7)
 
-        if self.counter_factor > 1:
-            AssetLCDWidget = dojima.ui.widget.AssetDecimalLCDWidget
-        else:
-            AssetLCDWidget = dojima.ui.widget.AssetIntLCDWidget
-
         row = 1
         for translation, stat in (
             (QtCore.QCoreApplication.translate(
@@ -102,7 +97,8 @@ class ExchangeDockWidget(QtGui.QDockWidget, ErrorHandling):
             label = QtGui.QLabel(translation)
             label.setAlignment(QtCore.Qt.AlignRight)
             label.setFont(label_font)
-            widget = AssetLCDWidget(self.counter_factor, self.counter_precision)
+            widget = dojima.ui.widget.AssetLCDWidget(
+                factor=self.counter_factor)
             setattr(self, '{}_widget'.format(stat), widget)
             side_layout.addWidget(label)
             side_layout.addWidget(widget)
@@ -128,7 +124,6 @@ class ExchangeDockWidget(QtGui.QDockWidget, ErrorHandling):
         proxy.accountValidityChanged.connect(self.enableAccount)
 
     def changeMarket(self, market_id):
-        print "market change requested, market id:", market_id
         self.exchange_obj.setTickerStreamState(self.remote_market, False)
         self.remote_market = marked_id
         self.exchange_obj.setTickerStreamState(self.remote_market, True)
@@ -180,9 +175,6 @@ class ExchangeDockWidget(QtGui.QDockWidget, ErrorHandling):
         self.account_obj = self.exchange_obj.getAccountObject()
         self.account_widget = AccountWidget(self.account_obj, self)
         self.layout.addWidget(self.account_widget)
-
-    def setScale(self, scale):
-        print "beep beep boop boop, set scale to", scale
 
     def set_signal_connection_state(self, state):
         if not state: return
@@ -470,17 +462,24 @@ class AccountWidget(QtGui.QWidget, ErrorHandling):
 
         self.setEnabled(True)
 
-        b_ac_id, c_ac_id = self.account_obj.getAccountPair(self.dock.remote_market)
+        if hasattr(self.account_obj, 'getAccountPair'):
+            base_account_id, counter_account_id = self.account_obj.getAccountPair(self.dock.remote_market)
 
-        self.base_balance_proxy = self.account_obj.getBalanceProxy(
-            b_ac_id)
+            self.base_balance_proxy = self.dock.exchange_obj.getBalanceProxy(
+                base_account_id)
+            self.counter_balance_proxy = self.dock.exchange_obj.getBalanceProxy(
+                counter_account_id)
+        else:
+            self.base_balance_proxy = self.dock.exchange_obj.getBaseBalanceProxy(
+                self.dock.remote_market)
+            self.counter_balance_proxy = self.dock.exchange_obj.getCounterBalanceProxy(
+                self.dock.remote_market)
+
         self.base_balance_proxy.balance.connect(
             self.base_balance_label.setValue)
         #self.base_balance_proxy.balance_changed.connect(
         #    self.base_balance_label.change_value)
 
-        self.counter_balance_proxy = self.account_obj.getBalanceProxy(
-            c_ac_id)
         self.counter_balance_proxy.balance.connect(
             self.counter_balance_label.setValue)
         #self.counter_balance_proxy.balance_changed.connect(
@@ -503,12 +502,24 @@ class AccountWidget(QtGui.QWidget, ErrorHandling):
     def _ask_limit(self):
         amount = self.amount_spin.value()
         price = self.price_spin.value()
-        self.account_obj.placeAskLimitOffer(self.dock.remote_market, amount, price)
+
+        dialog = AskOfferConfirmationDialog(self.amount_spin.text(),
+                                            self.price_spin.text(),
+                                            self)
+        if dialog.exec_():
+            self.account_obj.placeAskLimitOffer(self.dock.remote_market,
+                                                amount, price)
 
     def _bid_limit(self):
         amount = self.amount_spin.value()
         price = self.price_spin.value()
-        self.account_obj.placeBidLimitOffer(self.dock.remote_market, amount, price)
+
+        dialog = BidOfferConfirmationDialog(self.amount_spin.text(),
+                                            self.price_spin.text(),
+                                            self)
+        if dialog.exec_():
+            self.account_obj.placeBidLimitOffer(self.dock.remote_market,
+                                                amount, price)
 
     def _cancel_ask(self):
         row = self.ask_offers_view.currentIndex().row()
@@ -537,16 +548,12 @@ class AccountWidget(QtGui.QWidget, ErrorHandling):
         self.estimate_view.setValue(estimate)
 
     def changeAccount(self, market_id):
-        print "market changed for", market_id
         # maybe this slot should receive an account id
         if market_id != self.dock.remote_market:
-            print "but it's not ours"
             return
 
         if not self.account_obj.hasAccount(str(market_id)):
-            print "account_obj does not have valid accounts"
             return
-        print "account_obj does have valid accounts"
 
         """
         if hasattr(self, 'base_balance_proxy'):
@@ -571,3 +578,50 @@ class AccountWidget(QtGui.QWidget, ErrorHandling):
 
     def refreshBalance(self):
         self.account_obj.refreshBalance(self.dock.remote_market)
+
+
+class _OfferConfirmationDialog(QtGui.QDialog):
+
+    def __init__(self, amount, price, parent=None):
+        super(_OfferConfirmationDialog, self).__init__(parent)
+
+        dialog_text_label = QtGui.QLabel(self.dialog_text.arg(amount).arg(price))
+
+        place_offer_button = QtGui.QPushButton(
+            QtCore.QCoreApplication.translate('ExchangeDockWidget',
+                                              "Place Offer",
+                                              "The label on the button to "
+                                              "confirm an offer"))
+
+        button_box = QtGui.QDialogButtonBox()
+        button_box.addButton(place_offer_button, button_box.AcceptRole)
+        button_box.addButton(button_box.Abort)
+
+        layout = QtGui.QVBoxLayout()
+        layout.addWidget(dialog_text_label)
+        layout.addWidget(button_box)
+
+        self.setLayout(layout)
+
+        button_box.accepted.connect(self.accept)
+        button_box.rejected.connect(self.reject)
+
+
+class AskOfferConfirmationDialog(_OfferConfirmationDialog):
+
+    dialog_text = QtCore.QCoreApplication.translate('ExchangeDockWidget',
+                                                    "Sell %1 at %2?",
+                                                    "Text on the "
+                                                    "AskConfirmationDialog. "
+                                                    "1 will be the amount, and "
+                                                    "2 will be the price.")
+
+
+class BidOfferConfirmationDialog(_OfferConfirmationDialog):
+
+    dialog_text = QtCore.QCoreApplication.translate('ExchangeDockWidget',
+                                                    "Buy %1 at %2?",
+                                                    "Text on the "
+                                                    "BidConfirmationDialog. "
+                                                    "1 will be the amount, and "
+                                                    "2 will be the price.")

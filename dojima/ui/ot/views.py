@@ -138,5 +138,4 @@ class AccountComboBox(ComboBox):
         if len(ot_id) != 43: return ''
         ot_id = otapi.OTAPI_Basic_GetAccountWallet_AssetTypeID(ot_id)
         if len(ot_id) != 43: return ''
-        print "got here, and ot_id is", ot_id, "."
         return otapi.OTAPI_Basic_GetAssetType_Name(ot_id)

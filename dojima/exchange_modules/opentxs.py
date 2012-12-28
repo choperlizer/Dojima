@@ -74,18 +74,6 @@ class OTExchangeProxy(object, dojima.exchange.ExchangeProxy):
 
         return self.exchange_object
 
-    def getLocalMapping(self, key):
-        return self.local_market_map[key]
-
-    def getRemoteMapping(self, key):
-        return self.remote_market_map[key]
-
-    #def getLocalMarketIDs(self, remoteMarketID):
-    #    return self.local_market_map[remoteMarketID]
-
-    def getRemoteMarketIDs(self, localPair):
-        return self.local_market_map[ str(localPair)]
-
     def getPrettyMarketName(self, remote_market_id):
         storable = otapi.QueryObject(otapi.STORED_OBJ_MARKET_LIST,
                                      'markets', self.server_id,
@@ -113,26 +101,15 @@ class OTExchangeProxy(object, dojima.exchange.ExchangeProxy):
         for i in range(market_list.GetMarketDataCount()):
             market_data = market_list.GetMarketData(i)
 
-            search = dojima.model.commodities.remote_model.findItems(
+            local_base_id = dojima.model.commodities.remote_model.getRemoteToLocalMap(
                 market_data.asset_type_id)
-            if not search:
-                continue
+            if local_base_id is None: continue
 
-            row = search[0].row()
-            local_base_id = dojima.model.commodities.remote_model.item(
-                row, dojima.model.commodities.remote_model.LOCAL_ID).text()
-
-            search = dojima.model.commodities.remote_model.findItems(
+            local_counter_id = dojima.model.commodities.remote_model.getRemoteToLocalMap(
                 market_data.currency_type_id)
-            if not search:
-                continue
+            if local_counter_id is None: continue
 
-            row = search[0].row()
-            local_counter_id = dojima.model.commodities.remote_model.item(
-                row, dojima.model.commodities.remote_model.LOCAL_ID).text()
-
-            local_pair = local_base_id + '_' + local_counter_id
-            local_pair = str(local_pair)
+            local_pair = str(local_base_id + '_' + local_counter_id)
 
             if local_pair in self.local_market_map:
                 local_map = self.local_market_map[local_pair]
@@ -144,10 +121,9 @@ class OTExchangeProxy(object, dojima.exchange.ExchangeProxy):
                 local_map.append(market_data.market_id)
 
             self.remote_market_map[market_data.market_id] = local_pair
-            dojima.markets.container.addExchange(self, local_pair)
+            dojima.markets.container.addExchange(self, local_pair,
+                                                 local_base_id, local_counter_id)
 
-    def remoteToLocal(self, marketID):
-        return self.remote_market_map[marketID]
 
 
 class OTServerWizardPage(QtGui.QWizardPage):
@@ -444,8 +420,8 @@ class OTServerWizardPage(QtGui.QWizardPage):
         b_ac_id = self.base_account_combo.getOTID()
         c_ac_id = self.counter_account_combo.getOTID()
 
-        b_as_id = otapi.OTAPI_Basic_GetAccountWallet_AssetTypeID( str(b_ac_id))
-        c_as_id = otapi.OTAPI_Basic_GetAccountWallet_AssetTypeID( str(c_ac_id))
+        remote_base_id = otapi.OTAPI_Basic_GetAccountWallet_AssetTypeID( str(b_ac_id))
+        remote_counter_id = otapi.OTAPI_Basic_GetAccountWallet_AssetTypeID( str(c_ac_id))
 
         storable = otapi.QueryObject(otapi.STORED_OBJ_MARKET_LIST,
                                      'markets', self.server_id,
@@ -454,24 +430,22 @@ class OTServerWizardPage(QtGui.QWizardPage):
         market_id = None
         for i in range(market_list.GetMarketDataCount()):
             data = market_list.GetMarketData(i)
-            if (data.asset_type_id == b_as_id and
-                data.currency_type_id == c_as_id):
+            if (data.asset_type_id == remote_base_id and
+                data.currency_type_id == remote_counter_id):
                 saveMarketAccountSettings(self.server_id, data.market_id,
                                           nym_id, b_ac_id, c_ac_id)
 
-        dojima.model.commodities.remote_model.map(
-            b_ac_id, dojima.model.commodities.local_model.item(
-                self.base_local_combo.currentIndex(),
-                dojima.model.commodities.local_model.ID).text())
+        local_base_id = self.base_local_combo.itemData(
+            self.base_local_combo.currentIndex(),
+            QtCore.Qt.UserRole)
 
-        dojima.model.commodities.remote_model.map(
-            c_ac_id, dojima.model.commodities.local_model.item(
-                self.counter_local_combo.currentIndex(),
-                dojima.model.commodities.local_model.ID).text())
+        local_counter_id = self.counter_local_combo.itemData(
+            self.counter_local_combo.currentIndex(),
+            QtCore.Qt.UserRole)
 
+        dojima.model.commodities.remote_model.map(remote_base_id, local_base_id)
+        dojima.model.commodities.remote_model.map(remote_counter_id, local_counter_id)
         return dojima.model.commodities.remote_model.submit()
-
-        return True
 
 
 class OTExchange(QtCore.QObject, dojima.exchange.Exchange):
@@ -607,6 +581,14 @@ class OTExchange(QtCore.QObject, dojima.exchange.Exchange):
 
         return self.account_object
 
+    def getBalanceProxy(self, account_id):
+        if account_id not in self.balance_proxies:
+            proxy = dojima.data.balance.BalanceProxy(self)
+            self.balance_proxies[account_id] = proxy
+            return proxy
+
+        return self.balance_proxies[account_id]
+
     # TODO getFactors and getPowers will probably change with the OT high API
     def getFactors(self, market_id):
         b_asset_id, c_asset_id = self.assets[market_id]
@@ -626,26 +608,12 @@ class OTExchange(QtCore.QObject, dojima.exchange.Exchange):
     def getScale(self, market_id):
         return int(self.scales[market_id])
 
-    def getAccountValidityProxy(self, market_id):
-        if market_id not in self.account_validity_proxies:
-            validity_proxy = dojima.data.account.AccountValidityProxy(self)
-            self.account_validity_proxies[market_id] = validity_proxy
-            return validity_proxy
-        return self.account_validity_proxies[market_id]
-
     def getDepthProxy(self, market_id):
         if market_id not in self.depth_proxies:
             depth_proxy = dojima.data.market.DepthProxy(self, market_id)
             self.depth_proxies[market_id] = depth_proxy
             return depth_proxy
         return self.depth_proxies[market_id]
-
-    def getTickerProxy(self, market_id):
-        if market_id not in self.ticker_proxies:
-            ticker_proxy = dojima.data.market.TickerProxy(self)
-            self.ticker_proxies[market_id] = ticker_proxy
-            return ticker_proxy
-        return self.ticker_proxies[market_id]
 
     def getTradesProxy(self, market_id):
         if market_id not in self.trades_proxies:
@@ -943,14 +911,6 @@ class OTExchangeAccount(QtCore.QObject, dojima.exchange.ExchangeAccount):
     def getAccountPair(self, market_id):
         return self.exchange_obj.accounts[market_id]
 
-    def getBalanceProxy(self, account_id):
-        if account_id not in self.exchange_obj.balance_proxies:
-            proxy = dojima.data.balance.BalanceProxy(self)
-            self.exchange_obj.balance_proxies[account_id] = proxy
-            return proxy
-
-        return self.exchange_obj.balance_proxies[account_id]
-
     def getOffersModel(self, market_id):
         # what happens here is there is a model that contains all nym offers,
         # that model is filtered by the base account,
@@ -1021,16 +981,14 @@ class OTExchangeAccount(QtCore.QObject, dojima.exchange.ExchangeAccount):
 
             item = QtGui.QStandardItem()
             item.setData(value, QtCore.Qt.UserRole)
-            self.offers_model.setItem(row, dojima.data.offers.PRICE,
-                                      item)
+            self.offers_model.setItem(row, dojima.data.offers.PRICE, item)
 
             # Offer outstanding
             value = ( int(offer.total_assets)
                       - int(offer.finished_so_far) )
             item = QtGui.QStandardItem()
             item.setData(value, QtCore.Qt.UserRole)
-            self.offers_model.setItem(row, dojima.data.offers.OUTSTANDING,
-                                      item)
+            self.offers_model.setItem(row, dojima.data.offers.OUTSTANDING, item)
 
             # Offer type
             if offer.selling:
