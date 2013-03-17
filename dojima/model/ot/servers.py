@@ -25,7 +25,7 @@ class OTServersSimpleModel(dojima.model.ot.OTBaseModel):
     """A stateless server model"""
 
     COLUMNS = 2
-    ID, NAME = range(COLUMNS)
+    ID, NAME = list(range(COLUMNS))
 
     def headerData(self, section, orientation, role=QtCore.Qt.DisplayRole):
         if orientation == QtCore.Qt.Horizontal:
@@ -46,24 +46,24 @@ class OTServersSimpleModel(dojima.model.ot.OTBaseModel):
 
         elif role == QtCore.Qt.ToolTipRole:
             #TODO clean strip the base64 and return formatted XML
-            ot_id = otapi.OT_API_GetServer_ID(index.row())
-            return otapi.OT_API_GetServer_Contract(ot_id)
+            ot_id = otapi.OTAPI_Basic_GetServer_ID(index.row())
+            return otapi.OTAPI_Basic_GetServer_Contract(ot_id)
 
         elif role == QtCore.Qt.DisplayRole or role == QtCore.Qt.EditRole:
             column = index.column()
-            ot_id = otapi.OT_API_GetServer_ID(index.row())
+            ot_id = otapi.OTAPI_Basic_GetServer_ID(index.row())
             if column == self.ID:
                 return ot_id
             if column == self.NAME:
-                return otapi.OT_API_GetServer_Name(ot_id)
+                return otapi.OTAPI_Basic_GetServer_Name(ot_id)
 
     def setData(self, index, value, role=QtCore.Qt.EditRole):
         if not index.isValid() or role != QtCore.Qt.EditRole:
             return False
         if index.column() != self.NAME:
             return False
-        ot_id = otapi.OT_API_GetServer_ID(index.row())
-        if otapi_OT_API_SetServer_Name(ot_id, str(value)) == 1:
+        ot_id = otapi.OTAPI_Basic_GetServer_ID(index.row())
+        if otapi_OTAPI_Basic_SetServer_Name(ot_id, value) == 1:
             self.parentItem.dataChanged(index, index)
             return True
         return False
@@ -71,7 +71,7 @@ class OTServersSimpleModel(dojima.model.ot.OTBaseModel):
     def rowCount(self, parent=None):
         if parent and parent.isValid():
             return 0
-        return otapi.OT_API_GetServerCount()
+        return otapi.OTAPI_Basic_GetServerCount()
 
 
 class OTServersTreeModel(dojima.model.TreeModel):
@@ -91,8 +91,8 @@ class RootItem(dojima.model.TreeItem):
 
     def revert(self):
         # TODO handle missing servers
-        for i in range(otapi.OT_API_GetServerCount()):
-            server_id = otapi.OT_API_GetServer_ID(i)
+        for i in range(otapi.OTAPI_Basic_GetServerCount()):
+            server_id = otapi.OTAPI_Basic_GetServer_ID(i)
             if server_id not in self.childIndexes:
                 server_item = ServerItem(server_id, self)
                 self.appendChild(server_id, server_item)
@@ -109,7 +109,7 @@ class ServerItem(object):
 
     def __init__(self, server_id, parent):
         self.server_id = server_id
-        self.name = otapi.OT_API_GetServer_Name(server_id)
+        self.name = otapi.OTAPI_Basic_GetServer_Name(server_id)
         self.parentItem = parent
         self.childIndexes = list()
         self.childItems = list()
@@ -167,8 +167,8 @@ class ServerItem(object):
             return False
         if index.column() != self.NAME:
             return False
-        server_id = otapi.OT_API_GetServer_ID(self.row)
-        if otapi_OT_API_SetServer_Name(self.server_id, str(value)) == 1:
+        server_id = otapi.OTAPI_Basic_GetServer_ID(self.row)
+        if otapi_OTAPI_Basic_SetServer_Name(self.server_id, value) == 1:
             return True
         return False
 
@@ -176,7 +176,7 @@ class ServerItem(object):
 class MarketItem(object):
 
     COLUMNS = 3
-    ID, BASE, COUNTER = range(COLUMNS)
+    ID, BASE, COUNTER = list(range(COLUMNS))
     # Maybe add an volume column
 
     def __init__(self, market_data, parent):
@@ -196,14 +196,14 @@ class MarketItem(object):
 
         if column == self.BASE:
             if role == QtCore.Qt.DisplayRole:
-                return otapi.OT_API_GetAssetType_Name(
+                return otapi.OTAPI_Basic_GetAssetType_Name(
                     self.market_data.asset_type_id)
             if role == QtCore.Qt.UserRole:
                 return self.market_data.asset_type_id
 
         if column == self.COUNTER:
             if role == QtCore.Qt.DisplayRole:
-                return otapi.OT_API_GetAssetType_Name(
+                return otapi.OTAPI_Basic_GetAssetType_Name(
                     self.market_data.currency_type_id)
             if role == QtCore.Qt.UserRole:
                 return self.market_data.currency_type_id

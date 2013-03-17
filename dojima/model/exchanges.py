@@ -94,7 +94,7 @@ class _ExchangesModel(QtCore.QAbstractItemModel):
         for i, market in enumerate(self.indexes):
             obj = self.objects[i]
             settings.beginGroup(market)
-            for key, value in obj.items():
+            for key, value in list(obj.items()):
                 # TODO check if value is save to write as text
                 settings.setValue(key, item)
             settings.endGroup()
@@ -118,7 +118,7 @@ class ExchangeItem(QtGui.QStandardItem):
 class _ExchangeItem(QtGui.QStandardItem):
 
     MARKET_COLUMNS = 3
-    MARKET_REMOTE, MARKET_ENABLE, MARKET_LOCAL = range(MARKET_COLUMNS)
+    MARKET_REMOTE, MARKET_ENABLE, MARKET_LOCAL = list(range(MARKET_COLUMNS))
     market_mappings = (('enable', MARKET_ENABLE),
                        ('local_market', MARKET_LOCAL))
 
@@ -145,8 +145,8 @@ class _ExchangeItem(QtGui.QStandardItem):
 
         for remote_string in settings.childGroups():
             settings.beginGroup(remote_string)
-            remote_market = str(QtCore.QUrl.fromPercentEncoding(
-                remote_string.toUtf8()))
+            remote_market = QtCore.QUrl.fromPercentEncoding(
+                remote_string.toUtf8())
             items = [ QtGui.QStandardItem(remote_market) ]
             for setting, column in self.market_mappings:
                 value = settings.value(setting)
@@ -181,7 +181,7 @@ class _ExchangeItem(QtGui.QStandardItem):
         settings.beginGroup('markets')
         for row in range(self.markets_item.rowCount()):
             remote_string = self.markets_item.child(row, 0).text()
-            remote_string = str(QtCore.QUrl.toPercentEncoding(remote_string))
+            remote_string = QtCore.QUrl.toPercentEncoding(remote_string)
             settings.beginGroup(remote_string)
             for setting, column in self.market_mappings:
                 value = self.markets_item.child(row, column).text()

@@ -45,12 +45,12 @@ class OTMarketsModel(QtGui.QStandardItemModel):
         self.market_ids.append(data.market_id)
 
         item = QtGui.QStandardItem(
-            otapi.OT_API_GetAssetType_Name(data.asset_type_id))
+            otapi.OTAPI_Basic_GetAssetType_Name(data.asset_type_id))
         item.setData(data.asset_type_id, QtCore.Qt.UserRole)
         self.setItem(row, self.BASE, item)
 
         item = QtGui.QStandardItem(
-            otapi.OT_API_GetAssetType_Name(data.currency_type_id))
+            otapi.OTAPI_Basic_GetAssetType_Name(data.currency_type_id))
         item.setData(data.currency_type_id, QtCore.Qt.UserRole)
         self.setItem(row, self.COUNTER, item)
 
@@ -80,7 +80,8 @@ class OTMarketsModel(QtGui.QStandardItemModel):
                                                              "Volume")
     def refresh(self, nym_id):
         # TODO error handling
-        otapi.OT_API_getMarketList(self.server_id, nym_id)
+        assert nym_id
+        otapi.OTAPI_Basic_getMarketList(self.server_id, nym_id)
 
         storable = otapi.QueryObject(otapi.STORED_OBJ_MARKET_LIST, 'markets',
                                      self.server_id, 'market_data.bin')
@@ -101,7 +102,7 @@ class OTMarketsModel(QtGui.QStandardItemModel):
         row = index.row()
         account_id = str(self.item(row, self.ID).text())
         signer_nym = str(self.item(row, self.NYM_ID).text())
-        otapi.OT_API_SetAccountWallet_Name(account_id,
+        otapi.OTAPI_Basic_SetAccountWallet_Name(account_id,
                                            signer_nym,
                                            str(data))
         self.item(row, self.ACCOUNT).setText(data)

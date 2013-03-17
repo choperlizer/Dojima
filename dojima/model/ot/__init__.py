@@ -21,7 +21,7 @@ from PyQt4 import QtCore
 class OTBaseModel(QtCore.QAbstractTableModel):
 
     COLUMNS = 2
-    ID, NAME = range(COLUMNS)
+    ID, NAME = list(range(COLUMNS))
 
     def columnCount(self, parent=None):
         if parent and parent.isValid():

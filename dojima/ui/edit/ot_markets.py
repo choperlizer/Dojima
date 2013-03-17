@@ -25,7 +25,7 @@ from dojima.ui.edit.commodity import NewCommodityDialog
 
 
 # TODO fetch unknown assets from the server with
-# OT_API_getContract, make it optional so local storage doesn't get cluttered
+# OTAPI_Basic_getContract, make it optional so local storage doesn't get cluttered
 
 # TODO actually there isn't much point to this dialog, we don't need the markets
 # to make an offer
@@ -75,7 +75,7 @@ class EditWidget(QtGui.QWidget):
         counter_id = item.data(item.COUNTER, QtCore.Qt.UserRole)
         for asset_id in base_id, counter_id:
             search = self.assets_model.findItems(asset_id)
-            print search
+            print(search)
             if not search:
                 dialog = AssetMappingDialog(asset_id, self)
                 if not dialog.exec_(): return
@@ -133,7 +133,7 @@ class AssetMappingDialog(QtGui.QDialog):
         self.preview_label = QtGui.QLabel()
 
         self.contract_view = QtGui.QPlainTextEdit(
-            otapi.OT_API_GetAssetType_Contract(self.asset_id))
+            otapi.OTAPI_Basic_GetAssetType_Contract(self.asset_id))
         self.contract_view.setReadOnly(True)
         self.contract_view.setLineWrapMode(QtGui.QPlainTextEdit.NoWrap)
 

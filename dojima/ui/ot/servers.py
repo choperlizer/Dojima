@@ -35,10 +35,10 @@ class ServersDialog(QtGui.QDialog):
         self.accounts_model.setFilterKeyColumn(_accounts_model.SERVER_ID)
 
         self.server_combo = QtGui.QComboBox()
-        for row in range(otapi.OT_API_GetServerCount()):
-            server_id = otapi.OT_API_GetServer_ID(row)
+        for row in range(otapi.OTAPI_Basic_GetServerCount()):
+            server_id = otapi.OTAPI_Basic_GetServer_ID(row)
             self.servers.append(server_id)
-            self.server_combo.addItem(otapi.OT_API_GetServer_Name(server_id))
+            self.server_combo.addItem(otapi.OTAPI_Basic_GetServer_Name(server_id))
 
         accounts_view = QtGui.QTableView()
         accounts_view.setModel(self.accounts_model)
@@ -73,11 +73,11 @@ class ServersDialog(QtGui.QDialog):
         self.serverChanged(0)
 
     def refreshServers(self):
-        for row in range(otapi.OT_API_GetServerCount()):
-            server_id = otapi.OT_API_GetServer_ID(row)
+        for row in range(otapi.OTAPI_Basic_GetServerCount()):
+            server_id = otapi.OTAPI_Basic_GetServer_ID(row)
             if server_id in self.servers: continue
             self.servers.append(server_id)
-            self.server_combo.addItem(otapi.OT_API_GetServer_Name(server_id))
+            self.server_combo.addItem(otapi.OTAPI_Basic_GetServer_Name(server_id))
 
     def serverChanged(self, row):
         server_id = self.servers[row]

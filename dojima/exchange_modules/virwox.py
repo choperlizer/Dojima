@@ -45,8 +45,8 @@ private_request.setHeader(QtNetwork.QNetworkRequest.ContentTypeHeader,
                          'application/json')
 
 def escape_market(remote_market):
-    #return str(remote_market).replace('/',"""\/""")
-    return str(remote_market)
+    #return remote_market.replace('/',"""\/""")
+    return remote_market
 
 class _VirwoxRequest(QtCore.QObject):
 
@@ -54,7 +54,7 @@ class _VirwoxRequest(QtCore.QObject):
         if self.reply.error():
             logger.error(self.reply.errorString())
         else:
-            raw = str(self.reply.readAll())
+            raw = self.reply.readAll()
             if logger.isEnabledFor(logging.DEBUG):
                 logger.debug("received reply: %s", raw)
             response = json.loads(raw, parse_float=Decimal)
@@ -80,7 +80,7 @@ class VirwoxPublicRequest(_VirwoxRequest):
 
     def post(self):
         payload = json.dumps({'method': self.method, 'params': self.data,
-                              'id': str(QtCore.QUuid.createUuid().toString())})
+                              'id': QtCore.QUuid.createUuid().toString()})
         if logger.isEnabledFor(logging.DEBUG):
             logger.debug("POSTing %s to %s", self.data, PUBLIC_URL)
         self.reply = self.parent.network_manager.post(public_request, payload)
@@ -94,7 +94,7 @@ class VirwoxInstrumentsRequest(QtCore.QObject):
         super(VirwoxInstrumentsRequest, self).__init__(parent)
         self.item = item
         data = {'method': self.method,
-                'id': str(QtCore.QUuid.createUuid().toString())}
+                'id': QtCore.QUuid.createUuid().toString()}
         network_manager = dojima.network.get_network_manager()
         self.reply = network_manager.post(public_request, json.dumps(data))
         self.reply.finished.connect(self.receive_markets)
@@ -104,13 +104,13 @@ class VirwoxInstrumentsRequest(QtCore.QObject):
             logger.error(self.reply.errorString())
             self.reply.deleteLater()
             return
-        raw = str(self.reply.readAll())
+        raw = self.reply.readAll()
         if logger.isEnabledFor(logging.DEBUG):
             logger.debug("received reply to %s : %s", PUBLIC_URL, raw)
         data = json.loads(raw, parse_float=Decimal)
         if data['error']:
             logger.warning(data['error'])
-        for instrument in data['result'].values():
+        for instrument in list(data['result'].values()):
             self.item.markets.add(instrument['symbol'])
         self.item.reload()
         self.reply.deleteLater()
@@ -122,7 +122,7 @@ class VirwoxProviderItem(dojima.model.exchanges.DynamicExchangeItem):
     exchange_name = EXCHANGE_NAME
 
     COLUMNS = 4
-    MARKETS, REFRESH_RATE, ACCOUNT_USERNAME, ACCOUNT_PASSWORD, = range(COLUMNS)
+    MARKETS, REFRESH_RATE, ACCOUNT_USERNAME, ACCOUNT_PASSWORD, = list(range(COLUMNS))
     mappings = (("refresh rate (seconds)", REFRESH_RATE),
                 ("username", ACCOUNT_USERNAME),
                 ("password", ACCOUNT_PASSWORD),)
@@ -206,7 +206,7 @@ class VirwoxExchangeMarket(_Virwox):
         VirwoxTickerRequest({'symbols': symbols}, self)
 
     def _refresh_tickers(self):
-        symbols = self.ticker_clients.keys()
+        symbols = list(self.ticker_clients.keys())
         VirwoxTickerRequest({'symbols': symbols}, self)
 
     def pop_request(self):
@@ -273,8 +273,8 @@ class VirwoxAccount(_Virwox, dojima.exchange.ExchangeAccount):
         self.replies.add(request)
 
     def set_credentials(self, credentials):
-        self._credentials['user'] = str(credentials[0])
-        self._credentials['pass'] = str(credentials[1])
+        self._credentials['user'] = credentials[0]
+        self._credentials['pass'] = credentials[1]
 
     def check_order_status(self, remote_pair):
         signal = getattr(self, remote_pair + "_ready_signal")
@@ -318,7 +318,7 @@ class VirwoxAccount(_Virwox, dojima.exchange.ExchangeAccount):
 
     def _cancel_order(self, pair, order_id, order_type):
         params = {'pair':pair, 'type': order_type,
-                  'query': {'orderID' : str(order_id)}}
+                  'query': {'orderID' : order_id}}
         VirwoxCancelOrderRequest(self, params)
 
     def get_commission(self, amount, remote_market):
@@ -346,7 +346,7 @@ class VirwoxPrivateRequest(_VirwoxRequest):
     def post(self):
         payload = json.dumps({'method': self.method,
                               'params': self.params['query'],
-                              'id': str(QtCore.QUuid.createUuid().toString())})
+                              'id': QtCore.QUuid.createUuid().toString()})
         if logger.isEnabledFor(logging.DEBUG):
             logger.debug("POSTing %s to %s", self.params, PRIVATE_URL)
         self.reply = self.parent.network_manager.post(private_request, payload)
@@ -372,7 +372,7 @@ class VirwoxGetBalancesRequest(VirwoxPrivateRequest):
 
 
 class VirwoxGetCommissionDiscountRequest(VirwoxPrivateRequest):
-    method = u'getCommissionDiscount'
+    method = 'getCommissionDiscount'
 
     def handle_result(self, result):
         if result['errorCode'] != 'OK':
@@ -384,7 +384,7 @@ class VirwoxGetCommissionDiscountRequest(VirwoxPrivateRequest):
 
 
 class VirwoxGetOrdersRequest(VirwoxPrivateRequest):
-    method = u'getOrders'
+    method = 'getOrders'
 
     def handle_result(self, result):
         if result['errorCode'] != 'OK':
@@ -402,21 +402,21 @@ class VirwoxGetOrdersRequest(VirwoxPrivateRequest):
             price = Decimal(order['price'])
             amount = Decimal(order['amountOpen'])
 
-            if order_type == u'SELL':
+            if order_type == 'SELL':
                 if pair not in asks:
                     asks[pair] = list()
                 asks[pair].append((order_id, price, amount,))
-            elif order_type == u'BUY':
+            elif order_type == 'BUY':
                 if pair not in bids:
                     bids[pair] = list()
                 bids[pair].append((order_id, price, amount,))
             else:
                 logger.warning("unknown order type: %s", order_type)
 
-        for pair, orders in asks.items():
+        for pair, orders in list(asks.items()):
             if pair in self.parent.orders_proxies:
                 self.parent.orders_proxies[pair].asks.emit(orders)
-        for pair, orders in bids.items():
+        for pair, orders in list(bids.items()):
             if pair in self.parent.orders_proxies:
                 self.parent.orders_proxies[pair].bids.emit(orders)
 

@@ -36,8 +36,8 @@ class QuotesProxy(QtCore.QObject):
     def __init__(self, market_uuid, exchange_name,
                  granularity=1200, parent=None):
         super(QuotesProxy, self).__init__(parent)
-        storage_directory = str(QtGui.QDesktopServices.storageLocation(
-            QtGui.QDesktopServices.DataLocation))
+        storage_directory = QtGui.QDesktopServices.storageLocation(
+            QtGui.QDesktopServices.DataLocation)
 
         self.filename = os.path.join(
             storage_directory, '{}_{}_quotes.pickle'.format(market_uuid,
@@ -130,8 +130,8 @@ class DepthProxy(QtCore.QObject):
     def __init__(self, market_uuid, exchange_name,
                  precision=2, parent=None):
         super(DepthProxy, self).__init__(parent)
-        self.storage_directory = str(QtGui.QDesktopServices.storageLocation(
-            QtGui.QDesktopServices.DataLocation))
+        self.storage_directory = QtGui.QDesktopServices.storageLocation(
+            QtGui.QDesktopServices.DataLocation)
 
         self.precision = precision
         self.exchange = dojima.exchange.get_exchange_object(exchange_name,

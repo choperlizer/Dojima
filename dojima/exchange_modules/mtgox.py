@@ -54,7 +54,7 @@ class MtgoxExchangeItem(dojima.model.exchanges.ExchangeItem):
     exchange_name = EXCHANGE_NAME
 
     COLUMNS = 4
-    MARKETS, REFRESH_RATE, ACCOUNT_KEY, ACCOUNT_SECRET = range(COLUMNS)
+    MARKETS, REFRESH_RATE, ACCOUNT_KEY, ACCOUNT_SECRET = list(range(COLUMNS))
     mappings = (('refresh rate', REFRESH_RATE),
                 ('key', ACCOUNT_KEY),
                 ('secret', ACCOUNT_SECRET),)
@@ -153,7 +153,7 @@ class MtgoxExchangeMarket(QtCore.QObject, _Mtgox):
         MtgoxTickerRequest(ticker_url, self)
 
     def _refresh_tickers(self):
-        for remote_market in self._ticker_clients.keys():
+        for remote_market in list(self._ticker_clients.keys()):
             ticker_url = QtCore.QUrl(_BASE_URL + remote_market + "/ticker")
             MtgoxTickerRequest(ticker_url, self)
 
@@ -171,7 +171,7 @@ class MtgoxTickerRequest(dojima.network.ExchangePOSTRequest):
     def _handle_reply(self, raw):
         logger.debug(raw)
         data = json.loads(raw, object_hook=_object_hook)
-        if data['result'] != u'success':
+        if data['result'] != 'success':
             self._handle_error(data['error'])
             return
         data = data['return']
@@ -198,9 +198,9 @@ class MtgoxTradesRequest(MtgoxPublicRequest):
 
     def _object_hook(self, dict_):
         try:
-            self.dates.append(int(dict_[u'date']))
-            self.prices.append(float(dict_[u'price']))
-            self.amounts.append(float(dict_[u'amount']))
+            self.dates.append(int(dict_['date']))
+            self.prices.append(float(dict_['price']))
+            self.amounts.append(float(dict_['amount']))
         except KeyError:
             return
 
@@ -305,7 +305,7 @@ class MtgoxAccount(QtCore.QObject, _Mtgox, dojima.exchange.ExchangeAccount):
         # This can probaly call for BTC info twice at
         # startup but whatever
         counter = remote_pair[-3:]
-        multipliers = self.multipliers.keys()
+        multipliers = list(self.multipliers.keys())
 
         if counter not in multipliers:
             MtgoxCurrencyRequest(self._currency_url, self,
@@ -400,7 +400,7 @@ class MtgoxPrivateRequest(_MtgoxRequest):
         self.parent.nonce += 1
         query.addQueryItem('nonce', str(self.parent.nonce))
         if self.data:
-            for key, value in self.data['query'].items():
+            for key, value in list(self.data['query'].items()):
                 query.addQueryItem(key, str(value))
         self.query = query.encodedQuery()
 
@@ -417,7 +417,7 @@ class MtgoxInfoRequest(MtgoxPrivateRequest):
     def _handle_reply(self, raw):
         logger.debug(raw)
         data = json.loads(raw, object_hook=_object_hook)
-        for symbol, dict_ in data['return']['Wallets'].items():
+        for symbol, dict_ in list(data['return']['Wallets'].items()):
             if symbol in self.parent.funds_proxies:
                 signal = self.parent.funds_proxies[symbol].balance
                 balance = dict_['Balance'] -  dict_['Open_Orders']
@@ -445,21 +445,21 @@ class MtgoxOrdersRequest(MtgoxPrivateRequest):
             amount = order['amount']
             order_type = order['type']
 
-            if order_type == u'ask':
+            if order_type == 'ask':
                 if pair not in asks:
                     asks[pair] = list()
                 ask[pair].append((order_id, price, amount,))
-            elif order_type == u'bid':
+            elif order_type == 'bid':
                 if pair not in bids:
                     bids[pair] = list()
                 bids[pair].append((order_id, price, amount,))
             else:
                 logger.warning("unknown order type: %s", order_type)
 
-        for pair, orders in asks.items():
+        for pair, orders in list(asks.items()):
             if pair in self.parent.orders_proxies:
                 self.parent.orders_proxies[pair].asks.emit(orders)
-        for pair, orders in bids.items():
+        for pair, orders in list(bids.items()):
             if pair in self.parent.orders_proxies:
                 self.parent.orders_proxies[pair].bids.emit(orders)
 

@@ -119,11 +119,11 @@ class AssetAmountView(QtGui.QLineEdit):
             value /= self.factor
             #value = round(value, self.precision)
 
-        text = QtCore.QString().setNum(value)
+        text = str(value)
         if self.prefix:
-            text.prepend(self.prefix)
+            text = self.prefix + text
         if self.suffix:
-            text.append(self.suffix)
+            text = text + self.suffix
 
         return text
 
@@ -142,7 +142,7 @@ class AssetSpinBox(QtGui.QDoubleSpinBox):
     decimal_point = QtCore.QLocale().decimalPoint()
     #valueChanged = QtCore.pyqtSignal(int)
 
-    def __init__(self, factor=1, power=0, precision=None, scale=None,
+    def __init__(self, factor=1, power=0, precision=None, scale=1,
                  base="decimal", parent=None):
         if base != "decimal":
             raise NotImplementedError("%s base not supported" % base)
@@ -155,7 +155,7 @@ class AssetSpinBox(QtGui.QDoubleSpinBox):
         if scale > 1:
             # This wont work with non-decimal numbers
             self.scale_round_digits = -len(str(scale)) + 1
-            print "self.scale_round_digits", self.scale_round_digits
+            print("self.scale_round_digits", self.scale_round_digits)
 
         # The super contructor calls textFromValue and maybe others so set
         # attributes first
@@ -171,7 +171,7 @@ class AssetSpinBox(QtGui.QDoubleSpinBox):
         self.factor = factor
         step = factor
 
-        if (self.scale is not None and self.scale > 1):
+        if (self.scale > 1):
             step *= self.scale
 
         self.setSingleStep(step)
@@ -209,7 +209,7 @@ class AssetSpinBox(QtGui.QDoubleSpinBox):
             if self.precision:
                 value = round(value, self.precision)
 
-        text = QtCore.QString().setNum(value)
+        text = str(value)
 
         #if self.prefix():
         #    text.prepend(self.prefix())
@@ -271,17 +271,17 @@ class OfferItemDelegate(QtGui.QItemDelegate):
 
     def paint(self, painter, option, index):
         value = index.model().data(index, QtCore.Qt.UserRole)
-        print "row", index.row(), "of", index.model().rowCount()
+        print("row", index.row(), "of", index.model().rowCount())
 
         if self.factor > 1:
             value /= self.factor
 
-        text = QtCore.QString().setNum(value)
+        text = str(value)
 
         if self.prefix:
-            text.prepend(self.prefix)
+            text = self.prefix + text
         if self.suffix:
-            text.append(self.suffix)
+            text = text +  self.suffix
 
         option.displayAlignment = (QtCore.Qt.AlignRight |
                                    QtCore.Qt.AlignVCenter)
@@ -303,18 +303,18 @@ class OfferStyledItemDelegate(QtGui.QStyledItemDelegate):
         self.suffix = suffix
 
     def setEditorData(self, editor, index):
-        print type(editor)
+        print(type(editor))
         value = index.model().data(index, QtCore.Qt.QUserRole)
 
         if self.factor > 1:
             value /= self.factor
 
-        text = QtCore.QString().setNum(value)
+        text = str(value)
 
         if self.prefix:
-            text.prepend(self.prefix)
+            text = self.prefix + text
         if self.suffix:
-            text.append(self.suffix)
+            text = text +  self.suffix
 
             #option.displayAlignment = (QtCore.QtAlignRight |
             #                       QtCore.Qt.AlignVCenter)

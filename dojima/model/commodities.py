@@ -23,7 +23,7 @@ class LocalCommoditiesModel(dojima.model.base.FlatSettingsModel):
 
     name = 'local_commodities'
     COLUMNS = 5
-    ID, NAME, PREFIX, SUFFIX, PRECISION = range(COLUMNS)
+    ID, NAME, PREFIX, SUFFIX, PRECISION = list(range(COLUMNS))
     SETTINGS_MAP = (('name', NAME), ('prefix', PREFIX),
                     ('suffix', SUFFIX), ('precision', PRECISION))
 
@@ -40,7 +40,7 @@ class RemoteCommoditiesModel(dojima.model.base.FlatSettingsModel):
 
     name = 'remote_commodities'
     COLUMNS = 2
-    ID, LOCAL_ID = range(COLUMNS)
+    ID, LOCAL_ID = list(range(COLUMNS))
     SETTINGS_MAP = (('local', LOCAL_ID),)
 
     def map(self, remote_id, local_id):

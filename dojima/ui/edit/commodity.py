@@ -30,7 +30,7 @@ class EditWidget(QtGui.QWidget):
         # Widgets
         self.list_view = CommoditiesListView()
         prefix_edit = QtGui.QLineEdit()
-        prefix_edit.setToolTip(u"optional, eg. $, €")
+        prefix_edit.setToolTip("optional, eg. $, €")
         suffix_edit = QtGui.QLineEdit()
         suffix_edit.setToolTip("optional, eg. kg, lb")
         precision_spin = QtGui.QSpinBox()

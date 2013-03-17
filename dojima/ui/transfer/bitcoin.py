@@ -89,7 +89,7 @@ class GetDepositAddressDialog(QtGui.QDialog):
         layout.addWidget(button_box, 2,0, 1,2)
         self.setLayout(layout)
 
-        for exchange_name, exchange_dict in parent.exchanges.items():
+        for exchange_name, exchange_dict in list(parent.exchanges.items()):
             if 'account' not in exchange_dict:
                 continue
             account_object = exchange_dict['account']
@@ -170,7 +170,7 @@ class TransferDialog(QtGui.QDialog):
 
         self.withdraw_accounts = list()
         self.deposit_accounts = list()
-        for exchange_name, exchange_dict in parent.exchanges.items():
+        for exchange_name, exchange_dict in list(parent.exchanges.items()):
             if 'account' not in exchange_dict:
                 continue
             account_object = exchange_dict['account']
@@ -268,7 +268,7 @@ class WithdrawDialog(QtGui.QDialog):
         layout.addWidget(button_box)
         self.setLayout(layout)
 
-        for exchange_name, exchange_dict in parent.exchanges.items():
+        for exchange_name, exchange_dict in list(parent.exchanges.items()):
             if 'account' not in exchange_dict:
                 continue
             account_object = exchange_dict['account']

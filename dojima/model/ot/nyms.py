@@ -25,8 +25,8 @@ class OTNymsModel(QtGui.QStandardItemModel):
     def __init__(self, parent=None):
         super(OTNymsModel, self).__init__(parent)
         self.nym_ids = list()
-        for i in range(otapi.OT_API_GetNymCount()):
-            nym_id = otapi.OT_API_GetNym_ID(i)
+        for i in range(otapi.OTAPI_Basic_GetNymCount()):
+            nym_id = otapi.OTAPI_Basic_GetNym_ID(i)
             self.addNym(nym_id)
 
         self.setHorizontalHeaderLabels(
@@ -35,14 +35,14 @@ class OTNymsModel(QtGui.QStandardItemModel):
                                               "header for a nym list"),)
 
     def addNym(self, nym_id):
-        item = QtGui.QStandardItem(otapi.OT_API_GetNym_Name(nym_id))
+        item = QtGui.QStandardItem(otapi.OTAPI_Basic_GetNym_Name(nym_id))
         item.setData(nym_id, QtCore.Qt.UserRole)
         self.appendRow(item)
         self.nym_ids.append(nym_id)
 
     def refresh(self):
-        for i in range(otapi.OT_API_GetNymCount()):
-            nym_id = otapi.OT_API_GetNym_ID(i)
+        for i in range(otapi.OTAPI_Basic_GetNymCount()):
+            nym_id = otapi.OTAPI_Basic_GetNym_ID(i)
             if not nym_id in self.nym_ids:
                 self.addNym(nym_id)
 

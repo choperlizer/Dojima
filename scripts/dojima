@@ -16,8 +16,9 @@ from PyQt4 import QtCore, QtGui
 
 try:
     import otapi
-    otapi.OT_API_Init()
-    otapi.OT_API_LoadWallet()
+    otapi.OTAPI_Basic_AppStartup()
+    otapi.OTAPI_Basic_Init()
+    otapi.OTAPI_Basic_LoadWallet()
 except ImportError:
     otapi = None
 
@@ -59,4 +60,7 @@ if __name__ == '__main__':
     window = MainWindow()
     window.show()
 
-    sys.exit(app.exec_())
+    exit_code = app.exec_()
+    otapi.OTAPI_Basic_AppShutdown()
+    
+    sys.exit(exit_code)

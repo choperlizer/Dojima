@@ -15,7 +15,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import logging
-from Queue import Queue
+from queue import Queue
 
 import otapi
 from PyQt4 import QtCore, QtGui
@@ -52,7 +52,7 @@ def saveMarketAccountSettings(server_id, market_id, b_ac_id, c_ac_id):
     settings.setValue('counter_account', c_ac_id)
 
 
-class OTExchangeProxy(object, dojima.exchange.ExchangeProxy):
+class OTExchangeProxy(dojima.exchange.ExchangeProxy):
 
     def __init__(self, serverId, marketList):
         self.id = serverId
@@ -63,7 +63,8 @@ class OTExchangeProxy(object, dojima.exchange.ExchangeProxy):
 
     @property
     def name(self):
-        return otapi.OT_API_GetServer_Name(self.id)
+        assert self.id
+        return otapi.OTAPI_Basic_GetServer_Name(self.id)
 
     def getExchangeObject(self):
         if self.exchange_object is None:
@@ -92,9 +93,9 @@ class OTExchangeProxy(object, dojima.exchange.ExchangeProxy):
             data = market_list.GetMarketData(i)
             if data.market_id == remote_market_id:
                 return QtCore.QCoreApplication.translate('OTExchangeProxy',
-                                                         "Scale %1",
+                                                         "Scale {}",
                     "The market scale, there should be a note on this somewhere "
-                    "around here.").arg(data.scale)
+                    "around here.").format(data.scale)
 
     def nextPage(self, wizard):
         return OTServerWizardPage(self.name, self.id, wizard)
@@ -377,11 +378,16 @@ class OTServerWizardPage(QtGui.QWizardPage):
 
     def validatePage(self):
         nym_id = self.nym_combo.getOTID()
+
         b_ac_id = self.base_account_combo.getOTID()
         c_ac_id = self.counter_account_combo.getOTID()
 
-        b_as_id = otapi.OT_API_GetAccountWallet_AssetTypeID( str(b_ac_id))
-        c_as_id = otapi.OT_API_GetAccountWallet_AssetTypeID( str(c_ac_id))
+        assert nym_id
+        assert b_ac_id
+        assert c_ac_id        
+        
+        b_as_id = otapi.OTAPI_Basic_GetAccountWallet_AssetTypeID(b_ac_id)
+        c_as_id = otapi.OTAPI_Basic_GetAccountWallet_AssetTypeID(c_ac_id)
 
         storable = otapi.QueryObject(otapi.STORED_OBJ_MARKET_LIST,
                                      'markets', self.server_id,
@@ -460,22 +466,24 @@ class OTExchange(QtCore.QObject, dojima.exchange.Exchange):
         settings = QtCore.QSettings()
         settings.beginGroup('OT_Servers')
         settings.beginGroup(self.server_id)
-        self.nym_id = str(settings.value('nym', ''))
+        self.nym_id = settings.value('nym', '')
         settings.beginGroup('markets')
         for market_id in settings.childGroups():
-            b_ac_id = str(settings.value('base_account', ''))
-            c_ac_id = str(settings.value('counter_account', ''))
+            b_ac_id = settings.value('base_account', '')
+            c_ac_id = settings.value('counter_account', '')
             self.accounts[str(market_id)] = [b_ac_id, c_ac_id]
 
     def changeNym(self, nym_id):
-        self.nym_id = str(nym_id)
+        self.nym_id = nym_id
         settings = QtCore.QSettings()
         settings.beginGroup('OT_Servers')
         settings.beginGroup(self.server_id)
         settings.setValue('nym', nym_id)
-        if not otapi.OT_API_IsNym_RegisteredAtServer(self.nym_id,
-                                                     self.server_id):
-            r = otapi.OT_API_createUserAccount(self.server_id, self.nym_id)
+        assert self.nym_id
+        assert self.server_id
+        if not otapi.OTAPI_Basic_IsNym_RegisteredAtServer(self.nym_id,
+                                                          self.server_id):
+            r = otapi.OTAPI_Basic_createUserAccount(self.server_id, self.nym_id)
             if r < 1:
                 QtGui.QApplication.restoreOverrideCursor()
                 QtGui.QMessageBox.error(self,
@@ -485,10 +493,10 @@ class OTExchange(QtCore.QObject, dojima.exchange.Exchange):
                         "Error registering the nym with the server."))
                 return
         else:
-            if otapi.OT_API_GetNym_TransactionNumCount(self.server_id,
-                                                       self.nym_id) < 48:
+            if otapi.OTAPI_Basic_GetNym_TransactionNumCount(self.server_id,
+                                                            self.nym_id) < 48:
                 logger.info("Requesting more transaction numbers")
-                otapi.OT_API_getTransactionNumber(self.server_id, self.nym_id)
+                otapi.OTAPI_Basic_getTransactionNumber(self.server_id, self.nym_id)
 
     def changeBaseAccount(self, market_id, account_id):
         settings = QtCore.QSettings()
@@ -609,9 +617,9 @@ class OTExchange(QtCore.QObject, dojima.exchange.Exchange):
 
         # create actions
         nyms_group = QtGui.QActionGroup(exchange_menu)
-        for i in range(otapi.OT_API_GetNymCount()):
-            nym_id = otapi.OT_API_GetNym_ID(i)
-            nym_label = otapi.OT_API_GetNym_Name(nym_id)
+        for i in range(otapi.OTAPI_Basic_GetNymCount()):
+            nym_id = otapi.OTAPI_Basic_GetNym_ID(i)
+            nym_label = otapi.OTAPI_Basic_GetNym_Name(nym_id)
             action = ChangeOTThingAction(nym_id, nym_label, nyms_menu)
             action.setActionGroup(nyms_group)
             nyms_menu.addAction(action)
@@ -640,10 +648,12 @@ class OTExchange(QtCore.QObject, dojima.exchange.Exchange):
         return self.scales[market_id]
 
     def sendRequest(self):
+        assert self.server_id
+        assert self.nym_id
         # if the timer is the only one to call this it shouldn't block
         if not self.cancelMarketOffer_queue.empty():
-            account_id, transaction_number = self.cancelMarketOffer_queue.get()
-            r = otapi.OT_API_cancelMarketOffer(self.server_id, self.nym_id,
+            account_id, transaction_number = self.cancelMarketOffer_queue.get()           
+            r = otapi.OTAPI_Basic_cancelMarketOffer(self.server_id, self.nym_id,
                                                account_id, transaction_number)
             if r < 1:
                 logger.error("cancelMarketOffer failed")
@@ -666,7 +676,7 @@ class OTExchange(QtCore.QObject, dojima.exchange.Exchange):
             # increment for later
             increment = 1
             total /= scale
-            r = otapi.OT_API_issueMarketOffer(self.server_id, self.nym_id,
+            r = otapi.OTAPI_Basic_issueMarketOffer(self.server_id, self.nym_id,
                                               base_asset_id, base_account_id,
                                               counter_asset_id,
                                               counter_account_id,
@@ -680,13 +690,14 @@ class OTExchange(QtCore.QObject, dojima.exchange.Exchange):
 
         if not self.getaccount_queue.empty():
             account_id = self.getaccount_queue.get_nowait()
-            r = otapi.OT_API_getAccount(self.server_id, self.nym_id, account_id)
+            r = otapi.OTAPI_Basic_getAccount(self.server_id, self.nym_id, account_id)
             if r < 1:
                 logger.error("account info request failed")
                 self.getRequestNumber_queue.put(None)
                 self.getaccount_queue.put(acount_id)
                 return
-            balance = int(otapi.OT_API_GetAccountWallet_Balance(account_id))
+            assert account_id
+            balance = int(otapi.OTAPI_Basic_GetAccountWallet_Balance(account_id))
             proxy = self.balance_proxies[account_id]
             proxy.balance.emit(balance)
             return
@@ -694,7 +705,7 @@ class OTExchange(QtCore.QObject, dojima.exchange.Exchange):
         if self.nymOffersNeedRefresh is True:
             logger.info('requesting nym %s offer list from %s', self.nym_id,
                                                                 self.server_id)
-            r = otapi.OT_API_getNym_MarketOffers(self.server_id, self.nym_id)
+            r = otapi.OTAPI_Basic_getNym_MarketOffers(self.server_id, self.nym_id)
             if r < 1:
                 logger.error("nym market offers request failed")
                 return
@@ -705,7 +716,7 @@ class OTExchange(QtCore.QObject, dojima.exchange.Exchange):
 
         if not self.getMarketList_queue.empty():
             self.getMarketList_queue.get_nowait()
-            r = otapi.OT_API_getMarketList(self.server_id, self.nym_id)
+            r = otapi.OTAPI_Basic_getMarketList(self.server_id, self.nym_id)
             if r < 1:
                 logger.error("market list/info request failed")
                 self.getRequestNumber_queue.put(None)
@@ -717,8 +728,9 @@ class OTExchange(QtCore.QObject, dojima.exchange.Exchange):
             market_id = self.trades_queue.get_nowait()
             logger.info('requesting %s trade list from %s',
                         market_id, self.server_id)
-            r = otapi.OT_API_getMarketRecentTrades(self.server_id, self.nym_id,
-                                                   market_id)
+            assert market_id
+            r = otapi.OTAPI_Basic_getMarketRecentTrades(self.server_id, self.nym_id,
+                                                        market_id)
             if r < 1:
                 self.getRequestNumber_queue.put(None)
                 self.trades_queue.put(market_id)
@@ -956,12 +968,12 @@ class OTExchangeAccount(QtCore.QObject, dojima.exchange.ExchangeAccount):
 
 class CurrentNymMenu(QtGui.QMenu):
 
-    template = QtCore.QCoreApplication.translate('OTExchange', "Current nym: %1",
-                                                 "%1 will be replaced with the "
+    template = QtCore.QCoreApplication.translate('OTExchange', "Current nym: {}",
+                                                 "{} will be replaced with the "
                                                  "currently selected nym label.")
 
     def changeTitle(self, label):
-        self.setTitle(self.template.arg(label))
+        self.setTitle(self.template.format(label))
 
 
 class ChangeOTThingAction(QtGui.QAction):
@@ -1004,8 +1016,8 @@ class ChangeAccountAction(QtGui.QAction):
 class NymAccountMenu(QtGui.QMenu):
 
     template = QtCore.QCoreApplication.translate('OTExchange',
-                                                 "Current account: %1",
-                                                 "%1 will be replaced with the "
+                                                 "Current account: {}",
+                                                 "{} will be replaced with the "
                                                  "currently selected account "
                                                  "label.")
 
@@ -1023,24 +1035,24 @@ class NymAccountMenu(QtGui.QMenu):
                     action.trigger()
 
     def changeTitle(self, label):
-        self.setTitle(self.template.arg(label))
+        self.setTitle(self.template.format(label))
 
     def setNymId(self, nym_id):
         self.clear()
         action_group = QtGui.QActionGroup(self)
         actions = list()
-        for i in range(otapi.OT_API_GetAccountCount()):
-            account_id = otapi.OT_API_GetAccountWallet_ID(i)
-            if otapi.OT_API_GetAccountWallet_NymID(account_id) != nym_id:
+        for i in range(otapi.OTAPI_Basic_GetAccountCount()):
+            account_id = otapi.OTAPI_Basic_GetAccountWallet_ID(i)
+            if otapi.OTAPI_Basic_GetAccountWallet_NymID(account_id) != nym_id:
                 continue
-            if (otapi.OT_API_GetAccountWallet_AssetTypeID(account_id)
+            if (otapi.OTAPI_Basic_GetAccountWallet_AssetTypeID(account_id)
                 != self.asset_id):
                 continue
 
-            if otapi.OT_API_GetAccountWallet_Type(account_id) == 'issuer':
+            if otapi.OTAPI_Basic_GetAccountWallet_Type(account_id) == 'issuer':
                 continue
 
-            account_label =  otapi.OT_API_GetAccountWallet_Name(account_id)
+            account_label =  otapi.OTAPI_Basic_GetAccountWallet_Name(account_id)
             action = ChangeAccountAction(account_label,
                                          account_id, self.market_id,
                                          self.change_account_method, self)
@@ -1054,8 +1066,8 @@ class NymAccountMenu(QtGui.QMenu):
 
 
 def parse_servers():
-    for i in range(otapi.OT_API_GetServerCount()):
-        server_id = otapi.OT_API_GetServer_ID(i)
+    for i in range(otapi.OTAPI_Basic_GetServerCount()):
+        server_id = otapi.OTAPI_Basic_GetServer_ID(i)
 
         if server_id in dojima.exchanges.container:
             continue

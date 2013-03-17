@@ -20,7 +20,7 @@ class ExchangesContainer(object):
         self.exchanges = dict()
 
     def __iter__(self):
-        return self.exchanges.values().__iter__()
+        return list(self.exchanges.values()).__iter__()
 
     def __len__(self):
         return len(self.exchanges)
@@ -29,7 +29,7 @@ class ExchangesContainer(object):
         self.exchanges[exchange_proxy.id] = exchange_proxy
 
     def refresh(self):
-        for proxy in self.exchanges.values():
+        for proxy in list(self.exchanges.values()):
             proxy.refreshMarkets()
 
 container = ExchangesContainer()

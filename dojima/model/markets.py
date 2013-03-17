@@ -24,7 +24,7 @@ class MarketsModel(dojima.model.base.FlatSettingsModel):
 
     name = 'markets'
     COLUMNS = 4
-    UUID, NAME, BASE, COUNTER = range(COLUMNS)
+    UUID, NAME, BASE, COUNTER = list(range(COLUMNS))
     SETTINGS_MAP = (('name', NAME), ('base', BASE), ('counter', COUNTER))
 
     def new_market(self):
@@ -45,7 +45,7 @@ class MarketsModel(dojima.model.base.FlatSettingsModel):
             for market_row in range(markets_item.rowCount()):
                 local_market_item = markets_item.child(
                     market_row, exchange_item.MARKET_LOCAL)
-                if str(local_market_item.text()) == uuid:
+                if local_market_item.text() == uuid:
                     local_market_item.setText("")
                     enable_market_item = markets_item.child(
                         market_row, exchange_item.MARKET_ENABLE)

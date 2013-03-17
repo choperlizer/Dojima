@@ -45,7 +45,7 @@ class FlatSettingsModel(QtGui.QStandardItemModel):
 
     def submit(self):
         logger.debug("saving %s", self.name)
-        rows = range(self.rowCount())
+        rows = list(range(self.rowCount()))
         self.settings.remove('')
         for row in rows:
             uuid = self.item(row, self.ID).text()
@@ -68,18 +68,18 @@ class OrdersModel(QtGui.QStandardItemModel):
     # TODO data should be read-only
 
     COLUMNS = 3
-    ORDER_ID, PRICE, AMOUNT = range(COLUMNS)
+    ORDER_ID, PRICE, AMOUNT = list(range(COLUMNS))
 
     def __init__(self, parent=None):
         super(OrdersModel, self).__init__(parent)
 
     def append_order(self, order_id, price, amount):
-        self.appendRow( (QtGui.QStandardItem(str(order_id)),
-                         QtGui.QStandardItem(str(price)),
-                         QtGui.QStandardItem(str(amount)) ) )
+        self.appendRow( (QtGui.QStandardItem(order_id),
+                         QtGui.QStandardItem(price),
+                         QtGui.QStandardItem(amount) ) )
 
     def remove_order(self, order_id):
-        orders = self.findItems(str(order_id),
+        orders = self.findItems(order_id,
                                 QtCore.Qt.MatchExactly,
                                 self.ORDER_ID)
         for order in orders:

@@ -45,7 +45,7 @@ class BtceProviderItem(dojima.model.exchanges.ExchangeItem):
     exchange_name = EXCHANGE_NAME
 
     COLUMNS = 4
-    MARKETS, REFRESH_RATE, ACCOUNT_KEY, ACCOUNT_SECRET = range(COLUMNS)
+    MARKETS, REFRESH_RATE, ACCOUNT_KEY, ACCOUNT_SECRET = list(range(COLUMNS))
     mappings = (("refresh rate (seconds)", REFRESH_RATE),
                 ("key", ACCOUNT_KEY),
                 ("secret", ACCOUNT_SECRET),)
@@ -72,8 +72,8 @@ class BtceRequest(QtCore.QObject):
                                "application/x-www-form-urlencoded")
         query = QtCore.QUrl()
         if self.data:
-            for key, value in self.data['query'].items():
-                query.addQueryItem(key, str(value))
+            for key, value in list(self.data['query'].items()):
+                query.addQueryItem(key, value)
         self.query = query.encodedQuery()
 
     def post(self):
@@ -98,7 +98,7 @@ class BtceRequest(QtCore.QObject):
         else:
             if logger.isEnabledFor(logging.DEBUG):
                 logger.debug("received reply to %s", self.url.toString())
-            raw = str(self.reply.readAll())
+            raw = self.reply.readAll()
             logger.debug(raw)
             self.data = json.loads(raw,
                                    parse_float=Decimal,
@@ -125,10 +125,10 @@ class BtcePrivateRequest(BtceRequest):
         query = QtCore.QUrl()
         query.addQueryItem('method', self.method)
         self.parent.nonce += 1
-        query.addQueryItem('nonce', str(self.parent.nonce))
+        query.addQueryItem('nonce', self.parent.nonce)
         if self.data:
-            for key, value in self.data['query'].items():
-                query.addQueryItem(key, str(value))
+            for key, value in list(self.data['query'].items()):
+                query.addQueryItem(key, value)
         self.query = query.encodedQuery()
 
         h = hmac.new(self.parent._secret, digestmod=hashlib.sha512)
@@ -144,12 +144,12 @@ class BtcePrivateRequest(BtceRequest):
         else:
             if logger.isEnabledFor(logging.DEBUG):
                 logger.debug("received reply to %s", self.url.toString())
-            raw = str(self.reply.readAll())
+            raw = self.reply.readAll()
             logger.debug(raw)
             data = json.loads(raw, parse_float=Decimal)
             if data['success'] != 1:
                 if data['error'] != 'no orders':
-                    msg = HOSTNAME + " " + str(self.method) + " : " + data['error']
+                    msg = HOSTNAME + " " + self.method + " : " + data['error']
                     self.parent.exchange_error_signal.emit(msg)
                     logger.warning(msg)
             else:
@@ -237,7 +237,7 @@ class BtceExchange(_Btce):
         BtceTickerRequest(ticker_url, self)
 
     def _refresh_tickers(self):
-        for remote_market in self._ticker_clients.keys():
+        for remote_market in list(self._ticker_clients.keys()):
             ticker_url = QtCore.QUrl(
                 _PUBLIC_BASE_URL + remote_market + "/ticker")
             BtceTickerRequest(ticker_url, self)
@@ -249,7 +249,7 @@ class BtceTickerRequest(dojima.network.ExchangeGETRequest):
         data = json.loads(raw, parse_float=Decimal, parse_int=Decimal)
         data = data['ticker']
         path = self.url.path().split('/')
-        remote_market = str(path[3])
+        remote_market = path[3]
         proxy = self.parent._ticker_proxies[remote_market]
         proxy.ask_signal.emit(data['buy'])
         proxy.last_signal.emit(data['last'])
@@ -292,8 +292,8 @@ class BtceAccount(_Btce, dojima.exchange.ExchangeAccount):
         self.replies.add(request)
 
     def set_credentials(self, credentials):
-        self._key = str(credentials[0])
-        self._secret = str(credentials[1])
+        self._key = credentials[0]
+        self._secret = credentials[1]
 
     def check_order_status(self, remote_pair):
         signal = getattr(self, remote_pair + "_ready_signal")
@@ -318,27 +318,27 @@ class BtceAccount(_Btce, dojima.exchange.ExchangeAccount):
             return
         asks = dict()
         bids = dict()
-        for order_id, order in data.items():
+        for order_id, order in list(data.items()):
             price = order['rate']
             amount = order['amount']
             order_type = order['type']
             pair = order['pair']
 
-            if order_type == u'sell':
+            if order_type == 'sell':
                 if pair not in asks:
                     asks[pair] = list()
                 asks[pair].append((order_id, price, amount,))
-            elif order_type == u'buy':
+            elif order_type == 'buy':
                 if pair not in bids:
                     bids[pair] = list()
                 bids[pair].append((order_id, price, amount,))
             else:
                 logger.warning("unknown order type: %s", order_type)
 
-        for pair, orders in asks.items():
+        for pair, orders in list(asks.items()):
             if pair in self.orders_proxies:
                 self.orders_proxies[pair].asks.emit(orders)
-        for pair, orders in bids.items():
+        for pair, orders in list(bids.items()):
             if pair in self.orders_proxies:
                 self.orders_proxies[pair].bids.emit(orders)
 
@@ -389,7 +389,7 @@ class BtceAccount(_Btce, dojima.exchange.ExchangeAccount):
         self.host_queue.enqueue(self, 0)
 
     def _cancelorder_handler(self, data):
-        order_id = str(data['return']['order_id'])
+        order_id = data['return']['order_id']
         pair = data['pair']
         order_type = data['type']
         if order_type == 'ask':
@@ -401,7 +401,7 @@ class BtceAccount(_Btce, dojima.exchange.ExchangeAccount):
         self._emit_funds(data['return']['funds'])
 
     def _emit_funds(self, data):
-        for symbol, balance in data.items():
+        for symbol, balance in list(data.items()):
             if symbol in self.funds_proxies:
                 self.funds_proxies[symbol].balance.emit(Decimal(balance))
             else:

@@ -84,7 +84,7 @@ class MainWindow(QtGui.QMainWindow):
 
         for market_container in dojima.markets.container:
             for exchange_proxy in market_container:
-                print "market:", market_container.pair, "exchange:", exchange_proxy.id
+                print("market:", market_container.pair, "exchange:", exchange_proxy.id)
 
         for market_container in dojima.markets.container:
             if market_container.pair in self.markets_menu:
@@ -104,7 +104,7 @@ class MainWindow(QtGui.QMainWindow):
                     exchange_menu = market_menu.addExchangeMenu(
                         exchange_proxy.id, exchange_proxy.name)
                     for market_id in exchange_proxy.getRemoteMarketIDs(
-                            str(market_container.pair)):
+                            market_container.pair):
                         if market_id not in exchange_menu:
                             action = exchange_menu.addMarketAction(
                                 exchange_proxy, market_id)

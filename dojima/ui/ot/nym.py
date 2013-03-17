@@ -24,6 +24,9 @@ from PyQt4 import QtCore, QtGui
 
 class CreateNymDialog(QtGui.QDialog):
 
+    error_title = QtCore.QCoreApplication.translate('CreateNymDialog',
+                                                    "Error")
+    
     def __init__(self, parent=None):
         super(CreateNymDialog, self).__init__(parent)
 
@@ -65,21 +68,27 @@ class CreateNymDialog(QtGui.QDialog):
         self.setLayout(layout)
 
     def createNym(self):
-        QtGui.QApplication.setOverrideCursor(QtCore.Qt.WaitCursor)
-        error_title = QtCore.QCoreApplication.translate('CreateNymDialog',
-                                                        "Error")
+        nym_name = self.name_edit.text()
+              
+        if not nym_name.isalpha():
+            QtGui.QMessageBox.warning(self, self.error_title,
+                                      QtCore.QCoreApplication.translate('CreateNymDialog',
+                                                                        "Will not create a nym without a label."))
+            return
 
-        nym_id = otapi.OT_API_CreateNym(int(self.key_size_combo.currentText()))
+        
+        QtGui.QApplication.setOverrideCursor(QtCore.Qt.WaitCursor)
+        nym_id = otapi.OTAPI_Basic_CreateNym(int(self.key_size_combo.currentText()))
 
         if not nym_id:
             QtGui.QApplication.restoreOverrideCursor()
-            QtGui.QMessageBox.warning(self, error_title,
-                                      otapi.OT_API_PeekMemlogFront())
+            QtGui.QMessageBox.warning(self, self.error_title,
+                                      otapi.OTAPI_Basic_PeekMemlogFront())
             return
 
         # TODO make a selectable default signing nym
         # to use for this sort of thing
-        otapi.OT_API_SetNym_Name(nym_id, nym_id, str(self.name_edit.text()))
+        otapi.OTAPI_Basic_SetNym_Name(nym_id, nym_id, nym_name)
 
         QtGui.QApplication.restoreOverrideCursor()
         self.accept()

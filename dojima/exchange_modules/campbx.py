@@ -51,7 +51,7 @@ class CampbxExchangeItem(dojima.model.exchanges.ExchangeItem):
     exchange_name = EXCHANGE_NAME
 
     COLUMNS = 4
-    MARKETS, REFRESH_RATE, ACCOUNT_USERNAME, ACCOUNT_PASSWORD = range(COLUMNS)
+    MARKETS, REFRESH_RATE, ACCOUNT_USERNAME, ACCOUNT_PASSWORD = list(range(COLUMNS))
     mappings = (("refresh rate (seconds)", REFRESH_RATE),
                 ("username", ACCOUNT_USERNAME),
                 ("password", ACCOUNT_PASSWORD),)
@@ -79,7 +79,7 @@ class _CampbxRequest(dojima.network.ExchangePOSTRequest):
                                "application/x-www-form-urlencoded")
         query = self.parent.base_query
         if self.data:
-            for key, value in self.data['query'].items():
+            for key, value in list(self.data['query'].items()):
                 query.addQueryItem(key, str(value))
         self.query = query.encodedQuery()
 

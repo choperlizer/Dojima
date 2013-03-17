@@ -30,10 +30,10 @@ class CurrencyContract(object):
         self.id = assetTypeId
 
         # TODO find a signing nym and verify the contract
-        #self.xml = otapi.OT_API_VerifyAndRetrieveXMLContents(
+        #self.xml = otapi.OTAPI_Basic_VerifyAndRetrieveXMLContents(
         #    assetTypeId, dojima.ot.getSigningNym())
 
-        self.contract = otapi.OT_API_GetAssetType_Contract(assetTypeId)
+        self.contract = otapi.OTAPI_Basic_GetAssetType_Contract(assetTypeId)
 
         self.name = None
         self.tla = None
@@ -70,10 +70,9 @@ class CurrencyContract(object):
         return self.decimal_power
 
     def parseContractXml(self):
-        contract = QtCore.QString(self.contract)
-        start = contract.indexOf('<')
-        end = contract.lastIndexOf('>')
-        reader = QtCore.QXmlStreamReader(contract[start:end])
+        start = self.contract.index('<')
+        end = self.contract.rindex('>')
+        reader = QtCore.QXmlStreamReader(self.contract[start:end])
 
         while not reader.atEnd():
             if reader.isStartElement():
@@ -81,13 +80,13 @@ class CurrencyContract(object):
                     # TODO do a setattr on these things, and then let whatever
                     # looks at this thing do hasattrs or something else
                     a = reader.attributes()
-                    self.name =  a.value('name').toString()
-                    self.tla =  a.value('tla').toString()
-                    self.symbol = a.value('symbol').toString()
-                    self.type = a.value('decimal').toString()
-                    self.factor = int(a.value('factor').toString())
-                    self.decimal_power = int(a.value('decimal_power').toString())
-                    self.faction = a.value('fraction').toString()
+                    self.name =  a.value('name')
+                    self.tla =  a.value('tla')
+                    self.symbol = a.value('symbol')
+                    self.type = a.value('decimal')
+                    self.factor = int(a.value('factor'))
+                    self.decimal_power = int(a.value('decimal_power'))
+                    self.faction = a.value('fraction')
                     return
 
             reader.readNext()

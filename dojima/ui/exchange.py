@@ -53,9 +53,8 @@ class ExchangeDockWidget(QtGui.QDockWidget, ErrorHandling):
         self.counter_row = search[0].row()
         counter_name = dojima.model.commodities.local_model.item(self.counter_row,
                                               dojima.model.commodities.local_model.NAME).text()
-        title = QtCore.QCoreApplication.translate(
-            'ExchangeDockWidget', "%1 - %2 / %3", "exchange name, base, counter"
-            ).arg(exchange_name).arg(base_name).arg(counter_name)
+        title = QtCore.QCoreApplication.translate('ExchangeDockWidget', "{0} - {1} / {2}", "exchange name, base, counter"
+                                                  ).format(exchange_name, base_name, counter_name)
 
         super(ExchangeDockWidget, self).__init__(title, parent)
 
@@ -72,13 +71,20 @@ class ExchangeDockWidget(QtGui.QDockWidget, ErrorHandling):
             self.remote_market)
         self.scale = self.exchange_obj.getScale(self.remote_market)
 
-        self.base_precision, ok = dojima.model.commodities.local_model.item(
-            self.base_row, dojima.model.commodities.local_model.PRECISION).text().toInt()
-        if not ok: self.base_precision = 0
+        self.base_precision = dojima.model.commodities.local_model.item(
+            self.base_row, dojima.model.commodities.local_model.PRECISION).text()
+        if not len(self.base_precision):
+            self.base_precision = 0
+        else:
+            self.base_precision = int(self.base_precision)
 
-        self.counter_precision, ok = dojima.model.commodities.local_model.item(
-            self.counter_row, dojima.model.commodities.local_model.PRECISION).text().toInt()
-        if not ok: self.counter_precision = 0
+        self.counter_precision = dojima.model.commodities.local_model.item(
+            self.counter_row, dojima.model.commodities.local_model.PRECISION).text()
+        if not len(self.counter_precision):
+            self.counter_precision = 0
+        else:
+            self.counter_precision = int(self.counter_precision)
+
 
         #Widgets
         self.widget = QtGui.QWidget(self)
@@ -125,7 +131,7 @@ class ExchangeDockWidget(QtGui.QDockWidget, ErrorHandling):
         proxy.accountValidityChanged.connect(self.enableAccount)
 
     def changeMarket(self, market_id):
-        print "market change requested, market id:", market_id
+        print("market change requested, market id:", market_id)
         self.exchange_obj.setTickerStreamState(self.remote_market, False)
         self.remote_market = marked_id
         self.exchange_obj.setTickerStreamState(self.remote_market, True)
@@ -179,7 +185,7 @@ class ExchangeDockWidget(QtGui.QDockWidget, ErrorHandling):
         self.layout.addWidget(self.account_widget)
 
     def setScale(self, scale):
-        print "beep beep boop boop, set scale to", scale
+        print("beep beep boop boop, set scale to", scale)
 
     def set_signal_connection_state(self, state):
         if not state: return
@@ -481,8 +487,8 @@ class AccountWidget(QtGui.QWidget, ErrorHandling):
         #    self.counter_balance_label.change_value)
 
         offers_model = self.account_obj.getOffersModel(self.dock.remote_market)
-        self.asks_model = dojima.data.offers.AsksFilterModel(offers_model)
-        self.bids_model = dojima.data.offers.BidsFilterModel(offers_model)
+        self.asks_model = dojima.data.offers.FilterAsksModel(offers_model)
+        self.bids_model = dojima.data.offers.FilterBidsModel(offers_model)
 
         self.ask_offers_view.setModel(self.asks_model)
         self.bid_offers_view.setModel(self.bids_model)
@@ -551,16 +557,16 @@ class AccountWidget(QtGui.QWidget, ErrorHandling):
         self.bid_estimate_view.setValue(estimate)
 
     def changeAccount(self, market_id):
-        print "market changed for", market_id
+        print("market changed for", market_id)
         # maybe this slot should receive an account id
         if market_id != self.dock.remote_market:
-            print "but it's not ours"
+            print("but it's not ours")
             return
 
-        if not self.account_obj.hasAccount(str(market_id)):
-            print "account_obj does not have valid accounts"
+        if not self.account_obj.hasAccount(market_id):
+            print("account_obj does not have valid accounts")
             return
-        print "account_obj does have valid accounts"
+        print("account_obj does have valid accounts")
 
         """
         if hasattr(self, 'base_balance_proxy'):

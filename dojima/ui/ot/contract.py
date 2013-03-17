@@ -27,7 +27,7 @@ class _ContractImportDialog(QtGui.QDialog):
         super(_ContractImportDialog, self).__init__(parent)
 
         self.import_occurred = False
-        self.recent_dir = QtCore.QString(QtGui.QDesktopServices.HomeLocation)
+        self.recent_dir = QtGui.QDesktopServices.HomeLocation
 
         self.import_box = QtGui.QPlainTextEdit()
         self.import_box.setMinimumWidth(512)
@@ -104,7 +104,7 @@ class _ContractImportDialog(QtGui.QDialog):
             #self.parent.ot_asset_model.dataChanged.emit(
         else:
             QtGui.QMessageBox.warning(self, subdialog_title,
-                                      otapi.OT_API_PeekMemlogFront())
+                                      otapi.OTAPI_Basic_PeekMemlogFront())
 
     def close(self):
         if self.import_occured is True:
@@ -114,9 +114,9 @@ class _ContractImportDialog(QtGui.QDialog):
 
 class AssetContractImportDialog(_ContractImportDialog):
 
-    contract_import_method = otapi.OT_API_AddAssetContract
+    contract_import_method = otapi.OTAPI_Basic_AddAssetContract
 
     
 class ServerContractImportDialog(_ContractImportDialog):
 
-    contract_import_method = otapi.OT_API_AddServerContract
+    contract_import_method = otapi.OTAPI_Basic_AddServerContract

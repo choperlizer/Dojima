@@ -42,7 +42,7 @@ class BitstampExchangeItem(dojima.model.exchanges.ExchangeItem):
     exchange_name = EXCHANGE_NAME
 
     COLUMNS = 4
-    MARKETS, REFRESH_RATE, ACCOUNT_USERNAME, ACCOUNT_PASSWORD = range(COLUMNS)
+    MARKETS, REFRESH_RATE, ACCOUNT_USERNAME, ACCOUNT_PASSWORD = list(range(COLUMNS))
     mappings = (("ticker refresh rate (seconds)", REFRESH_RATE),
                 ("customer ID", ACCOUNT_USERNAME),
                 ("password", ACCOUNT_PASSWORD),)
@@ -263,8 +263,8 @@ class BitstampPrivateRequest(dojima.network.ExchangePOSTRequest):
                                "application/x-www-form-urlencoded")
         query = self.parent.base_query
         if self.data:
-            for key, value in self.data['query'].items():
-                query.addQueryItem(key, str(value))
+            for key, value in list(self.data['query'].items()):
+                query.addQueryItem(key, value)
         self.query = query.encodedQuery()
 
 
@@ -313,7 +313,7 @@ class BitstampPlaceOrderRequest(BitstampPrivateRequest):
         logger.debug(raw)
         data = json.loads(raw, parse_float=Decimal)
         if 'error' in data:
-            self._handle_error(str(data['error']))
+            self._handle_error(data['error'])
             return
 
         order_id = data['id']
@@ -363,8 +363,8 @@ class BitstampBitcoinWithdrawalRequest(BitstampPrivateRequest):
     def _handle_reply(self, raw):
         logger.debug(raw)
         result = json.loads(raw)
-        reply = str(QtCore.QCoreApplication.translate(
-            "BitstampExchangeAccount", """Bitstamp replied "{}" """))
+        reply = QtCore.QCoreApplication.translate(
+            "BitstampExchangeAccount", """Bitstamp replied "{}" """)
         self.parent.withdraw_bitcoin_reply_signal.emit(reply.format(result))
 
 

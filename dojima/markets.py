@@ -28,7 +28,7 @@ class MarketsContainer(object):
         self.markets = dict()
 
     def __iter__(self):
-        return self.markets.values().__iter__()
+        return list(self.markets.values()).__iter__()
 
     def __len__(self):
         return len(self.markets)

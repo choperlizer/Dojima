@@ -45,29 +45,26 @@ class ComboBox(QtGui.QComboBox):
         self.currentIndexChanged[int].connect(self.emitOtId)
 
     def emitOtId(self, row):
-        self.otIdChanged.emit(
-            str(self.itemData(row, QtCore.Qt.UserRole)))
+        self.otIdChanged.emit(self.itemData(row, QtCore.Qt.UserRole))
 
     def getOTID(self):
-        print "getOTID called"
-        return str(self.itemData(self.currentIndex(),
-                                 QtCore.Qt.UserRole))
+        return self.itemData(self.currentIndex(), QtCore.Qt.UserRole)
 
 
 class AccountComboBox(ComboBox):
 
     @QtCore.pyqtProperty(str)
     def remote_commodity_id(self):
-        ot_id = str(self.itemData(self.currentIndex(), QtCore.Qt.UserRole))
+        ot_id = self.itemData(self.currentIndex(), QtCore.Qt.UserRole)
         if ot_id is None:return ''
-        ot_id = otapi.OT_API_GetAccountWallet_AssetTypeID(ot_id)
+        ot_id = otapi.OTAPI_Basic_GetAccountWallet_AssetTypeID(ot_id)
         if ot_id is None:return ''
         return ot_id
 
     @QtCore.pyqtProperty(str)
     def remote_commodity_name(self):
-        ot_id = str(self.itemData(self.currentIndex(), QtCore.Qt.UserRole))
+        ot_id = self.itemData(self.currentIndex(), QtCore.Qt.UserRole)
         if ot_id is None:return ''
-        ot_id = otapi.OT_API_GetAccountWallet_AssetTypeID(ot_id)
+        ot_id = otapi.OTAPI_Basic_GetAccountWallet_AssetTypeID(ot_id)
         if ot_id is None:return ''
-        return otapi.OT_API_GetAssetType_Name(ot_id)
+        return otapi.OTAPI_Basic_GetAssetType_Name(ot_id)

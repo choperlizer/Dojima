@@ -15,7 +15,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import heapq
-import Queue
+import queue
 import logging
 import random
 from PyQt4 import QtCore, QtNetwork
@@ -39,7 +39,7 @@ class HostRequestQueue(QtCore.QObject):
 
     def __init__(self, wait, parent=None):
         super(HostRequestQueue, self).__init__(parent)
-        self.queue = Queue.PriorityQueue()
+        self.queue = queue.PriorityQueue()
         self.wait = wait
         self.timer = QtCore.QTimer(self)
         self.timer.timeout.connect(self.pop)
@@ -120,7 +120,7 @@ class ExchangeRequest(object):
                                "application/x-www-form-urlencoded")
         query = QtCore.QUrl()
         if self.data:
-            for key, value in self.data['query'].items():
+            for key, value in list(self.data['query'].items()):
                 query.addQueryItem(key, str(value))
         self.query = query.encodedQuery()
 

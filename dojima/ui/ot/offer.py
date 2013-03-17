@@ -148,7 +148,7 @@ class NewOfferDialog(QtGui.QDialog):
             self.disableInputs(False)
 
         assert account_id
-        asset_id = otapi.OT_API_GetAccountWallet_AssetTypeID(str(account_id))
+        asset_id = otapi.OTAPI_Basic_GetAccountWallet_AssetTypeID(account_id)
         assert asset_id
         contract = dojima.ot.contract.CurrencyContract(asset_id)
         factor = contract.getFactor()
@@ -162,7 +162,7 @@ class NewOfferDialog(QtGui.QDialog):
             self.disableInputs(False)
 
         assert account_id
-        asset_id = otapi.OT_API_GetAccountWallet_AssetTypeID(str(account_id))
+        asset_id = otapi.OTAPI_Basic_GetAccountWallet_AssetTypeID(account_id)
         assert asset_id
         contract = dojima.ot.contract.CurrencyContract(asset_id)
         factor = contract.getFactor()
@@ -189,27 +189,27 @@ class NewOfferDialog(QtGui.QDialog):
         QtGui.QApplication.setOverrideCursor(QtCore.Qt.WaitCursor)
 
         base_account_id = self.base_account_combo.getOTID()
-        base_asset_id = otapi.OT_API_GetAccountWallet_AssetTypeID(
-            str(base_account_id))
+        base_asset_id = otapi.OTAPI_Basic_GetAccountWallet_AssetTypeID(
+            base_account_id)
         counter_account_id = self.counter_account_combo.getOTID()
-        counter_asset_id = otapi.OT_API_GetAccountWallet_AssetTypeID(
-            str(counter_account_id))
+        counter_asset_id = otapi.OTAPI_Basic_GetAccountWallet_AssetTypeID(
+            counter_account_id)
 
         scale = self.scale_spin.value()
         # TODO perhaps make an increment option
         increment = 1
         total = self.amount_spin.value() / scale # * increment
 
-        r = otapi.OT_API_issueMarketOffer(self.server_id,
+        r = otapi.OTAPI_Basic_issueMarketOffer(self.server_id,
                                           self.nym_combo.getOTID(),
                                           base_asset_id,
                                           base_account_id,
                                           counter_asset_id,
                                           counter_account_id,
-                                          str(scale),
-                                          str(increment),
-                                          str(total),
-                                          str(self.price_spin.value()),
+                                          scale,
+                                          increment,
+                                          total,
+                                          self.price_spin.value(),
                                           offer_type)
 
         QtGui.QApplication.restoreOverrideCursor()
