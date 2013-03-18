@@ -14,6 +14,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+from PyQt4 import QtCore
 
 import dojima.model.commodities
 
@@ -33,7 +34,13 @@ class MarketsContainer(object):
     def __len__(self):
         return len(self.markets)
 
-    def addExchange(self, exchange_proxy, local_pair):
+    def addExchange(self, exchange_proxy, local_pair, local_base_id, local_counter_id):
+        base, counter = local_pair.split('_')
+        b_row, c_row = dojima.model.commodities.local_model.getRows(local_base_id,
+                                                                    local_counter_id)
+        if (b_row is None) or (c_row is None):
+            return
+        
         if local_pair in self.markets:
             container = self.markets[local_pair]
         else:
@@ -53,13 +60,8 @@ class ExchangesContainer(object):
         self.exchanges.append(exchangeProxy)
 
     def prettyName(self):
-        search = dojima.model.commodities.local_model.findItems(self.base)
-        base_name = dojima.model.commodities.local_model.item(
-            search[0].row(), dojima.model.commodities.local_model.NAME).text()
-
-        search = dojima.model.commodities.local_model.findItems(self.counter)
-        counter_name = dojima.model.commodities.local_model.item(
-            search[0].row(), dojima.model.commodities.local_model.NAME).text()
+        base_name, counter_name = dojima.model.commodities.local_model.getNames(
+            self.base, self.counter)
 
         return (base_name + ' / ' + counter_name)
 

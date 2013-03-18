@@ -121,7 +121,7 @@ class ExchangeRequest(object):
         query = QtCore.QUrl()
         if self.data:
             for key, value in list(self.data['query'].items()):
-                query.addQueryItem(key, str(value))
+                query.addQueryItem(key, value)
         self.query = query.encodedQuery()
 
     def _extract_reply(self):
@@ -131,11 +131,11 @@ class ExchangeRequest(object):
         else:
             if logger.isEnabledFor(logging.INFO):
                 logger.info("received reply to %s", self.url.toString())
-            raw_reply = str(self.reply.readAll())
+            raw_reply = self.reply.readAll()
             self._handle_reply(raw_reply)
 
     def _handle_error(self, error):
-        msg = str(self.reply.url().toString()) + " : " + error
+        msg = self.reply.url().toString() + " : " + error
         self.parent.exchange_error_signal.emit(msg)
         logger.warning(msg)
 
@@ -150,7 +150,7 @@ class ExchangeGETRequest(ExchangeRequest):
         self.reply.finished.connect(self._extract_reply)
         self.parent.replies.add(self)
 
-        
+
 class ExchangePOSTRequest(ExchangeRequest):
 
     def send(self):

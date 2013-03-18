@@ -25,7 +25,7 @@ import dojima.exchanges
 import dojima.exchange
 import dojima.data.account
 import dojima.data.offers
-import dojima.data.ticker
+import dojima.data.market
 import dojima.model.ot.accounts
 import dojima.model.ot.assets
 import dojima.model.ot.markets
@@ -34,19 +34,22 @@ import dojima.ui.ot.nym
 import dojima.ui.ot.offer
 import dojima.ui.ot.views
 
-# i don't really want to import gui stuff here
 import dojima.ui.ot.account
 
+from dojima.ot import objEasy
 
 logger = logging.getLogger(__name__)
 
 OT_BUYING = 0
 OT_SELLING = 1
+MAX_DEPTH = '256'
 
-def saveMarketAccountSettings(server_id, market_id, b_ac_id, c_ac_id):
+def saveMarketAccountSettings(server_id, market_id, nym_id, b_ac_id, c_ac_id):
     settings = QtCore.QSettings()
-    settings.beginGroup('OT-defaults')
+    settings.beginGroup('OT_Servers')
     settings.beginGroup(server_id)
+    settings.setValue('nym', nym_id)
+    settings.beginGroup('markets')
     settings.beginGroup(market_id)
     settings.setValue('base_account', b_ac_id)
     settings.setValue('counter_account', c_ac_id)
@@ -54,9 +57,9 @@ def saveMarketAccountSettings(server_id, market_id, b_ac_id, c_ac_id):
 
 class OTExchangeProxy(dojima.exchange.ExchangeProxy):
 
-    def __init__(self, serverId, marketList):
+    def __init__(self, serverId):
         self.id = serverId
-        self.market_list = marketList
+        self.server_id = serverId
         self.exchange_object = None
         self.local_market_map = dict()
         self.remote_market_map = dict()
@@ -64,29 +67,17 @@ class OTExchangeProxy(dojima.exchange.ExchangeProxy):
     @property
     def name(self):
         assert self.id
-        return otapi.OTAPI_Basic_GetServer_Name(self.id)
+        return otapi.OTAPI_Basic_GetServer_Name(self.server_id)
 
     def getExchangeObject(self):
         if self.exchange_object is None:
-            self.exchange_object = OTExchange(self.id)
+            self.exchange_object = OTExchange(self.server_id)
 
         return self.exchange_object
 
-    def getLocalMapping(self, key):
-        return self.local_market_map[key]
-
-    def getRemoteMapping(self, key):
-        return self.remote_market_map[key]
-
-    #def getLocalMarketIDs(self, remoteMarketID):
-    #    return self.local_market_map[remoteMarketID]
-
-    def getRemoteMarketIDs(self, localPair):
-        return self.local_market_map[ str(localPair)]
-
     def getPrettyMarketName(self, remote_market_id):
         storable = otapi.QueryObject(otapi.STORED_OBJ_MARKET_LIST,
-                                     'markets', self.id,
+                                     'markets', self.server_id,
                                      'market_data.bin')
         market_list = otapi.MarketList.ot_dynamic_cast(storable)
         for i in range(market_list.GetMarketDataCount()):
@@ -98,36 +89,28 @@ class OTExchangeProxy(dojima.exchange.ExchangeProxy):
                     "around here.").format(data.scale)
 
     def nextPage(self, wizard):
-        return OTServerWizardPage(self.name, self.id, wizard)
+        return OTServerWizardPage(self.name, self.server_id, wizard)
 
     def refreshMarkets(self):
         storable = otapi.QueryObject(otapi.STORED_OBJ_MARKET_LIST,
                                      'markets', self.id,
                                      'market_data.bin')
+        if not storable:
+            return
+
         market_list = otapi.MarketList.ot_dynamic_cast(storable)
         for i in range(market_list.GetMarketDataCount()):
             market_data = market_list.GetMarketData(i)
 
-            search = dojima.model.commodities.remote_model.findItems(
+            local_base_id = dojima.model.commodities.remote_model.getRemoteToLocalMap(
                 market_data.asset_type_id)
-            if not search:
-                continue
+            if local_base_id is None: continue
 
-            row = search[0].row()
-            local_base_id = dojima.model.commodities.remote_model.item(
-                row, dojima.model.commodities.remote_model.LOCAL_ID).text()
-
-            search = dojima.model.commodities.remote_model.findItems(
+            local_counter_id = dojima.model.commodities.remote_model.getRemoteToLocalMap(
                 market_data.currency_type_id)
-            if not search:
-                continue
-
-            row = search[0].row()
-            local_counter_id = dojima.model.commodities.remote_model.item(
-                row, dojima.model.commodities.remote_model.LOCAL_ID).text()
+            if local_counter_id is None: continue
 
             local_pair = local_base_id + '_' + local_counter_id
-            local_pair = str(local_pair)
 
             if local_pair in self.local_market_map:
                 local_map = self.local_market_map[local_pair]
@@ -139,27 +122,12 @@ class OTExchangeProxy(dojima.exchange.ExchangeProxy):
                 local_map.append(market_data.market_id)
 
             self.remote_market_map[market_data.market_id] = local_pair
-            dojima.markets.container.addExchange(self, local_pair)
+            dojima.markets.container.addExchange(self, local_pair,
+                                                 local_base_id, local_counter_id)
 
-    def remoteToLocal(self, marketID):
-        return self.remote_market_map[marketID]
 
 
 class OTServerWizardPage(QtGui.QWizardPage):
-
-    #
-    # This wizard needs to do a few things,
-    # It has to match the account combo asset types to the currently selected
-    # market.
-    #
-    # It has to lead to another page if the selected assets aren't mapped to
-    # local commodities, and that page needs to be made.
-    #
-    # This page can save the account->market mappings, and it does.
-    #
-    # The next page needs to save the asset id -> local commodity, it can be
-    # reused and live in the ui/market or whatever.
-    #
 
     def __init__(self, title, server_id, parent):
         super(OTServerWizardPage, self).__init__(parent)
@@ -167,32 +135,39 @@ class OTServerWizardPage(QtGui.QWizardPage):
         self.setTitle(title)
         self.setSubTitle(
             QtCore.QCoreApplication.translate('OTServerWizardPage',
-                "Select accounts to match a new or existing market.",
+                "Select accounts to match a new or existing market. "
+                "The market list must be refreshed manually, "
+                "Also, 'Refresh Markets' must be hit twice when using "
+                "an unregistered nym, I'm working on it...",
                 "This is the the heading underneath the title on the "
                 "OT page in the markets wizard."))
-        self.base_account_combo = dojima.ui.ot.views.AccountComboBox()
-        self.counter_account_combo = dojima.ui.ot.views.AccountComboBox()
         # These can probably go
         self.base_asset, self.counter_asset = None, None
         self._isComplete = False
-
-    def baseAssetMapped(self):
-        if self.base_asset is None: return False
-        return dojima.model.commodities.remote_model.hasMap(
-            self.base_asset)
-
-    def counterAssetMapped(self):
-        if self.counter_asset is None: return False
-        return dojima.model.commodities.remote_model.hasMap(
-            self.counter_asset)
 
     def changeBaseAsset(self, asset_id):
         self.base_asset = asset_id
         self.base_accounts_model.setFilterFixedString(asset_id)
 
+        local_uuid = dojima.model.commodities.remote_model.getRemoteToLocalMap(asset_id)
+        if local_uuid:
+            row = dojima.model.commodities.local_model.getRow(local_uuid)
+            self.base_local_combo.setCurrentIndex(row)
+
     def changeCounterAsset(self, asset_id):
         self.counter_asset = asset_id
         self.counter_accounts_model.setFilterFixedString(asset_id)
+
+        local_uuid = dojima.model.commodities.remote_model.getRemoteToLocalMap(asset_id)
+        if local_uuid:
+            row = dojima.model.commodities.local_model.getRow(local_uuid)
+            self.counter_local_combo.setCurrentIndex(row)
+
+    def changeBaseLocal(self, uuid):
+        self.base_local = uuid
+
+    def changeCounterLocal(self, uuid):
+        self.counter_local = uuid
 
     #def changeMarket(self, market_id):
         #print market_id
@@ -201,24 +176,24 @@ class OTServerWizardPage(QtGui.QWizardPage):
         self.nym_accounts_model.setFilterFixedString(nym_id)
 
     def checkCompleteState(self):
-        if ( self.baseAssetMapped() and self.counterAssetMapped() ):
-            self.setFinalPage(True)
 
-        if (self.base_accounts_model.rowCount() == 0 or
-            self.counter_accounts_model.rowCount() == 0):
+        if ((self.base_asset is None) or
+            (self.counter_asset is None) or
+            (self.base_accounts_model.rowCount() == 0) or
+            (self.counter_accounts_model.rowCount() == 0) or
+            (self.base_local_combo.currentIndex() == self.counter_local_combo.currentIndex())):
 
             self._isComplete = False
-            self.completeChanged.emit()
-            return
+        else:
+            self._isComplete = True
 
-        self._isComplete = True
         self.completeChanged.emit()
 
     def initializePage(self):
         self.nyms_model = dojima.model.ot.nyms.model
         self.markets_model = dojima.model.ot.markets.OTMarketsModel(
             self.server_id)
-        accounts_model = dojima.model.ot.accounts.OTServerAccountsModel(
+        accounts_model = dojima.model.ot.accounts.OTAccountsServerModel(
             self.server_id)
 
         simple_accounts_model = dojima.model.ot.accounts.OTAccountsProxyModel()
@@ -253,7 +228,21 @@ class OTServerWizardPage(QtGui.QWizardPage):
         self.markets_view.setShowGrid(False)
 
         self.nym_combo = dojima.ui.ot.views.ComboBox()
+
+        self.base_account_combo = dojima.ui.ot.views.AccountComboBox()
+        self.counter_account_combo = dojima.ui.ot.views.AccountComboBox()
+
+        self.base_local_combo = QtGui.QComboBox()
+        self.counter_local_combo = QtGui.QComboBox()
+
         self.nym_combo.setModel(self.nyms_model)
+
+        self.base_account_combo.setModel(self.base_accounts_model)
+        self.counter_account_combo.setModel(self.counter_accounts_model)
+
+        self.base_local_combo.setModel(dojima.model.commodities.local_model)
+        self.counter_local_combo.setModel(dojima.model.commodities.local_model)
+
         nym_label = QtGui.QLabel(
             QtCore.QCoreApplication.translate('OTServerWizardPage',
                                               "Server Nym:",
@@ -265,28 +254,43 @@ class OTServerWizardPage(QtGui.QWizardPage):
                                               "New Nym",
                                               "The button next to the nym"
                                               "combo box."))
-        base_label = QtGui.QLabel(
+        base_account_label = QtGui.QLabel(
             QtCore.QCoreApplication.translate('OTServerWizardPage',
                                               "Base account:",
                                               "The account of the base asset to "
                                               "use with this market."))
-        base_label.setBuddy(self.base_account_combo)
-        counter_label = QtGui.QLabel(
+        base_account_label.setBuddy(self.base_account_combo)
+        counter_account_label = QtGui.QLabel(
             QtCore.QCoreApplication.translate('OTServerWizardPage',
                                               "Counter account:",
-                                              "The account of the counter"
-                                              "currency to use with this"
+                                              "The account of the counter "
+                                              "currency to use with this "
                                               "market."))
-        counter_label.setBuddy(self.counter_account_combo)
+        counter_account_label.setBuddy(self.counter_account_combo)
 
-        self.base_account_combo.setModel(self.base_accounts_model)
-        self.counter_account_combo.setModel(self.counter_accounts_model)
+        base_local_label = QtGui.QLabel(
+            QtCore.QCoreApplication.translate('OTServerWizardPage',
+                                              "Local base:",
+                                              "Label for the locally defined "
+                                              "comodity."))
+        counter_local_label = QtGui.QLabel(
+            QtCore.QCoreApplication.translate('OTServerWizardPage',
+                                              "Local counter:",
+                                              "Label for the locally defined "
+                                              "comodity."))
 
         new_offer_button = QtGui.QPushButton(
             QtCore.QCoreApplication.translate('OTServerWizardPage',
                                               "New Offer",
                                               "Button to pop up the new offer "
-                                              "dialog."))
+                                              "dialog."),
+            toolTip=QtCore.QCoreApplication.translate(
+                'OTServerWizardPage',
+                "Make a new offer, thereby\n"
+                "creating a new market.\n"
+                "Use this if you want\n"
+                "to trade at a new scale.",
+                "The tool tip for the 'New Offer' button"))
 
         new_account_button = QtGui.QPushButton(
             QtCore.QCoreApplication.translate('OTServerWizardPage',
@@ -294,11 +298,21 @@ class OTServerWizardPage(QtGui.QWizardPage):
                                               "Button to pop up the new account "
                                               "dialog."))
 
-        refresh_markets_button = QtGui.QPushButton(
+        new_local_button = QtGui.QPushButton(
+            QtCore.QCoreApplication.translate('OTServerWizardPage',
+                                              "New Commodity"))
+
+        self.refresh_markets_button = QtGui.QPushButton(
             QtCore.QCoreApplication.translate('OTServerWizardPage',
                                               "Refresh Markets",
                                               "Button to refresh the listed "
                                               "markets on the server."))
+
+        button_box = QtGui.QDialogButtonBox()
+        button_box.addButton(new_offer_button, button_box.ActionRole)
+        button_box.addButton(new_account_button, button_box.ActionRole)
+        button_box.addButton(new_local_button, button_box.ActionRole)
+        button_box.addButton(self.refresh_markets_button, button_box.ActionRole)
 
         # Layout could use some work, sizes look wrong
         layout = QtGui.QGridLayout()
@@ -306,13 +320,15 @@ class OTServerWizardPage(QtGui.QWizardPage):
         layout.addWidget(nym_label, 1,0)
         layout.addWidget(self.nym_combo, 1,1, 1,2)
         layout.addWidget(new_nym_button, 1,3)
-        layout.addWidget(base_label, 2,0, 1,2)
-        layout.addWidget(counter_label, 2,2, 1,2)
+        layout.addWidget(base_account_label, 2,0, 1,2)
+        layout.addWidget(counter_account_label, 2,2, 1,2)
         layout.addWidget(self.base_account_combo, 3,0, 1,2)
         layout.addWidget(self.counter_account_combo, 3,2, 1,2)
-        layout.addWidget(new_offer_button, 4,0)
-        layout.addWidget(new_account_button, 4,3)
-        layout.addWidget(refresh_markets_button, 4,2)
+        layout.addWidget(base_local_label, 4,0, 1,2)
+        layout.addWidget(counter_local_label, 4,2, 1,2)
+        layout.addWidget(self.base_local_combo, 5,0, 1,2)
+        layout.addWidget(self.counter_local_combo, 5,2, 1,2)
+        layout.addWidget(button_box, 6,0, 1,4)
         self.setLayout(layout)
 
         self.markets_view.baseChanged.connect(self.changeBaseAsset)
@@ -327,49 +343,73 @@ class OTServerWizardPage(QtGui.QWizardPage):
         new_nym_button.clicked.connect(self.showNewNymDialog)
         new_offer_button.clicked.connect(self.showNewOfferDialog)
         new_account_button.clicked.connect(self.showNewAccountDialog)
-        refresh_markets_button.clicked.connect(self.refreshMarkets)
+        new_local_button.clicked.connect(self.showNewCommodityDialog)
+        self.refresh_markets_button.clicked.connect(self.refreshMarkets)
         self.nym_combo.otIdChanged.connect(self.changeNym)
 
         # select
         self.markets_view.selectRow(0)
         self.nym_combo.currentIndexChanged.emit(0)
 
-        # register
-        self.registerField('base_remote_commodity_id',
-                           self.base_account_combo,
-                           'remote_commodity_id')
-        self.registerField('counter_remote_commodity_id',
-                           self.counter_account_combo,
-                           'remote_commodity_id')
-
-        self.registerField('base_remote_commodity_name',
-                           self.base_account_combo,
-                           'remote_commodity_name')
-        self.registerField('counter_remote_commodity_name',
-                           self.counter_account_combo,
-                           'remote_commodity_name')
+        if self.nyms_model.rowCount() < 1:
+            self.refresh_markets_button.setDisabled(True)
 
     def isComplete(self):
         return self._isComplete
 
     def isFinalPage(self):
-        return False
-
-    def nextId(self):
-        return self.wizard().commodities_page_id
+        return True
 
     def refreshMarkets(self):
-        self.markets_model.refresh(self.nym_combo.getOTID())
+        QtGui.QApplication.setOverrideCursor(QtCore.Qt.WaitCursor)
+        nym_id = self.nym_combo.getOTID()
+        if otapi.OTAPI_Basic_IsNym_RegisteredAtServer(self.server_id, nym_id) < 1:
+            # TODO market fetch immediatly after registering fails
+            msg = objEasy.register_nym(self.server_id, nym_id)
+            if objEasy.VerifyMessageSuccess(msg) < 1:
+                logger.error("Failed to register nym %s at server %s.", nym_id, self.server_id)
+                return
+            else:
+                self.markets_model.refresh(nym_id)
+        QtGui.QApplication.restoreOverrideCursor()
 
     def showNewAccountDialog(self):
         dialog = dojima.ui.ot.account.NewAccountDialog(self.server_id, self)
         if dialog.exec_():
             self.nym_accounts_model.refresh()
 
+    def showNewCommodityDialog(self):
+        contract = None
+        if not dojima.model.commodities.remote_model.hasMap(self.base_asset):
+            contract = dojima.ot.contract.CurrencyContract(self.base_asset)
+            dialog = dojima.ui.edit.commodity.NewCommodityDialog(self,
+                                                                 name=contract.getName(),
+                                                                 prefix=contract.getSymbol(),
+                                                                 suffix=contract.getTLA())
+            if dialog.exec_():
+                self.base_local_combo.setCurrentIndex(dialog.row)
+                dojima.model.commodities.remote_model.map(self.base_asset, dialog.uuid)
+
+        elif not dojima.model.commodities.remote_model.hasMap(self.counter_asset):
+            contract = dojima.ot.contract.CurrencyContract(self.counter_asset)
+            dialog = dojima.ui.edit.commodity.NewCommodityDialog(self,
+                                                                 name=contract.getName(),
+                                                                 prefix=contract.getSymbol(),
+                                                                 suffix=contract.getTLA())
+            if dialog.exec_():
+                self.counter_local_combo.setCurrentIndex(dialog.row)
+                dojima.model.commodities.remote_model.map(self.counter_asset, dialog.uuid)
+
+        else:
+            dialog = dojima.ui.edit.commodity.NewCommodityDialog(self)
+
+        self.checkCompleteState()
+
     def showNewNymDialog(self):
         dialog = dojima.ui.ot.nym.CreateNymDialog(self)
         if dialog.exec_():
             self.nyms_model.refresh()
+            self.refresh_markets_button.setEnabled(True)
 
     def showNewOfferDialog(self):
         dialog = dojima.ui.ot.offer.NewOfferDialog(self.server_id)
@@ -386,8 +426,8 @@ class OTServerWizardPage(QtGui.QWizardPage):
         assert b_ac_id
         assert c_ac_id        
         
-        b_as_id = otapi.OTAPI_Basic_GetAccountWallet_AssetTypeID(b_ac_id)
-        c_as_id = otapi.OTAPI_Basic_GetAccountWallet_AssetTypeID(c_ac_id)
+        remote_base_id = otapi.OTAPI_Basic_GetAccountWallet_AssetTypeID(b_ac_id)
+        remote_counter_id = otapi.OTAPI_Basic_GetAccountWallet_AssetTypeID(c_ac_id)
 
         storable = otapi.QueryObject(otapi.STORED_OBJ_MARKET_LIST,
                                      'markets', self.server_id,
@@ -396,25 +436,22 @@ class OTServerWizardPage(QtGui.QWizardPage):
         market_id = None
         for i in range(market_list.GetMarketDataCount()):
             data = market_list.GetMarketData(i)
-            if (data.asset_type_id == b_as_id and
-                data.currency_type_id == c_as_id):
+            if (data.asset_type_id == remote_base_id and
+                data.currency_type_id == remote_counter_id):
                 saveMarketAccountSettings(self.server_id, data.market_id,
-                                   b_ac_id, c_ac_id)
+                                          nym_id, b_ac_id, c_ac_id)
 
-        # get the base asset factor and set the scale to that
+        local_base_id = self.base_local_combo.itemData(
+            self.base_local_combo.currentIndex(),
+            QtCore.Qt.UserRole)
 
-        # This wizard needs to match the market assets to local commodities
-        # thes
+        local_counter_id = self.counter_local_combo.itemData(
+            self.counter_local_combo.currentIndex(),
+            QtCore.Qt.UserRole)
 
-
-        #contract = dojima.ot.contract.CurrencyContract(b_as_id)
-        #factor = contract.getFactor()
-
-        return True
-
-        # Now do whatever MainWindow does and create that dock thing
-        # scratch that, just save the settings, and the when the wizard closes
-        # the mainwindow can reload the markets
+        dojima.model.commodities.remote_model.map(remote_base_id, local_base_id)
+        dojima.model.commodities.remote_model.map(remote_counter_id, local_counter_id)
+        return dojima.model.commodities.remote_model.submit()
 
 
 class OTExchange(QtCore.QObject, dojima.exchange.Exchange):
@@ -429,6 +466,8 @@ class OTExchange(QtCore.QObject, dojima.exchange.Exchange):
         self.account_validity_proxies = dict()
         self.ticker_proxies = dict()
         self.ticker_clients = dict()
+        self.depth_proxies = dict()
+        self.trades_proxies = dict()
         # market_id -> [base_id, counter_id]
         self.assets = dict()
         # market_id -> [base_account_id, counter_account_id]
@@ -445,6 +484,17 @@ class OTExchange(QtCore.QObject, dojima.exchange.Exchange):
             self.assets[market_id] = (data.asset_type_id, data.currency_type_id)
             self.scales[market_id] = int(data.scale)
 
+        settings = QtCore.QSettings()
+        settings.beginGroup('OT_Servers')
+        settings.beginGroup(self.server_id)
+        self.nym_id = settings.value('nym', '')
+        settings.beginGroup('markets')
+        for market_id in settings.childGroups():
+            settings.beginGroup(market_id)
+            b_ac_id = settings.value('base_account', '')
+            c_ac_id = settings.value('counter_account', '')
+            self.accounts[market_id] = [b_ac_id, c_ac_id]
+
         # The request timer and queues
         self.request_timer = QtCore.QTimer(self)
         self.request_timer.timeout.connect(self.sendRequest)
@@ -457,21 +507,14 @@ class OTExchange(QtCore.QObject, dojima.exchange.Exchange):
         self.ticker_timer.timeout.connect(self.enqueueGetMarketList)
         self.cancelMarketOffer_queue = Queue()
         self.getaccount_queue = Queue()
-        self.getRequestNumber_queue = Queue()
         self.getMarketList_queue = Queue()
-        self.nymOffersNeedRefresh = True
+        self.getmarketoffers_queue = Queue()
+        if not self.nym_id:
+            self.nymOffersNeedRefresh = False
+        else:
+            self.nymOffersNeedRefresh = True
         self.offer_queue = Queue()
         self.trades_queue = Queue()
-
-        settings = QtCore.QSettings()
-        settings.beginGroup('OT_Servers')
-        settings.beginGroup(self.server_id)
-        self.nym_id = settings.value('nym', '')
-        settings.beginGroup('markets')
-        for market_id in settings.childGroups():
-            b_ac_id = settings.value('base_account', '')
-            c_ac_id = settings.value('counter_account', '')
-            self.accounts[str(market_id)] = [b_ac_id, c_ac_id]
 
     def changeNym(self, nym_id):
         self.nym_id = nym_id
@@ -481,22 +524,19 @@ class OTExchange(QtCore.QObject, dojima.exchange.Exchange):
         settings.setValue('nym', nym_id)
         assert self.nym_id
         assert self.server_id
-        if not otapi.OTAPI_Basic_IsNym_RegisteredAtServer(self.nym_id,
-                                                          self.server_id):
-            r = otapi.OTAPI_Basic_createUserAccount(self.server_id, self.nym_id)
-            if r < 1:
-                QtGui.QApplication.restoreOverrideCursor()
-                QtGui.QMessageBox.error(self,
-                    QtCore.QCoreApplication.translate('OTExchange',
-                        "Error registering nym"),
-                    QtCore.QCoreApplication.translate('OTExchange'
-                        "Error registering the nym with the server."))
-                return
-        else:
-            if otapi.OTAPI_Basic_GetNym_TransactionNumCount(self.server_id,
-                                                            self.nym_id) < 48:
-                logger.info("Requesting more transaction numbers")
-                otapi.OTAPI_Basic_getTransactionNumber(self.server_id, self.nym_id)
+        if otapi.OTAPI_Basic_IsNym_RegisteredAtServer(self.nym_id,
+                                                      self.server_id):
+            return
+
+        msg = objEasy.register_nym(self.server_id, self.nym_id)
+        if objEasy.VerifyMessageSuccess(msg) < 1:
+            QtGui.QApplication.restoreOverrideCursor()
+            QtGui.QMessageBox.error(self,
+            QtCore.QCoreApplication.translate('OTExchange',
+                                              "Error registering nym"),
+            QtCore.QCoreApplication.translate('OTExchange'
+                                              "Error registering the "
+                                              "nym with the server."))
 
     def changeBaseAccount(self, market_id, account_id):
         settings = QtCore.QSettings()
@@ -549,6 +589,14 @@ class OTExchange(QtCore.QObject, dojima.exchange.Exchange):
 
         return self.account_object
 
+    def getBalanceProxy(self, account_id):
+        if account_id not in self.balance_proxies:
+            proxy = dojima.data.balance.BalanceProxy(self)
+            self.balance_proxies[account_id] = proxy
+            return proxy
+
+        return self.balance_proxies[account_id]
+
     # TODO getFactors and getPowers will probably change with the OT high API
     def getFactors(self, market_id):
         b_asset_id, c_asset_id = self.assets[market_id]
@@ -568,23 +616,25 @@ class OTExchange(QtCore.QObject, dojima.exchange.Exchange):
     def getScale(self, market_id):
         return int(self.scales[market_id])
 
-    def getAccountValidityProxy(self, market_id):
-        if market_id not in self.account_validity_proxies:
-            validity_proxy = dojima.data.account.AccountValidityProxy(self)
-            self.account_validity_proxies[market_id] = validity_proxy
-            return validity_proxy
-        return self.account_validity_proxies[market_id]
+    def getDepthProxy(self, market_id):
+        if market_id not in self.depth_proxies:
+            depth_proxy = dojima.data.market.DepthProxy(self, market_id)
+            self.depth_proxies[market_id] = depth_proxy
+            return depth_proxy
+        return self.depth_proxies[market_id]
 
-    def getTickerProxy(self, market_id):
-        if market_id not in self.ticker_proxies:
-            ticker_proxy = dojima.data.ticker.TickerProxy(self)
-            self.ticker_proxies[market_id] = ticker_proxy
-            return ticker_proxy
-        return self.ticker_proxies[market_id]
+    def getTradesProxy(self, market_id):
+        if market_id not in self.trades_proxies:
+            trades_proxy = dojima.data.market.TradesProxy(self, market_id)
+            self.trades_proxies[market_id] = trades_proxy
+            return trades_proxy
+        return self.trades_proxies[market_id]
 
     def populateMenuBar(self, menu_bar, market_id):
         # Make submenus
         exchange_menu = menu_bar.getExchangeMenu()
+        # Maybe the exchange UI stuff should test for depth and trades methods, then add
+        # menu actions from that side
         nyms_menu = CurrentNymMenu(
             QtCore.QCoreApplication.translate('OTExchange', "No nym selected",
                                               "The text that is displayed in "
@@ -630,6 +680,30 @@ class OTExchange(QtCore.QObject, dojima.exchange.Exchange):
             # no sense changing the nym needlessly
             action.currentIDChanged.connect(self.changeNym)
 
+    def readDepth(self):
+        for market_id, proxy in list(self.depth_proxies.items()):
+            storable = otapi.QueryObject(otapi.STORED_OBJ_OFFER_LIST_MARKET, 'markets',
+                                         self.server_id, 'offers',
+                                         market_id + '.bin')
+            if not storable: continue
+            offers = otapi.OfferListMarket.ot_dynamic_cast(storable)
+
+            prices, amounts = list(), list()
+            for i in range(offers.GetAskDataCount()):
+                offer = offers.GetAskData(i)
+                prices.append(int(offer.price_per_scale))
+                amounts.append(int(offer.available_assets))
+            asks = (prices, amounts)
+
+            prices, amounts = list(), list()
+            for i in range(offers.GetBidDataCount()):
+                offer = offers.GetBidData(i)
+                prices.append(int(offer.price_per_scale))
+                amounts.append(int(offer.available_assets))
+            bids = (prices, amounts)
+
+            proxy.processDepth(asks, bids)
+
     def readMarketList(self):
         storable = otapi.QueryObject(otapi.STORED_OBJ_MARKET_LIST,
                                      'markets', self.server_id,
@@ -644,6 +718,30 @@ class OTExchange(QtCore.QObject, dojima.exchange.Exchange):
                 proxy.last_signal.emit(int(data.last_sale_price))
                 proxy.bid_signal.emit(int(data.current_bid))
 
+    def readTrades(self):
+        for market_id, proxy in list(self.trades_proxies.items()):
+            storable = otapi.QueryObject(otapi.STORED_OBJ_TRADE_LIST_MARKET,
+                                         "markets", self.server_id,
+                                         "recent", market_id + ".bin")
+            trades = otapi.TradeListMarket.ot_dynamic_cast(storable)
+            if not trades: continue
+
+            epochs, prices, amounts = list(), list(), list()
+            for i in range(trades.GetTradeDataMarketCount()):
+                trade = trades.GetTradeDataMarket(i)
+                epochs.append( int(trade.date))
+                prices.append( float(trade.price))
+                amounts.append( float(trade.amount_sold))
+
+            proxy.processTrades(epochs, prices, amounts)
+
+    def refreshDepth(self, market_id):
+        # TODO take offer depth (amount of offers) into account
+        self.getmarketoffers_queue.put(market_id)
+
+    def refreshTrades(self, market_id):
+        self.trades_queue.put(market_id)
+
     def currentScale(self, market_id):
         return self.scales[market_id]
 
@@ -652,11 +750,11 @@ class OTExchange(QtCore.QObject, dojima.exchange.Exchange):
         assert self.nym_id
         # if the timer is the only one to call this it shouldn't block
         if not self.cancelMarketOffer_queue.empty():
-            account_id, transaction_number = self.cancelMarketOffer_queue.get()           
-            r = otapi.OTAPI_Basic_cancelMarketOffer(self.server_id, self.nym_id,
-                                               account_id, transaction_number)
-            if r < 1:
-                logger.error("cancelMarketOffer failed")
+            account_id, transaction_number = self.cancelMarketOffer_queue.get()
+            msg = objEasy.cancel_market_offer(self.server_id, self.nym_id,
+                                              account_id, transaction_number)
+            logger.error("Canceling offer %s failed", transaction_number)
+
             self.nymOffersNeedRefresh = True
             return
 
@@ -676,13 +774,11 @@ class OTExchange(QtCore.QObject, dojima.exchange.Exchange):
             # increment for later
             increment = 1
             total /= scale
-            r = otapi.OTAPI_Basic_issueMarketOffer(self.server_id, self.nym_id,
-                                              base_asset_id, base_account_id,
-                                              counter_asset_id,
-                                              counter_account_id,
+            msg = objEasy.create_market_offer(self.server_id, self.nym_id,
+                                              base_account_id, counter_account_id,
                                               str(scale), str(increment),
                                               str(total), str(price), buy_sell)
-            if r < 1:
+            if objEasy.VerifyMessageSuccess(msg) < 1:
                 logger.error("issue market offer failed")
                 #self.offer_queue.put( (market_id, total, price, buy_sell,) )
             self.nymOffersNeedRefresh = True
@@ -690,23 +786,25 @@ class OTExchange(QtCore.QObject, dojima.exchange.Exchange):
 
         if not self.getaccount_queue.empty():
             account_id = self.getaccount_queue.get_nowait()
-            r = otapi.OTAPI_Basic_getAccount(self.server_id, self.nym_id, account_id)
-            if r < 1:
+
+            msg = objEasy.retrieve_account(self.server_id, self.nym_id, account_id)
+            if msg is not True:
                 logger.error("account info request failed")
-                self.getRequestNumber_queue.put(None)
-                self.getaccount_queue.put(acount_id)
+                #self.getaccount_queue.put(acount_id)
                 return
             assert account_id
+
             balance = int(otapi.OTAPI_Basic_GetAccountWallet_Balance(account_id))
             proxy = self.balance_proxies[account_id]
             proxy.balance.emit(balance)
             return
 
         if self.nymOffersNeedRefresh is True:
-            logger.info('requesting nym %s offer list from %s', self.nym_id,
-                                                                self.server_id)
-            r = otapi.OTAPI_Basic_getNym_MarketOffers(self.server_id, self.nym_id)
-            if r < 1:
+            assert(self.nym_id)
+            logger.info('requesting nym %s offer list from server %s',
+                        self.nym_id, self.server_id)
+            msg = objEasy.get_nym_market_offers(self.server_id, self.nym_id)
+            if objEasy.VerifyMessageSuccess(msg) < 1:
                 logger.error("nym market offers request failed")
                 return
 
@@ -716,34 +814,35 @@ class OTExchange(QtCore.QObject, dojima.exchange.Exchange):
 
         if not self.getMarketList_queue.empty():
             self.getMarketList_queue.get_nowait()
-            r = otapi.OTAPI_Basic_getMarketList(self.server_id, self.nym_id)
-            if r < 1:
+            msg = objEasy.get_market_list(self.server_id, self.nym_id)
+            if objEasy.VerifyMessageSuccess(msg) < 1:
                 logger.error("market list/info request failed")
-                self.getRequestNumber_queue.put(None)
                 return
             self.readMarketList()
             return
 
         if not self.trades_queue.empty():
             market_id = self.trades_queue.get_nowait()
-            logger.info('requesting %s trade list from %s',
-                        market_id, self.server_id)
-            assert market_id
-            r = otapi.OTAPI_Basic_getMarketRecentTrades(self.server_id, self.nym_id,
-                                                        market_id)
-            if r < 1:
-                self.getRequestNumber_queue.put(None)
-                self.trades_queue.put(market_id)
+            logger.info('requesting %s trade list from %s', market_id, self.server_id)
+            msg = objEasy.get_market_recent_trades(self.server_id,
+                                                   self.nym_id,
+                                                   market_id)
+            if objEasy.VerifyMessageSuccess(msg) < 1:
+                logger.error("Failed to request recent trades.")
+                #self.trades_queue.put(market_id)
                 return
-            self.readTrades(market_id)
+            self.readTrades()
+            return
 
-    def readTrades(self, market_id):
-        logger.debug('reading %s trades', market_id)
-        storable = otapi.QueryObject(otapi.STORED_OBJ_TRADE_LIST_MARKET,
-                                     "markets", self.server_id,
-                                     "recent", market_id + ".bin")
-        trades = otapi.TradeListMarket.ot_dynamic_cast(storable)
-        if not trades:
+        if not self.getmarketoffers_queue.empty():
+            market_id = self.getmarketoffers_queue.get_nowait()
+            logger.info('requesting %s market offers from %s', market_id, self.server_id)
+            msg = objEasy.get_market_offers(self.server_id, self.nym_id,
+                                            market_id, MAX_DEPTH)
+            if objEasy.VerifyMessageSuccess(msg) < 1:
+                logger.error("Falied to request market offers.")
+                return
+            self.readDepth()
             return
 
     def setDefaultAccounts(self, marketId):
@@ -753,7 +852,7 @@ class OTExchange(QtCore.QObject, dojima.exchange.Exchange):
         settings.setValue('nym', self.nym_id)
 
         b_ac_id, c_ac_id = self.accounts[marketId]
-        saveMarketAccountSettings(self.server_id, marketId, b_ac_id, c_ac_id)
+        saveMarketAccountSettings(self.server_id, marketId, self.nym_id, b_ac_id, c_ac_id)
 
     def setTickerStreamState(self, state, market_id):
         if state is True:
@@ -822,14 +921,6 @@ class OTExchangeAccount(QtCore.QObject, dojima.exchange.ExchangeAccount):
 
     def getAccountPair(self, market_id):
         return self.exchange_obj.accounts[market_id]
-
-    def getBalanceProxy(self, account_id):
-        if account_id not in self.exchange_obj.balance_proxies:
-            proxy = dojima.data.balance.BalanceProxy(self)
-            self.exchange_obj.balance_proxies[account_id] = proxy
-            return proxy
-
-        return self.exchange_obj.balance_proxies[account_id]
 
     def getOffersModel(self, market_id):
         # what happens here is there is a model that contains all nym offers,
@@ -901,16 +992,14 @@ class OTExchangeAccount(QtCore.QObject, dojima.exchange.ExchangeAccount):
 
             item = QtGui.QStandardItem()
             item.setData(value, QtCore.Qt.UserRole)
-            self.offers_model.setItem(row, dojima.data.offers.PRICE,
-                                      item)
+            self.offers_model.setItem(row, dojima.data.offers.PRICE, item)
 
             # Offer outstanding
             value = ( int(offer.total_assets)
                       - int(offer.finished_so_far) )
             item = QtGui.QStandardItem()
             item.setData(value, QtCore.Qt.UserRole)
-            self.offers_model.setItem(row, dojima.data.offers.OUTSTANDING,
-                                      item)
+            self.offers_model.setItem(row, dojima.data.offers.OUTSTANDING, item)
 
             # Offer type
             if offer.selling:
@@ -956,8 +1045,8 @@ class OTExchangeAccount(QtCore.QObject, dojima.exchange.ExchangeAccount):
         # could be a problem as the nym may change before the order is cancelled
         account_id = self.offers_model.item(search[0].row(),
                                             dojima.data.offers.BASE).text()
-        self.exchange_obj.cancelMarketOffer_queue.put( ( str(account_id),
-                                                         str(order_id), ) )
+        self.exchange_obj.cancelMarketOffer_queue.put( (account_id,
+                                                        order_id, ) )
 
     cancelAskOffer = _cancel_offer
     cancelBidOffer = _cancel_offer
@@ -1031,7 +1120,7 @@ class NymAccountMenu(QtGui.QMenu):
         if current_nym_id: self.setNymId(current_nym_id)
         if current_account_id:
             for action in self.actions():
-                if action.account.account_id == current_account_id:
+                if action.account_id == current_account_id:
                     action.trigger()
 
     def changeTitle(self, label):
@@ -1064,7 +1153,6 @@ class NymAccountMenu(QtGui.QMenu):
         if len(actions) == 1:
             actions[0].trigger()
 
-
 def parse_servers():
     for i in range(otapi.OTAPI_Basic_GetServerCount()):
         server_id = otapi.OTAPI_Basic_GetServer_ID(i)
@@ -1072,21 +1160,7 @@ def parse_servers():
         if server_id in dojima.exchanges.container:
             continue
 
-        if otapi.Exists('markets', server_id, 'market_data.bin'):
-            storable = otapi.QueryObject(otapi.STORED_OBJ_MARKET_LIST,
-                                         'markets', server_id,
-                                         'market_data.bin')
-        else:
-            storable = otapi.CreateObject(otapi.STORED_OBJ_MARKET_LIST)
-
-        market_list = otapi.MarketList.ot_dynamic_cast(storable)
-        if not market_list.GetMarketDataCount():
-            continue
-
-        # TODO make this fuction able to run more than once
-
-        # make the proxy and add it to the exchanges container
-        exchange_proxy = OTExchangeProxy(server_id, market_list)
+        exchange_proxy = OTExchangeProxy(server_id)
         dojima.exchanges.container.addExchange(exchange_proxy)
 
 parse_servers()

@@ -112,16 +112,16 @@ class CommoditiesListView(QtGui.QListView):
 
 class NewCommodityDialog(QtGui.QDialog):
 
-    def __init__(self, parent, name='', prefix='', suffix='', precision=0):
+    def __init__(self, parent, name='', prefix='', suffix=''): #, precision=0):
         super(NewCommodityDialog, self).__init__(parent)
 
         self.name_edit = QtGui.QLineEdit(name)
-        self.prefix_edit = QtGui.QLineEdit(prefix)
-        self.suffix_edit = QtGui.QLineEdit(suffix)
+        self.prefix_edit = QtGui.QLineEdit(prefix + " ")
+        self.suffix_edit = QtGui.QLineEdit(" " + suffix)
 
-        self.precision_spin = QtGui.QSpinBox()
-        self.precision_spin.setValue(precision)
-        self.precision_spin.setMinimum(-99)
+        #self.precision_spin = QtGui.QSpinBox()
+        #self.precision_spin.setValue(precision)
+        #self.precision_spin.setMinimum(-99)
 
         button_box = QtGui.QDialogButtonBox(QtGui.QDialogButtonBox.Ok |
                                             QtGui.QDialogButtonBox.Cancel)
@@ -136,10 +136,10 @@ class NewCommodityDialog(QtGui.QDialog):
         form_layout.addRow(
             QtCore.QCoreApplication.translate('NewCommodityDialog', "suffix:"),
             self.suffix_edit)
-        form_layout.addRow(
-            QtCore.QCoreApplication.translate('NewCommodityDialog',
-                                              "display precision:"),
-            self.precision_spin)
+        #form_layout.addRow(
+        #    QtCore.QCoreApplication.translate('NewCommodityDialog',
+        #                                      "display precision:"),
+        #    self.precision_spin)
 
         layout = QtGui.QVBoxLayout()
         layout.addLayout(form_layout)
@@ -151,27 +151,22 @@ class NewCommodityDialog(QtGui.QDialog):
 
     def submit(self):
         # TODO search for redundant commodities
-        self.row = dojima.model.commodities.local_model.rowCount()
+        self.row = dojima.model.commodities.local_model.newCommodity()
 
-        item = QtGui.QStandardItem(QtCore.QUuid.createUuid().toString()[1:-1])
-        dojima.model.commodities.local_model.setItem(
-            self.row, dojima.model.commodities.local_model.ID, item)
+        dojima.model.commodities.local_model.item(
+            self.row, dojima.model.commodities.local_model.NAME).setText(self.name_edit.text())
 
-        item = QtGui.QStandardItem(self.name_edit.text())
-        dojima.model.commodities.local_model.setItem(
-            self.row, dojima.model.commodities.local_model.NAME, item)
+        dojima.model.commodities.local_model.item(
+            self.row, dojima.model.commodities.local_model.PREFIX).setText(self.prefix_edit.text())
 
-        item = QtGui.QStandardItem(self.prefix_edit.text())
-        dojima.model.commodities.local_model.setItem(
-            self.row, dojima.model.commodities.local_model.PREFIX, item)
+        dojima.model.commodities.local_model.item(
+            self.row, dojima.model.commodities.local_model.SUFFIX).setText(self.suffix_edit.text())
 
-        item = QtGui.QStandardItem(self.suffix_edit.text())
-        dojima.model.commodities.local_model.setItem(
-            self.row, dojima.model.commodities.local_model.SUFFIX, item)
+        #item = QtGui.QStandardItem(self.precision_spin.text())
+        #dojima.model.commodities.local_model.setItem(
+        #    self.row, dojima.model.commodities.local_model.PRECISION, item)
 
-        item = QtGui.QStandardItem(self.precision_spin.text())
-        dojima.model.commodities.local_model.setItem(
-            self.row, dojima.model.commodities.local_model.PRECISION, item)
-        
         dojima.model.commodities.local_model.submit()
+        self.uuid = dojima.model.commodities.local_model.item(
+            self.row, dojima.model.commodities.local_model.ID).data(QtCore.Qt.UserRole)
         self.accept()

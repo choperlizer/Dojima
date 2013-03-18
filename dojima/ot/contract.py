@@ -20,6 +20,7 @@ import logging
 import otapi
 from PyQt4 import QtCore
 
+from dojima.ot import objEasy
 
 logger = logging.getLogger(__name__)
 
@@ -61,6 +62,8 @@ class CurrencyContract(object):
     def getFactor(self):
         if self.factor is None:
             self.parseContractXml()
+            if self.factor is None:
+                self.factor = ""
         return self.factor
 
     def getPower(self):

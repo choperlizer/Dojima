@@ -19,7 +19,7 @@ from PyQt4.QtCore import pyqtProperty
 
 import dojima.data.offers
 
-class _AssetLCDWidget(QtGui.QLCDNumber):
+class AssetLCDWidget(QtGui.QLCDNumber):
 
     white_palette = QtGui.QPalette(QtGui.QApplication.palette())
     white_palette.setColor(QtGui.QPalette.WindowText,
@@ -39,12 +39,16 @@ class _AssetLCDWidget(QtGui.QLCDNumber):
     light_red_palette.setColor(QtGui.QPalette.WindowText,
                                QtGui.QColor.fromHsv(0, 128, 255))
 
-    def __init__(self, parent=None):
-        super(_AssetLCDWidget, self).__init__(parent)
+    def __init__(self, factor=1, parent=None):
+        super(AssetLCDWidget, self).__init__(parent)
+        self.factor = float(factor)
         self.setStyleSheet('background : black')
         self.setSegmentStyle(self.Flat)
         self.steady_palette = self.white_palette
         self._value = None
+
+    def setFactor(self, factor):
+        self.factor = float(factor)
 
     def setValue(self, value):
         if value == self._value:
@@ -62,26 +66,10 @@ class _AssetLCDWidget(QtGui.QLCDNumber):
             self.setPalette(self.steady_palette)
 
         self._value = value
+        if self.factor > 1:
+            value /= self.factor
+
         self.display(value)
-
-
-class AssetIntLCDWidget(_AssetLCDWidget):
-
-    def __init__(self, factor=None, precision=None, parent=None):
-        super(AssetIntLCDWidget, self).__init__(parent)
-
-
-class AssetDecimalLCDWidget(_AssetLCDWidget):
-
-    def __init__(self, factor=1, precision=0, parent=None):
-        super(AssetDecimalLCDWidget, self).__init__(parent)
-        self.precision= precision
-        self.factor = float(factor)
-
-    def display(self, value):
-        value /= self.factor
-        value = round(value, self.precision)
-        super(AssetDecimalLCDWidget, self).display(value)
 
 
 class BitcoinSpin(QtGui.QDoubleSpinBox):
@@ -96,7 +84,7 @@ class AssetAmountView(QtGui.QLineEdit):
 
     def __init__(self, factor=1, parent=None):
         super(AssetAmountView, self).__init__(parent, readOnly=True)
-        self.factor = factor
+        self.factor = float(factor)
         self.prefix = None
         self.suffix = None
         self._value = None
@@ -132,6 +120,7 @@ class AssetAmountView(QtGui.QLineEdit):
 
 
 class AssetSpinBox(QtGui.QDoubleSpinBox):
+    #TODO make get value string method
 
     # factor and scale will determine step size and maximum
     # power will determine tha decimals
@@ -146,7 +135,7 @@ class AssetSpinBox(QtGui.QDoubleSpinBox):
                  base="decimal", parent=None):
         if base != "decimal":
             raise NotImplementedError("%s base not supported" % base)
-        self.factor = factor
+        self.factor = float(factor)
         self.power = power
         self.precision = precision
         self.scale = scale
@@ -155,7 +144,6 @@ class AssetSpinBox(QtGui.QDoubleSpinBox):
         if scale > 1:
             # This wont work with non-decimal numbers
             self.scale_round_digits = -len(str(scale)) + 1
-            print("self.scale_round_digits", self.scale_round_digits)
 
         # The super contructor calls textFromValue and maybe others so set
         # attributes first
@@ -165,10 +153,12 @@ class AssetSpinBox(QtGui.QDoubleSpinBox):
 
             self.setSingleStep(step)
             self.setMaximum(step * 99)
+        else:
+            self.setMaximum(999999999)
 
     def setFactor(self, factor):
         # TODO 'type="decimal" factor="1000" decimal_power="3"' maybe pow() here?
-        self.factor = factor
+        self.factor = float(factor)
         step = factor
 
         if (self.scale > 1):
@@ -210,11 +200,6 @@ class AssetSpinBox(QtGui.QDoubleSpinBox):
                 value = round(value, self.precision)
 
         text = str(value)
-
-        #if self.prefix():
-        #    text.prepend(self.prefix())
-        #if self.suffix():
-        #    text.append(self.suffix())
 
         return text
 
@@ -271,7 +256,6 @@ class OfferItemDelegate(QtGui.QItemDelegate):
 
     def paint(self, painter, option, index):
         value = index.model().data(index, QtCore.Qt.UserRole)
-        print("row", index.row(), "of", index.model().rowCount())
 
         if self.factor > 1:
             value /= self.factor
@@ -303,7 +287,6 @@ class OfferStyledItemDelegate(QtGui.QStyledItemDelegate):
         self.suffix = suffix
 
     def setEditorData(self, editor, index):
-        print(type(editor))
         value = index.model().data(index, QtCore.Qt.QUserRole)
 
         if self.factor > 1:

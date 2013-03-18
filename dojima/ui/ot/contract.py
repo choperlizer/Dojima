@@ -20,8 +20,12 @@ import os.path
 import otapi
 from PyQt4 import QtCore, QtGui
 
+#!! TODO check the size of files before importing, else bad things might happen !!#
 
 class _ContractImportDialog(QtGui.QDialog):
+
+    file_filter = QtCore.QCoreApplication.translate('ContractImportDialog',
+                                                    "Open Transactions contract (*.otc)")
 
     def __init__(self, parent=None):
         super(_ContractImportDialog, self).__init__(parent)
@@ -30,9 +34,10 @@ class _ContractImportDialog(QtGui.QDialog):
         self.recent_dir = QtGui.QDesktopServices.HomeLocation
 
         self.import_box = QtGui.QPlainTextEdit()
+        #TODO perhaps resize the box base on pasted text?
         self.import_box.setMinimumWidth(512)
         file_button = QtGui.QPushButton(QtCore.QCoreApplication.translate(
-            'ServerContractImportDialog', "File"))
+            'SContractImportDialog', "File"))
         paste_button = QtGui.QPushButton(QtCore.QCoreApplication.translate(
             'ContractImportDialog', "Paste"))
         import_button = QtGui.QPushButton(QtCore.QCoreApplication.translate(
@@ -61,12 +66,11 @@ class _ContractImportDialog(QtGui.QDialog):
         filenames = QtGui.QFileDialog.getOpenFileNames(self,
             QtCore.QCoreApplication.translate(
                 'ContractImportDialog', "select contract file"),
-            self.recent_dir,
-            QtCore.QCoreApplication.translate(
-                'ContractImportDialog', "Open Transactions contracts (*.otc)"))
+            self.recent_dir, self.file_filter)
+
         if not len(filenames):
             return
-        self.recent_dir = os.path.dirname(str(filenames[-1]))
+        self.recent_dir = os.path.dirname(filenames[-1])
 
         for filename in filenames:
             contract_file = QtCore.QFile(filename)
@@ -89,7 +93,7 @@ class _ContractImportDialog(QtGui.QDialog):
         # TODO extract the contract name and put that in the result dialog
         # since if multiple contract files are imported the result can only
         # be distinguished by the order they pop up
-        parse_result = self.contract_import_method(str(text))
+        parse_result = self.contract_import_method(text)
         subdialog_title = QtCore.QCoreApplication.translate(
             'ContractImportDialog', "contract import result")
         if parse_result == 1:
@@ -114,9 +118,20 @@ class _ContractImportDialog(QtGui.QDialog):
 
 class AssetContractImportDialog(_ContractImportDialog):
 
-    contract_import_method = otapi.OTAPI_Basic_AddAssetContract
+    def contract_import_method(self, text):
+        return otapi.OTAPI_Basic_AddAssetContract(text)
 
-    
+
+class NymImportDialog(_ContractImportDialog):
+
+    file_filter = QtCore.QCoreApplication.translate('NymImportDialog',
+                                                    "Nym public/private key (*)")
+
+    def contract_import_method(self, text):
+        return otapi.OTAPI_Basic_Wallet_ImportNym(text)
+
+
 class ServerContractImportDialog(_ContractImportDialog):
 
-    contract_import_method = otapi.OTAPI_Basic_AddServerContract
+    def contract_import_method(self, text):
+        return otapi.OTAPI_Basic_AddServerContract(text)

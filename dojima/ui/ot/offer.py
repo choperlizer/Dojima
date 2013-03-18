@@ -14,6 +14,8 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+import logging
+
 import otapi
 from PyQt4 import QtCore, QtGui
 
@@ -22,8 +24,9 @@ import dojima.ui.ot.nym
 import dojima.ui.ot.views
 import dojima.ui.widget
 
-#TODO trim debugger
-import pdb
+from dojima.ot import objEasy
+
+logger = logging.getLogger(__name__)
 
 class NewOfferDialog(QtGui.QDialog):
 
@@ -96,7 +99,7 @@ class NewOfferDialog(QtGui.QDialog):
 
         #model
         self.nyms_model = dojima.model.ot.nyms.model
-        accounts_model = dojima.model.ot.accounts.OTServerAccountsModel(
+        accounts_model = dojima.model.ot.accounts.OTAccountsServerModel(
             self.server_id)
 
         simple_accounts_model = dojima.model.ot.accounts.OTAccountsProxyModel()
@@ -162,7 +165,7 @@ class NewOfferDialog(QtGui.QDialog):
             self.disableInputs(False)
 
         assert account_id
-        asset_id = otapi.OTAPI_Basic_GetAccountWallet_AssetTypeID(account_id)
+        asset_id = otapi.OTAPI_Basic_GetAccountWallet_AssetTypeID(str(account_id))
         assert asset_id
         contract = dojima.ot.contract.CurrencyContract(asset_id)
         factor = contract.getFactor()
@@ -200,21 +203,15 @@ class NewOfferDialog(QtGui.QDialog):
         increment = 1
         total = self.amount_spin.value() / scale # * increment
 
-        r = otapi.OTAPI_Basic_issueMarketOffer(self.server_id,
-                                          self.nym_combo.getOTID(),
-                                          base_asset_id,
-                                          base_account_id,
-                                          counter_asset_id,
-                                          counter_account_id,
-                                          scale,
-                                          increment,
-                                          total,
-                                          self.price_spin.value(),
+        msg = objEasy.create_market_offer(self.server_id, self.nym_combo.getOTID(),
+                                          base_account_id, counter_account_id,
+                                          str(scale), str(increment),
+                                          str(total), str(self.price_spin.value()),
                                           offer_type)
 
         QtGui.QApplication.restoreOverrideCursor()
 
-        if r < 1:
+        if objEasy.VerifyMessageSuccess(msg) < 1:
             logger.error("issue market offer failed")
             self.getRequestNumber_queue.put(None)
             self.offer_queue.put( (market_id, total, price, buy_sell,) )

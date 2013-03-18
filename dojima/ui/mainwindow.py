@@ -27,6 +27,7 @@ import dojima.ui.edit
 import dojima.ui.market
 import dojima.ui.ot.action
 import dojima.ui.transfer.bitcoin
+import dojima.ui.transfer.ot
 
 
 logger = logging.getLogger(__name__)
@@ -48,12 +49,21 @@ class MainWindow(QtGui.QMainWindow):
 
         transfer_menu = QtGui.QMenu(
             QtCore.QCoreApplication.translate("MainWindow", "&transfer"), self)
+
         bitcoin_menu = QtGui.QMenu(
-            QtCore.QCoreApplication.translate("MaineWindow", "&bitcoin"), self)
+            QtCore.QCoreApplication.translate("MainWindow", "&bitcoin"), self)
         for Action in dojima.ui.transfer.bitcoin.actions:
             action = Action(self)
             bitcoin_menu.addAction(action)
         transfer_menu.addMenu(bitcoin_menu)
+
+        ot_menu = QtGui.QMenu(
+            QtCore.QCoreApplication.translate("MainWindow", "Open &Transactions"), self)
+        for Action in dojima.ui.transfer.ot.actions:
+            action = Action(self)
+            ot_menu.addAction(action)
+        transfer_menu.addMenu(ot_menu)
+
         self.menuBar().addMenu(transfer_menu)
 
         ot_menu = QtGui.QMenu(
@@ -79,13 +89,11 @@ class MainWindow(QtGui.QMainWindow):
 
         self.refreshMarkets()
 
+    def closeEvent(self, event):
+        event.accept()
+
     def refreshMarkets(self, showNew=False):
         dojima.exchanges.refresh()
-
-        for market_container in dojima.markets.container:
-            for exchange_proxy in market_container:
-                print("market:", market_container.pair, "exchange:", exchange_proxy.id)
-
         for market_container in dojima.markets.container:
             if market_container.pair in self.markets_menu:
                 market_menu = self.markets_menu.getMarketMenu(
@@ -119,6 +127,7 @@ class MainWindow(QtGui.QMainWindow):
     def showEditDefinitionsDialog(self):
         dialog = dojima.ui.edit.EditDefinitionsDialog(self)
         dialog.exec_()
+
 
 
 class ExchangeMarketsMenu(QtGui.QMenu):
@@ -211,11 +220,11 @@ class ShowTradeDockAction(QtGui.QAction):
         self.dock.enableExchange(state)
 
     def createDock(self):
-        marketPair = self.exchange_proxy.remoteToLocal(self.marketID)
+        marketPair = self.exchange_proxy.getRemoteToLocal(self.marketID)
         self.dock = dojima.ui.exchange.ExchangeDockWidget(
                 self.exchange_proxy, marketPair, self.marketID, self)
         self.parent().getMainWindow().addDockWidget(
-            QtCore.Qt.LeftDockWidgetArea, self.dock)
+            QtCore.Qt.TopDockWidgetArea, self.dock)
         # may not need this to keep the dock instance alive
         #main_window.docks.add(dock)
 

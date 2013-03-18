@@ -22,14 +22,13 @@ from PyQt4 import QtCore, QtGui
 import dojima.model.ot.nyms
 import dojima.model.ot.accounts
 
+from dojima.ot import objEasy
 
 logger = logging.getLogger(__name__)
 
-
+"""
 # TODO get the factor and decorators for the account balances, or else
 # this is going to get confusing
-
-# TODO force an exchange/account object to only use accounts for a single nym
 
 class MarketAccountsDialog(QtGui.QDialog):
 
@@ -176,7 +175,7 @@ class MarketAccountsDialog(QtGui.QDialog):
         dialog = NewAccountDialog(self.server_id, self.counter_id, self)
         if dialog.exec_():
             self.counter_accounts_model.sort(self.accounts_model.NAME)
-
+"""
 
 class NewAccountDialog(QtGui.QDialog):
 
@@ -243,32 +242,17 @@ class NewAccountDialog(QtGui.QDialog):
         if not otapi.OTAPI_Basic_IsNym_RegisteredAtServer(nym_id,
                                                      self.server_id):
             logger.info("registering %s at %s", nym_id, self.server_id)
-            r = otapi.OTAPI_Basic_createUserAccount(self.server_id, nym_id)
-            if r < 1:
+            msg = objEasy.register_nym(self.server_id, nym_id)
+            if objEasy.VerifyMessageSuccess(msg) < 1:
                 QtGui.QApplication.restoreOverrideCursor()
                 QtGui.QMessageBox.warning(self, error_title,
                 QtCore.QCoreApplication.translate('NewAccountDialog'
                     "Error registering the nym with the server."))
                 return
 
-        # otherwise sync our request number
-        # TODO resyncing at this point is probably not needed, a dedicated
-        # OT request class should take care of that anyway
-        else:
-            logger.info("resyncing %s server request number", self.server_id)
-            r = otapi.OTAPI_Basic_getRequest(self.server_id, nym_id)
-            if r < 1:
-                QtGui.QApplication.restoreOverrideCursor()
-                QtGui.QMessageBox.warning(self, error_title,
-                QtCore.QCoreApplication.translate('NewAccountDialog'
-                                                  "Error syncing with server."))
-                return
-
         logger.info("opening account at %s", self.server_id)
-        r = otapi.OTAPI_Basic_createAssetAccount(self.server_id,
-                                            nym_id,
-                                            asset_id)
-        if r < 1:
+        msg = objEasy.create_asset_acct(self.server_id, nym_id, asset_id)
+        if objEasy.VerifyMessageSuccess(msg) < 1:
             QtGui.QApplication.restoreOverrideCursor()
             QtGui.QMessageBox.warning(self, error_title,
                 QtCore.QCoreApplication.translate('NewAccountDialog',
@@ -283,7 +267,8 @@ class NewAccountDialog(QtGui.QDialog):
                 break
 
         otapi.OTAPI_Basic_SetAccountWallet_Name(account_id, nym_id,
-                                           str(self.name_edit.text()))
+                                                self.name_edit.text())
+
 
         QtGui.QApplication.restoreOverrideCursor()
         self.accept()

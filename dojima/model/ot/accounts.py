@@ -114,8 +114,8 @@ class OTAccountsModel(QtGui.QStandardItemModel, _OTAccountsModel):
         self.setItem(row, self.BALANCE, item)
 
     def refresh(self):
-        for i in range(otapi.OTAPI_Basic_GetAccountCount()):
-            account_id = otapi.OTAPI_Basic_GetAccountWallet_ID(i)
+        for row in range(otapi.OTAPI_Basic_GetAccountCount()):
+            account_id = otapi.OTAPI_Basic_GetAccountWallet_ID(row)
             search = self.findItems(account_id)
             if not search: self.addRow(account_id)
 
@@ -141,16 +141,32 @@ class OTAccountsModel(QtGui.QStandardItemModel, _OTAccountsModel):
 class OTAccountsProxyModel(QtGui.QSortFilterProxyModel, _OTAccountsModel):
 
     def refresh(self):
-        self.model().refresh()
+        self.sourceModel().refresh()
 
 
-class OTServerAccountsModel(OTAccountsProxyModel):
+class OTAccountsServerModel(OTAccountsProxyModel):
 
-    def __init__(self, server_id, parent=None):
-        super(OTServerAccountsModel, self).__init__(parent)
+    def __init__(self, serverId=None, parent=None):
+        super(OTAccountsServerModel, self).__init__(parent)
         source_model = OTAccountsModel()
         self.setSourceModel(source_model)
         self.setFilterKeyColumn(OTAccountsModel.SERVER)
         self.setFilterRole(QtCore.Qt.UserRole)
-        self.setFilterFixedString(server_id)
+        self.setDynamicSortFilter(True)
+        if serverId:
+            self.setFilterFixedString(serverId)
+
+    def setServer(self, serverId):
+        self.setFilterFixedString(serverId)
+
+
+class OTAccountsSimpleModel(OTAccountsProxyModel):
+
+    def __init__(self, parent=None):
+        super(OTAccountsSimpleModel, self).__init__(parent)
+        source_model = OTAccountsModel()
+        self.setSourceModel(source_model)
+        self.setFilterKeyColumn(source_model.TYPE)
+        self.setFilterRole(QtCore.Qt.UserRole)
+        self.setFilterFixedString('s')
         self.setDynamicSortFilter(True)

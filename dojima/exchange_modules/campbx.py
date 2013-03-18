@@ -80,7 +80,7 @@ class _CampbxRequest(dojima.network.ExchangePOSTRequest):
         query = self.parent.base_query
         if self.data:
             for key, value in list(self.data['query'].items()):
-                query.addQueryItem(key, str(value))
+                query.addQueryItem(key, value)
         self.query = query.encodedQuery()
 
     def _extract_reply(self):
@@ -90,7 +90,7 @@ class _CampbxRequest(dojima.network.ExchangePOSTRequest):
         else:
             if logger.isEnabledFor(logging.INFO):
                 logger.info("received reply to %s", self.url.toString())
-            raw_reply = str(self.reply.readAll())
+            raw_reply = self.reply.readAll()
             data = json.loads(raw_reply, parse_float=Decimal, parse_int=Decimal)
 
             if 'Error' in data:
@@ -301,7 +301,7 @@ class CampbxTradeRequest(_CampbxRequest):
     priority = 1
     def _handle_reply(self, data):
         logger.debug(data)
-        order_id = str(data['Success'])
+        order_id = data['Success']
         data = self.data['query']
         amount = data['Quantity']
         price = data['Price']
@@ -354,8 +354,8 @@ class CampbxWithdrawBitcoinRequest(_CampbxRequest):
     def _handle_reply(self, data):
         logger.debug(data)
         transaction = data['Success']
-        reply = str(QtCore.QCoreApplication.translate(
-            "CampbxWithdrawBitcoinRequest", "transaction id: {}"))
+        reply = QtCore.QCoreApplication.translate(
+            "CampbxWithdrawBitcoinRequest", "transaction id: {}")
         self.parent.withdraw_bitcoin_reply_signal.emit(
             reply.format(transaction))
 
