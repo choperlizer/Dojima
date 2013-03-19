@@ -25,13 +25,14 @@ from PyQt4 import QtCore, QtGui
 class _ContractImportDialog(QtGui.QDialog):
 
     file_filter = QtCore.QCoreApplication.translate('ContractImportDialog',
-                                                    "Open Transactions contract (*.otc)")
+                                                    "Open Transactions contracts (*.otc);;"
+                                                    "All files (*)")
 
     def __init__(self, parent=None):
         super(_ContractImportDialog, self).__init__(parent)
 
         self.import_occurred = False
-        self.recent_dir = QtGui.QDesktopServices.HomeLocation
+        self.recent_dir = QtGui.QDesktopServices.storageLocation(QtGui.QDesktopServices.HomeLocation)
 
         self.import_box = QtGui.QPlainTextEdit()
         #TODO perhaps resize the box base on pasted text?
@@ -66,7 +67,7 @@ class _ContractImportDialog(QtGui.QDialog):
         filenames = QtGui.QFileDialog.getOpenFileNames(self,
             QtCore.QCoreApplication.translate(
                 'ContractImportDialog', "select contract file"),
-            self.recent_dir, self.file_filter)
+                self.recent_dir, self.file_filter)
 
         if not len(filenames):
             return

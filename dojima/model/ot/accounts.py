@@ -19,7 +19,8 @@ from PyQt4 import QtCore, QtGui
 
 import dojima.model.ot
 
-class _OTAccountsModel():
+class _OTAccountsModel:
+    """ Defined so that labels and column indexes can be resused in proxy models."""
 
     ACCOUNT = 0
     ASSET = 1
@@ -59,60 +60,68 @@ class _OTAccountsModel():
                                                          "Balance")
         return section
 
-
+    
+    
 class OTAccountsModel(QtGui.QStandardItemModel, _OTAccountsModel):
+    
 
     def __init__(self, parent=None):
         super(OTAccountsModel, self).__init__(parent)
 
         self.row_count = otapi.OTAPI_Basic_GetAccountCount()
-        # redundantly defined below
         for row in range(self.row_count):
             account_id = otapi.OTAPI_Basic_GetAccountWallet_ID(row)
             self.addRow(account_id, row)
 
     def addRow(self, account_id, row=None):
+        """Set item text to human readable labes, set UserRole data to OT ID's"""
         assert account_id
         if not row:
             row = self.rowCount()
-            
-        item = QtGui.QStandardItem(
-            otapi.OTAPI_Basic_GetAccountWallet_Name(account_id))
+
+        label = otapi.OTAPI_Basic_GetAccountWallet_Name(account_id)
+        item = QtGui.QStandardItem(label)          
         item.setData(account_id, QtCore.Qt.UserRole)
         self.setItem(row, self.ACCOUNT, item)
 
         ot_id = otapi.OTAPI_Basic_GetAccountWallet_AssetTypeID(account_id)
-        item = QtGui.QStandardItem(otapi.OTAPI_Basic_GetAssetType_Name(ot_id))
+        label = otapi.OTAPI_Basic_GetAssetType_Name(ot_id)
+        item = QtGui.QStandardItem(label)
         item.setData(ot_id, QtCore.Qt.UserRole)
         self.setItem(row, self.ASSET, item)
 
         ot_id = otapi.OTAPI_Basic_GetAccountWallet_NymID(account_id)
-        item = QtGui.QStandardItem(otapi.OTAPI_Basic_GetNym_Name(ot_id))
+        label = otapi.OTAPI_Basic_GetNym_Name(ot_id)
+        item = QtGui.QStandardItem(label)
         item.setData(ot_id, QtCore.Qt.UserRole)
         self.setItem(row, self.NYM, item)
 
         ot_id = otapi.OTAPI_Basic_GetAccountWallet_ServerID(account_id)
-        item = QtGui.QStandardItem(otapi.OTAPI_Basic_GetServer_Name(ot_id))
+        label = otapi.OTAPI_Basic_GetServer_Name(ot_id)
+        item = QtGui.QStandardItem(label)
         item.setData(ot_id, QtCore.Qt.UserRole)
         self.setItem(row, self.SERVER, item)
 
         account_type = otapi.OTAPI_Basic_GetAccountWallet_Type(account_id)
         if account_type == 'simple':
-            item = QtGui.QStandardItem(self.simple_translation)
-            item.setData('s', QtCore.Qt.UserRole)
+            label = self.simple_translation
+            data = 's'
+            
         elif account_type == 'issuer':
-            item = QtGui.QStandardItem(self.issuer_translation)
-            item.setData('i', QtCore.Qt.UserRole)
+            label = self.issuer_translation
+            data = 'i'
         else:
-            # this shouldn't happen, but why not plan ahead?
-            item = QtGui.QStandardItem(account_type)
-            item.setData(account_type[0], QtCore.Qt.UserRole)
+            label = account_type
+            data = account_type[0]
+
+        item = QtGui.QStandardItem(label)
+        item.setData(data, QtCore.Qt.UserRole)
         self.setItem(row, self.TYPE, item)
 
         item = QtGui.QStandardItem(
             otapi.OTAPI_Basic_GetAccountWallet_Balance(account_id))
         self.setItem(row, self.BALANCE, item)
-
+    
     def refresh(self):
         for row in range(otapi.OTAPI_Basic_GetAccountCount()):
             account_id = otapi.OTAPI_Basic_GetAccountWallet_ID(row)
@@ -137,6 +146,8 @@ class OTAccountsModel(QtGui.QStandardItemModel, _OTAccountsModel):
         self.dataChanged.emit(index, index)
         return True
 
+model = OTAccountsModel()
+        
 
 class OTAccountsProxyModel(QtGui.QSortFilterProxyModel, _OTAccountsModel):
 
@@ -148,7 +159,7 @@ class OTAccountsServerModel(OTAccountsProxyModel):
 
     def __init__(self, serverId=None, parent=None):
         super(OTAccountsServerModel, self).__init__(parent)
-        source_model = OTAccountsModel()
+        source_model = model
         self.setSourceModel(source_model)
         self.setFilterKeyColumn(OTAccountsModel.SERVER)
         self.setFilterRole(QtCore.Qt.UserRole)
@@ -164,7 +175,7 @@ class OTAccountsSimpleModel(OTAccountsProxyModel):
 
     def __init__(self, parent=None):
         super(OTAccountsSimpleModel, self).__init__(parent)
-        source_model = OTAccountsModel()
+        source_model = model
         self.setSourceModel(source_model)
         self.setFilterKeyColumn(source_model.TYPE)
         self.setFilterRole(QtCore.Qt.UserRole)

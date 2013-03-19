@@ -98,22 +98,7 @@ class MarketTableView(QtGui.QTableView):
                     contract_item.setText(contract_name)
 
 
-class ComboBox(QtGui.QComboBox):
-
-    otIdChanged = QtCore.pyqtSignal(str)
-
-    def __init__(self, parent=None):
-        super(ComboBox, self).__init__(parent)
-        self.currentIndexChanged[int].connect(self.emitOTID)
-
-    def emitOtId(self, row):
-        self.otIdChanged.emit(self.itemData(row, QtCore.Qt.UserRole))
-
-    def getOTID(self):
-        return self.itemData(self.currentIndex(), QtCore.Qt.UserRole)
-
-
-class AccountComboBox(ComboBox):
+class AccountComboBox(QtGui.QComboBox):
     """ QComboBox for OT accounts
 
     This combo does not come with an model, but it does have
@@ -122,8 +107,18 @@ class AccountComboBox(ComboBox):
     """
     # TODO find a place to put an OT ID verification function
 
+    accountIdChanged = QtCore.pyqtSignal(str)
+
+    def __init__(self, model=dojima.model.ot.accounts.model, parent=None):
+        super(AccountComboBox, self).__init__(parent)
+        self.setModel(model)
+        self.currentIndexChanged[int].connect(self.emitAccountId)
+
+    def emitAccountId(self, row):
+        self.accountIdChanged.emit(self.itemData(row, QtCore.Qt.UserRole))
+
     @QtCore.pyqtProperty(str)
-    def remote_commodity_id(self):
+    def remoteAssetId(self):
         ot_id = self.itemData(self.currentIndex(), QtCore.Qt.UserRole)
         if len(ot_id) != 43: return ''
         ot_id = otapi.OTAPI_Basic_GetAccountWallet_AssetTypeID(ot_id)
@@ -131,9 +126,46 @@ class AccountComboBox(ComboBox):
         return ot_id
 
     @QtCore.pyqtProperty(str)
-    def remote_commodity_name(self):
+    def remoteAssetName(self):
         ot_id = self.itemData(self.currentIndex(), QtCore.Qt.UserRole)
         if len(ot_id) != 43: return ''
         ot_id = otapi.OTAPI_Basic_GetAccountWallet_AssetTypeID(ot_id)
         if len(ot_id) != 43: return ''
         return otapi.OTAPI_Basic_GetAssetType_Name(ot_id)
+
+class NymComboBox(QtGui.QComboBox):
+
+    nymIdChanged = QtCore.pyqtSignal(str)
+
+    def __init__(self, parent=None):
+        super(NymComboBox, self).__init__(parent)
+        self.setModel(dojima.model.ot.nyms.model)
+        self.currentIndexChanged[int].connect(self.emitNymId)
+
+    def emitNymId(self, row):
+        self.nymIdChanged.emit(self.itemData(row, QtCore.Qt.UserRole))
+
+    @QtCore.pyqtProperty(str)
+    def nymId(self):
+        return self.itemData(self.currentIndex(), QtCore.Qt.UserRole)
+        
+
+class ServerComboBox(QtGui.QComboBox):
+    """ QComboBox for OT Servers
+    """
+
+    serverIdChanged = QtCore.pyqtSignal(str)
+
+    def __init__(self, parent=None):
+        super(ServerComboBox, self).__init__(parent)
+        self.setModel(dojima.model.ot.servers.model)
+        self.currentIndexChanged[int].connect(self.emitServerId)
+
+    def emitServerId(self, row):
+        self.serverIdChanged.emit(self.itemData(row, QtCore.Qt.UserRole))
+            
+    @QtCore.pyqtProperty(str)
+    def serverId(self):
+        ot_id = self.itemData(self.currentIndex(), QtCore.Qt.UserRole)
+        assert ot_id
+        return ot_id

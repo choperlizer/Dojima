@@ -15,7 +15,7 @@ new currencies but hopefully the currencies themselves will encourage less
 malinvestment.
 
 ## Dependencies
- - Python-2.7
+ - Python-3.1
  - Matplotlib
  - PyQt4
  - >Open Transactions-0.87.g with Python SWIG wrapper

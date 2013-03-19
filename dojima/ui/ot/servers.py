@@ -21,32 +21,23 @@ from PyQt4 import QtCore, QtGui
 
 import dojima.model.ot.servers
 import dojima.model.ot.accounts
+import dojima.ui.ot.views
 
 
 class ServersDialog(QtGui.QDialog):
 
     def __init__(self, parent=None):
         super(ServersDialog, self).__init__(parent)
-        self.servers = list()
 
-        _accounts_model = dojima.model.ot.accounts.OTAccountsModel()
-        self.accounts_model = QtGui.QSortFilterProxyModel()
-        self.accounts_model.setSourceModel(_accounts_model)
-        self.accounts_model.setFilterKeyColumn(_accounts_model.SERVER_ID)
-
-        self.server_combo = QtGui.QComboBox()
-        for row in range(otapi.OTAPI_Basic_GetServerCount()):
-            server_id = otapi.OTAPI_Basic_GetServer_ID(row)
-            self.servers.append(server_id)
-            self.server_combo.addItem(otapi.OTAPI_Basic_GetServer_Name(server_id))
+        self.server_combo = dojima.ui.ot.views.ServerComboBox()
+        self.accounts_model = dojima.model.ot.accounts.OTAccountsServerModel()
 
         accounts_view = QtGui.QTableView()
         accounts_view.setModel(self.accounts_model)
-        accounts_view.setColumnHidden(_accounts_model.ID, True)
-        accounts_view.setColumnHidden(_accounts_model.ASSET_ID, True)
-        accounts_view.setColumnHidden(_accounts_model.NYM_ID, True)
-        accounts_view.setColumnHidden(_accounts_model.SERVER_ID, True)
-        accounts_view.setColumnHidden(_accounts_model.SERVER_NAME, True)
+        #accounts_view.setColumnHidden(self.accounts_model.ACCOUNT, True)
+        #accounts_view.setColumnHidden(self.accounts_model.ASSET, True)
+        #accounts_view.setColumnHidden(self.accounts_model.NYM, True)
+        #accounts_view.setColumnHidden(self.accounts_model.SERVER, True)
 
         button_box = QtGui.QDialogButtonBox()
         add_server_button = QtGui.QPushButton(
@@ -55,35 +46,20 @@ class ServersDialog(QtGui.QDialog):
         button_box.addButton(add_server_button, button_box.ActionRole)
         button_box.addButton(button_box.Ok)
 
-        top_form_layout = QtGui.QFormLayout()
-        top_form_layout.addRow(QtCore.QCoreApplication.translate('ServersDialog',
-                                                                 "Server:"),
-                               self.server_combo)
+        layout = QtGui.QFormLayout()
+        layout.addRow(
+            QtCore.QCoreApplication.translate('ServersDialog', "Server:"),
+            self.server_combo)
 
-        layout = QtGui.QVBoxLayout()
-        layout.addLayout(top_form_layout)
-        layout.addWidget(accounts_view)
-        layout.addWidget(button_box)
+        layout.addRow(accounts_view)
+        layout.addRow(button_box)
         self.setLayout(layout)
 
-        self.server_combo.currentIndexChanged.connect(self.serverChanged)
+        self.server_combo.serverIdChanged.connect(self.accounts_model.setFilterFixedString)
         add_server_button.clicked.connect(self.showAddServerDialog)
         button_box.accepted.connect(self.accept)
-
-        self.serverChanged(0)
-
-    def refreshServers(self):
-        for row in range(otapi.OTAPI_Basic_GetServerCount()):
-            server_id = otapi.OTAPI_Basic_GetServer_ID(row)
-            if server_id in self.servers: continue
-            self.servers.append(server_id)
-            self.server_combo.addItem(otapi.OTAPI_Basic_GetServer_Name(server_id))
-
-    def serverChanged(self, row):
-        server_id = self.servers[row]
-        self.accounts_model.setFilterFixedString(server_id)
 
     def showAddServerDialog(self):
         dialog = dojima.ui.ot.contract.ServerContractImportDialog()
         if dialog.exec_():
-            self.refreshServers()
+            dojima.model.ot.servers.model.refresh()

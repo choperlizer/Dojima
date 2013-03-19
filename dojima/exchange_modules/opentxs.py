@@ -227,18 +227,13 @@ class OTServerWizardPage(QtGui.QWizardPage):
         self.markets_view.setModel(self.markets_model)
         self.markets_view.setShowGrid(False)
 
-        self.nym_combo = dojima.ui.ot.views.ComboBox()
+        self.nym_combo = dojima.ui.ot.views.NymComboBox()
 
-        self.base_account_combo = dojima.ui.ot.views.AccountComboBox()
-        self.counter_account_combo = dojima.ui.ot.views.AccountComboBox()
+        self.base_account_combo = dojima.ui.ot.views.AccountComboBox(self.base_accounts_model)
+        self.counter_account_combo = dojima.ui.ot.views.AccountComboBox(self.counter_accounts_model)
 
         self.base_local_combo = QtGui.QComboBox()
         self.counter_local_combo = QtGui.QComboBox()
-
-        self.nym_combo.setModel(self.nyms_model)
-
-        self.base_account_combo.setModel(self.base_accounts_model)
-        self.counter_account_combo.setModel(self.counter_accounts_model)
 
         self.base_local_combo.setModel(dojima.model.commodities.local_model)
         self.counter_local_combo.setModel(dojima.model.commodities.local_model)
@@ -345,7 +340,7 @@ class OTServerWizardPage(QtGui.QWizardPage):
         new_account_button.clicked.connect(self.showNewAccountDialog)
         new_local_button.clicked.connect(self.showNewCommodityDialog)
         self.refresh_markets_button.clicked.connect(self.refreshMarkets)
-        self.nym_combo.otIdChanged.connect(self.changeNym)
+        self.nym_combo.nymIdChanged.connect(self.changeNym)
 
         # select
         self.markets_view.selectRow(0)
@@ -362,7 +357,7 @@ class OTServerWizardPage(QtGui.QWizardPage):
 
     def refreshMarkets(self):
         QtGui.QApplication.setOverrideCursor(QtCore.Qt.WaitCursor)
-        nym_id = self.nym_combo.getOTID()
+        nym_id = self.nym_combo.nymId
         if otapi.OTAPI_Basic_IsNym_RegisteredAtServer(self.server_id, nym_id) < 1:
             # TODO market fetch immediatly after registering fails
             msg = objEasy.register_nym(self.server_id, nym_id)
@@ -417,7 +412,7 @@ class OTServerWizardPage(QtGui.QWizardPage):
             self.refreshMarkets()
 
     def validatePage(self):
-        nym_id = self.nym_combo.getOTID()
+        nym_id = self.nym_combo.nymId
 
         b_ac_id = self.base_account_combo.getOTID()
         c_ac_id = self.counter_account_combo.getOTID()
