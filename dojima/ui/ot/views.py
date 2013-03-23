@@ -117,6 +117,9 @@ class AccountComboBox(QtGui.QComboBox):
     def emitAccountId(self, row):
         self.accountIdChanged.emit(self.itemData(row, QtCore.Qt.UserRole))
 
+    def getAccountId(self):
+        return self.itemData(self.currentIndex(), QtCore.Qt.UserRole)
+
     @QtCore.pyqtProperty(str)
     def remoteAssetId(self):
         ot_id = self.itemData(self.currentIndex(), QtCore.Qt.UserRole)

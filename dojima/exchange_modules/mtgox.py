@@ -105,7 +105,7 @@ class MtgoxExchangeProxy(dojima.exchange.ExchangeProxy):
     def getPrettyMarketName(self, remote_market_id):
         return remote_market_id
 
-    def nextPage(self, wizard):
+    def getWizardPage(self, wizard):
         return MtgoxWizardPage(wizard)
 
     def refreshMarkets(self):

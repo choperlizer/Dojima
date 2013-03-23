@@ -159,7 +159,7 @@ class OTAccountsServerModel(OTAccountsProxyModel):
 
     def __init__(self, serverId=None, parent=None):
         super(OTAccountsServerModel, self).__init__(parent)
-        source_model = model
+        source_model = model # model global defined above
         self.setSourceModel(source_model)
         self.setFilterKeyColumn(OTAccountsModel.SERVER)
         self.setFilterRole(QtCore.Qt.UserRole)
@@ -175,7 +175,7 @@ class OTAccountsSimpleModel(OTAccountsProxyModel):
 
     def __init__(self, parent=None):
         super(OTAccountsSimpleModel, self).__init__(parent)
-        source_model = model
+        source_model = model # model global defined above
         self.setSourceModel(source_model)
         self.setFilterKeyColumn(source_model.TYPE)
         self.setFilterRole(QtCore.Qt.UserRole)

@@ -25,6 +25,7 @@ from dojima.exchange_modules import *
 import dojima.ui.exchange
 import dojima.ui.edit
 import dojima.ui.market
+import dojima.ui.wizard
 import dojima.ui.ot.action
 import dojima.ui.transfer.bitcoin
 import dojima.ui.transfer.ot
@@ -120,7 +121,7 @@ class MainWindow(QtGui.QMainWindow):
                                 action.trigger()
 
     def showAddMarketsWizard(self):
-        wizard = dojima.ui.market.AddMarketsWizard(self)
+        wizard = dojima.ui.wizard.AddMarketsWizard(self)
         wizard.exec_()
         self.refreshMarkets(True)
 

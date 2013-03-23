@@ -88,8 +88,8 @@ class OTExchangeProxy(dojima.exchange.ExchangeProxy):
                     "The market scale, there should be a note on this somewhere "
                     "around here.").format(data.scale)
 
-    def nextPage(self, wizard):
-        return OTServerWizardPage(self.name, self.server_id, wizard)
+    def getWizardPage(self, wizard):
+        return OTServerWizardPage(self.server_id, wizard)
 
     def refreshMarkets(self):
         storable = otapi.QueryObject(otapi.STORED_OBJ_MARKET_LIST,
@@ -126,24 +126,11 @@ class OTExchangeProxy(dojima.exchange.ExchangeProxy):
                                                  local_base_id, local_counter_id)
 
 
-
 class OTServerWizardPage(QtGui.QWizardPage):
 
-    def __init__(self, title, server_id, parent):
-        super(OTServerWizardPage, self).__init__(parent)
+    def __init__(self, server_id, parent):
         self.server_id = server_id
-        self.setTitle(title)
-        self.setSubTitle(
-            QtCore.QCoreApplication.translate('OTServerWizardPage',
-                "Select accounts to match a new or existing market. "
-                "The market list must be refreshed manually, "
-                "Also, 'Refresh Markets' must be hit twice when using "
-                "an unregistered nym, I'm working on it...",
-                "This is the the heading underneath the title on the "
-                "OT page in the markets wizard."))
-        # These can probably go
-        self.base_asset, self.counter_asset = None, None
-        self._isComplete = False
+        super(OTServerWizardPage, self).__init__(parent)
 
     def changeBaseAsset(self, asset_id):
         self.base_asset = asset_id
@@ -153,6 +140,13 @@ class OTServerWizardPage(QtGui.QWizardPage):
         if local_uuid:
             row = dojima.model.commodities.local_model.getRow(local_uuid)
             self.base_local_combo.setCurrentIndex(row)
+            
+            self._checkCompleteState()
+            
+        else:
+            if self._is_complete is True:
+                self._is_complete = False
+                self.completeChanged.emit()
 
     def changeCounterAsset(self, asset_id):
         self.counter_asset = asset_id
@@ -162,6 +156,13 @@ class OTServerWizardPage(QtGui.QWizardPage):
         if local_uuid:
             row = dojima.model.commodities.local_model.getRow(local_uuid)
             self.counter_local_combo.setCurrentIndex(row)
+            
+            self._checkCompleteState()
+
+        else:
+            if self._is_complete is True:
+                self._is_complete = False
+                self.completeChanged.emit()
 
     def changeBaseLocal(self, uuid):
         self.base_local = uuid
@@ -175,27 +176,43 @@ class OTServerWizardPage(QtGui.QWizardPage):
     def changeNym(self, nym_id):
         self.nym_accounts_model.setFilterFixedString(nym_id)
 
-    def checkCompleteState(self):
+    def _checkCompleteState(self):
+        was_complete = self._is_complete
+        self._is_complete = True
+        
+        if (self.base_asset is None) or (self.counter_asset is None):
+            self._is_complete = False
 
-        if ((self.base_asset is None) or
-            (self.counter_asset is None) or
-            (self.base_accounts_model.rowCount() == 0) or
-            (self.counter_accounts_model.rowCount() == 0) or
-            (self.base_local_combo.currentIndex() == self.counter_local_combo.currentIndex())):
+        if (self.base_local_combo.currentIndex() == self.counter_local_combo.currentIndex()):
+            self._is_complete = False
 
-            self._isComplete = False
-        else:
-            self._isComplete = True
+        if (self.base_accounts_model.rowCount() == 0) or (self.counter_accounts_model.rowCount() == 0):
+            self._is_complete = False
 
-        self.completeChanged.emit()
+        if was_complete is not self._is_complete:
+            self.completeChanged.emit()
 
     def initializePage(self):
-        self.nyms_model = dojima.model.ot.nyms.model
+        self.base_asset = None
+        self.counter_asset = None
+        self._is_complete = False
+        
+        self.setTitle(otapi.OTAPI_Basic_GetServer_Name(self.server_id))
+        self.setSubTitle(
+            QtCore.QCoreApplication.translate('OTServerWizardPage',
+                "Select accounts to match a new or existing market. "
+                "The market list must be refreshed manually, "
+                "Also, 'Refresh Markets' must be hit twice when using "
+                "an unregistered nym, I'm working on it...",
+                "This is the the heading underneath the title on the "
+                "OT page in the markets wizard."))
+        
         self.markets_model = dojima.model.ot.markets.OTMarketsModel(
             self.server_id)
+        
         accounts_model = dojima.model.ot.accounts.OTAccountsServerModel(
             self.server_id)
-
+        
         simple_accounts_model = dojima.model.ot.accounts.OTAccountsProxyModel()
         simple_accounts_model.setSourceModel(accounts_model)
         simple_accounts_model.setFilterRole(QtCore.Qt.UserRole)
@@ -232,10 +249,10 @@ class OTServerWizardPage(QtGui.QWizardPage):
         self.base_account_combo = dojima.ui.ot.views.AccountComboBox(self.base_accounts_model)
         self.counter_account_combo = dojima.ui.ot.views.AccountComboBox(self.counter_accounts_model)
 
+        # TODO Perhaps these combos can be replaced with a commodities subclass of QComboBox
         self.base_local_combo = QtGui.QComboBox()
-        self.counter_local_combo = QtGui.QComboBox()
-
         self.base_local_combo.setModel(dojima.model.commodities.local_model)
+        self.counter_local_combo = QtGui.QComboBox()
         self.counter_local_combo.setModel(dojima.model.commodities.local_model)
 
         nym_label = QtGui.QLabel(
@@ -326,14 +343,20 @@ class OTServerWizardPage(QtGui.QWizardPage):
         layout.addWidget(button_box, 6,0, 1,4)
         self.setLayout(layout)
 
+        
         self.markets_view.baseChanged.connect(self.changeBaseAsset)
         self.markets_view.counterChanged.connect(self.changeCounterAsset)
         #self.markets_view.marketChanged.connect(self.changeMarket)
 
         self.base_account_combo.currentIndexChanged.connect(
-            self.checkCompleteState)
+            self._checkCompleteState)
         self.counter_account_combo.currentIndexChanged.connect(
-            self.checkCompleteState)
+            self._checkCompleteState)
+
+        self.base_local_combo.currentIndexChanged.connect(
+            self._checkCompleteState)
+        self.counter_local_combo.currentIndexChanged.connect(
+            self._checkCompleteState)
 
         new_nym_button.clicked.connect(self.showNewNymDialog)
         new_offer_button.clicked.connect(self.showNewOfferDialog)
@@ -346,12 +369,16 @@ class OTServerWizardPage(QtGui.QWizardPage):
         self.markets_view.selectRow(0)
         self.nym_combo.currentIndexChanged.emit(0)
 
+        
+        self.nyms_model = dojima.model.ot.nyms.model
         if self.nyms_model.rowCount() < 1:
             self.refresh_markets_button.setDisabled(True)
 
-    def isComplete(self):
-        return self._isComplete
+        self._checkCompleteState()
 
+    def isComplete(self):
+        return self._is_complete
+        
     def isFinalPage(self):
         return True
 
@@ -398,8 +425,6 @@ class OTServerWizardPage(QtGui.QWizardPage):
         else:
             dialog = dojima.ui.edit.commodity.NewCommodityDialog(self)
 
-        self.checkCompleteState()
-
     def showNewNymDialog(self):
         dialog = dojima.ui.ot.nym.CreateNymDialog(self)
         if dialog.exec_():
@@ -414,8 +439,8 @@ class OTServerWizardPage(QtGui.QWizardPage):
     def validatePage(self):
         nym_id = self.nym_combo.nymId
 
-        b_ac_id = self.base_account_combo.getOTID()
-        c_ac_id = self.counter_account_combo.getOTID()
+        b_ac_id = self.base_account_combo.getAccountId()
+        c_ac_id = self.counter_account_combo.getAccountId()
 
         assert nym_id
         assert b_ac_id
