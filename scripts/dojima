@@ -13,8 +13,7 @@ import sys
 
 from PyQt4 import QtCore, QtGui
 
-import otapi
-
+#import otapi
 
 # Set the file creation mode to -rwx------
 os.umask(63)
@@ -43,15 +42,16 @@ if __name__ == '__main__':
     app.setApplicationName("dojima")
     app.setApplicationVersion('0.0.1')
 
-    otapi.OTAPI_Basic_AppStartup()
-    otapi.OTAPI_Basic_Init()
-    otapi.OTAPI_Basic_LoadWallet()    
+    #otapi.OTAPI_Basic_AppStartup()
+    #otapi.OTAPI_Basic_Init()
+    #otapi.OTAPI_Basic_LoadWallet()    
     
     #start translation testing
     # translator = QtCore.QTranslator()
     # translator.load("farsi.qm")
     # app.installTranslator(translator)
     #end
+
 
     from dojima.ui.mainwindow import MainWindow
 

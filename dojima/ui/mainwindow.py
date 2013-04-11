@@ -16,7 +16,7 @@
 
 import logging
 
-import otapi
+#import otapi
 from PyQt4 import QtCore, QtGui
 
 import dojima.markets
@@ -26,9 +26,12 @@ import dojima.ui.exchange
 import dojima.ui.edit
 import dojima.ui.market
 import dojima.ui.wizard
-import dojima.ui.ot.action
+#import dojima.ui.ot.action
 import dojima.ui.transfer.bitcoin
-import dojima.ui.transfer.ot
+#import dojima.ui.transfer.ot
+
+
+
 
 
 logger = logging.getLogger(__name__)
@@ -57,22 +60,25 @@ class MainWindow(QtGui.QMainWindow):
             action = Action(self)
             bitcoin_menu.addAction(action)
         transfer_menu.addMenu(bitcoin_menu)
-
+        """
         ot_menu = QtGui.QMenu(
             QtCore.QCoreApplication.translate("MainWindow", "Open &Transactions"), self)
         for Action in dojima.ui.transfer.ot.actions:
             action = Action(self)
             ot_menu.addAction(action)
         transfer_menu.addMenu(ot_menu)
+        """
 
         self.menuBar().addMenu(transfer_menu)
 
+        """
         ot_menu = QtGui.QMenu(
             QtCore.QCoreApplication.translate('MainWindow', "OpenT&xs"), self)
         for Action in dojima.ui.ot.action.actions:
             action = Action(self)
             ot_menu.addAction(action)
         self.menuBar().addMenu(ot_menu)
+        """
 
         options_menu = QtGui.QMenu(
             QtCore.QCoreApplication.translate('MainWindow', "&options",

@@ -1,9 +1,14 @@
 # Dōjima
 
+
+**This program is distributed in the hope that it will be useful,**
+***but WITHOUT ANY WARRANTY; without even the implied warranty of**
+**MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the**
+**GNU General Public License for more details.**
+
 THIS IS AN UNFINISHED OPEN TRANSACTIONS GUI CLIENT.
 Hopefully there is some decent reusable Qt code for
-dealing with OT in this mess. At present I wouldn't
-trust it not to defenestrate your assets.
+dealing with OT in this mess. 
 
 ## The name
 This is a rewrite of Tulpenmanie, a Bitcoin exchange client I made a bit ago.
@@ -18,7 +23,9 @@ malinvestment.
  - Python-3.1
  - Matplotlib
  - PyQt4
- - >Open Transactions-0.87.g with Python SWIG wrapper
+
+## Supported Exchanges
+ - [Campbx](https://campbx.com/) - [referral url](https://campbx.com/register.php?r=P3hAnksjDmY)
 
 ## Install
 Unfortunatly I have not figured out how to get this thing to run from

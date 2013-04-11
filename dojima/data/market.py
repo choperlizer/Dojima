@@ -66,43 +66,53 @@ class DepthProxy(_StatsProxy):
         if not (bids.any() and asks.any()):
             return
 
-        max_bid_vol = bids[1].max()
-        max_ask_vol = asks[1].max()
-        if max_bid_vol < max_ask_vol:
-            max_vol = max_bid_vol
+        ask_prices = asks[0]
+        ask_volumes = asks[1]
+        bid_prices = bids[0]
+        bid_volumes = bids[1]
+        
+        bid_vol_sum = bids[1].sum()
+        ask_vol_sum = asks[1].sum()
+        if bid_vol_sum < ask_vol_sum:
+            max_vol_sum = bid_vol_sum
         else:
-            max_vol = max_ask_vol
-
+            max_vol_sum = ask_vol_sum
+        
         #bids
-        if bids.any():
-            prices = bids[0]
-            volumes = bids[1]
-            floor = prices.max()
-            bottom = prices.min()
+        if bid_prices.any():
+            floor = bid_prices.max()
+            bottom = bid_prices.min()
 
             while floor > bottom:
                 floor -= step_size
-                array_mask = prices > floor
+                array_mask = bid_prices > floor
 
+
+                vol_sum = bid_volumes[array_mask].sum()
+                if vol_sum > max_vol_sum:
+                    continue
+                    
                 price_steps.append(floor)
-                volume_sums.append(volumes[array_mask].sum())
+                volume_sums.append(vol_sum)
 
         price_steps.reverse()
         volume_sums.reverse()
 
         # asks
         if asks.any():
-            prices = asks[0]
-            volumes = asks[1]
-            ceiling = prices.min()
-            top = prices.max()
+            ceiling = ask_prices.min()
+            top = ask_prices.max()
 
             while ceiling < top:
                 ceiling += step_size
-                array_mask = prices < ceiling
+                array_mask = ask_prices < ceiling
 
+                vol_sum = ask_volumes[array_mask].sum()
+                if vol_sum > max_vol_sum:
+                    break
+                
                 price_steps.append(ceiling)
-                volume_sums.append(volumes[array_mask].sum())
+                volume_sums.append(vol_sum)
 
         #Trim the table
         if bids.any() and asks.any():

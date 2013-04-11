@@ -15,16 +15,18 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import logging
-import otapi
+#import otapi
 
 from PyQt4 import QtCore, QtGui
 
 import dojima.exchanges
+
 import dojima.model.commodities
 import dojima.ui.edit.commodity
-import dojima.ui.ot.contract
 
-import dojima.exchange_modules.opentxs
+#import dojima.ui.ot.contract
+
+#import dojima.exchange_modules.opentxs
 
 logger = logging.getLogger(__name__)
 
