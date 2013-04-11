@@ -21,7 +21,6 @@ from PyQt4 import QtCore, QtGui
 
 import dojima.model.ot
 
-from dojima.ot import objEasy
 
 logger = logging.getLogger(__name__)
 
@@ -99,6 +98,8 @@ class OTMarketsModel(QtGui.QStandardItemModel):
                     return QtCore.QCoreApplication.translate('OTMarketsModel',
                                                              "Volume")
     def refresh(self, nym_id):
+        pass
+        """
         # TODO error handling
         assert nym_id
         msg = objEasy.get_market_list(self.server_id, nym_id)
@@ -115,6 +116,7 @@ class OTMarketsModel(QtGui.QStandardItemModel):
             data = market_list.GetMarketData(i)
             if data.market_id not in self.market_ids:
                 self.addRow(data)
+        """
 
     def setData(self, index, data, role=QtCore.Qt.EditRole):
         # more that account label could be edited but it'd have to sync across

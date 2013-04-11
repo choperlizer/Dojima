@@ -1,5 +1,5 @@
 # Dojima, a markets client.
-# Copyright (C) 2012  Emery Hemingway
+# Copyright (C) 2012-2013  Emery Hemingway
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -19,162 +19,370 @@ import json
 import logging
 from decimal import Decimal
 
+import numpy as np
 from PyQt4 import QtCore, QtGui, QtNetwork
 
+
 import dojima.exchange
-import dojima.data.funds
-import dojima.data.orders
-import dojima.data.ticker
+import dojima.exchanges
+import dojima.data.market
+import dojima.data.offers
 import dojima.network
-from dojima.model.exchanges import exchanges_model
+
 
 logger = logging.getLogger(__name__)
 
-EXCHANGE_NAME = "CampBX"
+PRETTY_NAME = "CampBX"
 HOSTNAME = "campbx.com"
-_BASE_URL = "https://" + HOSTNAME + "/api/"
-
+URL_BASE = "https://" + HOSTNAME + "/api/"
 
 def _reply_has_errors(reply):
     if reply.error():
         logger.error(reply.errorString())
 
-def _object_pairs_hook(pairs):
-    dct = dict()
-    for key, value in pairs:
-        dct[key] = Decimal(value)
-    return dct
+def saveAccountSettings(username, password):
+    settings = QtCore.QSettings()
+    settings.beginGroup(__name__)
+    settings.setValue('username', username)
+    settings.setValue('password', password)
+
+def loadAccountSettings():
+    settings = QtCore.QSettings()
+    settings.beginGroup(__name__)
+    username = settings.value('username')
+    password = settings.value('password')
+    return username, password
 
 
-class CampbxExchangeItem(dojima.model.exchanges.ExchangeItem):
+class CampbxExchangeProxy(dojima.exchange.ExchangeProxy):
 
-    exchange_name = EXCHANGE_NAME
+    id = __name__
+    name = PRETTY_NAME
+    local_market_map = dict()
+    remote_market_map = dict()
 
-    COLUMNS = 4
-    MARKETS, REFRESH_RATE, ACCOUNT_USERNAME, ACCOUNT_PASSWORD = list(range(COLUMNS))
-    mappings = (("refresh rate (seconds)", REFRESH_RATE),
-                ("username", ACCOUNT_USERNAME),
-                ("password", ACCOUNT_PASSWORD),)
-    markets = ('BTC_USD',)
+    def __init__(self):
+        self.exchange_object = None
 
-    numeric_settings = (REFRESH_RATE,)
-    boolean_settings = ()
-    required_account_settings = (ACCOUNT_USERNAME, ACCOUNT_PASSWORD,)
-    hidden_settings = (ACCOUNT_PASSWORD,)
+    def getExchangeObject(self):
+        if self.exchange_object is None:
+            self.exchange_object = CampbxExchange()
+
+        return self.exchange_object
+
+    def getPrettyMarketName(self, market_id):
+        return market_id
+
+    def getWizardPage(self, wizard):
+        return CampbxWizardPage(wizard)
+
+    def refreshMarkets(self):
+        local_base_id = dojima.model.commodities.remote_model.getRemoteToLocalMap('campbx-BTC')
+        local_counter_id = dojima.model.commodities.remote_model.getRemoteToLocalMap('campbx-USD')
+
+        if ((local_base_id is None) or
+            (local_counter_id is None)): return
+
+        local_pair = local_base_id + '_' + local_counter_id
+
+        if local_pair in self.local_market_map:
+            local_map = self.local_market_map[local_pair]
+        else:
+            local_map = list()
+            self.local_market_map[local_pair] = local_map
+
+        if 'BTCUSD' not in local_map:
+            local_map.append('BTCUSD')
+
+        self.remote_market_map['BTCUSD'] = local_pair
+
+        dojima.markets.container.addExchange(self, local_pair,
+                                             local_base_id, local_counter_id)
 
 
-class _Campbx(QtCore.QObject):
-    exchange_name = EXCHANGE_NAME
+class CampbxWizardPage(QtGui.QWizardPage):
+
+    def __init__(self, parent):
+        super(CampbxWizardPage, self).__init__(parent)
+        self.setTitle(PRETTY_NAME)
+        self._is_complete = False
+
+    def checkCompleteState(self):
+        if ( len(self.username_edit.text()) < 4 or
+             len(self.password_edit.text())   < 4 or
+             self.base_combo.currentIndex() == self.counter_combo.currentIndex() ):
+            is_complete = False
+            
+        else:
+            is_complete = True
+
+        if self._is_complete is not is_complete:
+            self._is_complete = is_complete
+            self.completeChanged.emit()
+
+    def initializePage(self):
+        self.username_edit = QtGui.QLineEdit()
+        self.password_edit = QtGui.QLineEdit(echoMode=QtGui.QLineEdit.Password)
+        self.base_combo = QtGui.QComboBox()
+        self.counter_combo = QtGui.QComboBox()
+
+        new_local_button = QtGui.QPushButton(
+            QtCore.QCoreApplication.translate(PRETTY_NAME, "New Commodity",
+                                              "The label on the new "
+                                              "commodity button in the "
+                                              "new market wizard."))
+
+        button_box = QtGui.QDialogButtonBox()
+        button_box.addButton(new_local_button, button_box.ActionRole)
+
+        layout = QtGui.QFormLayout()
+        layout.addRow(QtCore.QCoreApplication.translate(PRETTY_NAME, "Username"), self.username_edit)
+        layout.addRow(QtCore.QCoreApplication.translate(PRETTY_NAME, "Password"), self.password_edit)
+        layout.addRow(QtCore.QCoreApplication.translate(PRETTY_NAME, "Local Bitcoin Commodity"), self.base_combo)
+        layout.addRow(QtCore.QCoreApplication.translate(PRETTY_NAME, "Local US Dollar Commodity"), self.counter_combo)
+        layout.addRow(button_box)
+        self.setLayout(layout)
+
+        self.base_combo.setModel(dojima.model.commodities.local_model)
+        self.counter_combo.setModel(dojima.model.commodities.local_model)
+
+        self.username_edit.editingFinished.connect(self.checkCompleteState)
+        self.password_edit.editingFinished.connect(self.checkCompleteState)
+
+        new_local_button.clicked.connect(self.showNewCommodityDialog)
+        self.username_edit.textChanged.connect(self.checkCompleteState)
+        self.password_edit.textChanged.connect(self.checkCompleteState)
+        self.base_combo.currentIndexChanged.connect(self.checkCompleteState)
+        self.counter_combo.currentIndexChanged.connect(self.checkCompleteState)
+
+        username, password = loadAccountSettings()
+        if username:
+            self.username_edit.setText(username)
+        if password:
+            self.password_edit.setText(password)
+
+        self.checkCompleteState()
+
+    def isComplete(self):
+        return self._is_complete
+
+    def nextId(self):
+        return -1
+
+    def showNewCommodityDialog(self):
+        dialog = dojima.ui.edit.commodity.NewCommodityDialog(self)
+        dialog.exec_()
+
+    def validatePage(self):
+        saveAccountSettings(self.username_edit.text(), self.password_edit.text())
+
+        local_base_id    = self.base_combo.itemData(self.base_combo.currentIndex(), QtCore.Qt.UserRole)
+        local_counter_id = self.counter_combo.itemData(self.counter_combo.currentIndex(), QtCore.Qt.UserRole)
+
+        dojima.model.commodities.remote_model.map('campbx-BTC', local_base_id)
+        dojima.model.commodities.remote_model.map('campbx-USD', local_counter_id)
+        return dojima.model.commodities.remote_model.submit()
+
+
+class CampbxExchange(QtCore.QObject, dojima.exchange.Exchange):
+    valueType = Decimal
+
+    accountChanged = QtCore.pyqtSignal(str)
     exchange_error_signal = QtCore.pyqtSignal(str)
+    
+    def __init__(self, network_manager=None, parent=None):
+        if network_manager is None:
+            network_manager = dojima.network.get_network_manager()
+        super(CampbxExchange, self).__init__(parent)
+
+        self.network_manager = network_manager
+        self.host_queue = self.network_manager.get_host_request_queue(HOSTNAME, 500)
+        self.requests = list()
+        self.replies = set()
+
+        self._ticker_refresh_rate = 16
+
+        self.account_validity_proxies = dict()
+        self.balance_proxies = dict()
+        self.ticker_proxy = dojima.data.market.TickerProxy(self)
+        self.depth_proxy = dojima.data.market.DepthProxy(self, 'BTCUSD')
+        self.ticker_clients = 0
+        self.ticker_timer = QtCore.QTimer(self)
+        self.ticker_timer.timeout.connect(self.refreshTicker)
+
+        self.account_validity_proxy = dojima.data.account.AccountValidityProxy(self)
+
+        self.base_balance_proxy = dojima.data.balance.BalanceProxy(self)
+        self.counter_balance_proxy = dojima.data.balance.BalanceProxy(self)
+
+        self.offers_model = dojima.data.offers.Model()
+        self.offer_proxy_asks = dojima.data.offers.FilterAsksModel(self.offers_model)
+        self.offer_proxy_bids = dojima.data.offers.FilterBidsModel(self.offers_model)
+                
+        self.loadAccountCredentials()
+
+    def cancelAskOffer(self, order_id, market_id=None):
+        self._cancel_offer(order_id, 'Sell')
+    
+    def cancelBidOffer(self, order_id, market_id=None):
+        self._cancel_offer(order_id, 'Buy')
+
+    def _cancel_offer(self, order_id, order_type):
+        params = {'Type' : order_type, 'OrderID' : order_id}
+        CampbxCancelOrderRequest(params, self)
+        
+    def getBalanceBaseProxy(self, market=None):
+        return self.base_balance_proxy
+
+    def getBalanceCounterProxy(self, market=None):
+        return self.counter_balance_proxy
+
+    def getDepthProxy(self, market=None):
+        return self.depth_proxy
+
+    def getOffersModelAsks(self, market=None):
+        return self.offer_proxy_asks
+
+    def getOffersModelBids(self, market=None):
+        return self.offer_proxy_bids
+    
+    def getTickerProxy(self, market=None):
+        return self.ticker_proxy
+
+    def getTickerRefreshRate(self):
+        return self._ticker_refresh_rate
+
+    def hasAccount(self, market=None):
+        return (self._username and self._password)
+
+    def loadAccountCredentials(self):
+        self._username, self._password = loadAccountSettings()
+
+    def placeAskLimitOffer(self, amount, price, market=None):
+         self._place_order(dojima.data.offers.ASK, "QuickSell", amount, price)
+
+    def placeBidLimitOffer(self, amount, price, market=None):
+        self._place_order(dojima.data.offers.BID, "QuickBuy", amount, price)
+
+    def _place_order(self, type_, mode, quantity, price):
+        params = {'TradeMode': mode, 'Quantity': str(quantity), 'Price': str(price)}
+        request = CampbxTradeRequest(params, self)
+        request.type_ = type_
+        request.price = price
+        request.quantity = quantity
 
     def pop_request(self):
         request = heapq.heappop(self.requests)[1]
         request.send()
 
+    def refreshBalance(self, market=None):
+        CampbxFundsRequest(None, self)
+    
+    def refreshDepth(self, market=None):
+        CampbxDepthRequest(self)
+
+    def refreshTicker(self, market=None):
+        CampbxTickerRequest(self)
+
+    def refreshOffers(self, market=None):
+        CampbxOrdersRequest(None, self)
+
+    def setTickerStreamState(self, state, market=None):
+        if state:
+            self.ticker_clients += 1
+            if self.ticker_timer.isActive():
+                self.ticker_timer.setInterval(self._ticker_refresh_rate * 1000)
+                return
+            logger.info("starting ticker stream")
+            self.ticker_timer.start(self._ticker_refresh_rate * 1000)
+        else:
+            if self.ticker_clients >1:
+                self.ticker_clients -= 1
+                return
+            if self.ticker_clients == 0:
+                return
+            self.ticker_clients = 0
+            logger.info("stopping ticker stream")
+            self.ticker_timer.stop()
+
+
 class _CampbxRequest(dojima.network.ExchangePOSTRequest):
+    priority = 3
+    host_priority = None
+
+    query = QtCore.QUrl().encodedQuery()
+    
+    def __init__(self, parent):
+        self.parent = parent
+        self.reply = None
+        parent.requests.append( (self.priority, self,) )
+        parent.host_queue.enqueue(self.parent, self.host_priority)
 
     def _prepare_request(self):
         self.request = dojima.network.NetworkRequest(self.url)
         self.request.setHeader(QtNetwork.QNetworkRequest.ContentTypeHeader,
                                "application/x-www-form-urlencoded")
-        query = self.parent.base_query
-        if self.data:
-            for key, value in list(self.data['query'].items()):
+        
+        
+class _CampbxPrivateRequest(_CampbxRequest):
+    priority = 2
+
+    def __init__(self, params, parent):
+        self.params = params
+        self.parent = parent
+        self.reply = None
+        parent.requests.append( (self.priority, self,) )
+        parent.host_queue.enqueue(self.parent, self.host_priority)
+
+    def _prepare_request(self):
+        self.request = dojima.network.NetworkRequest(self.url)
+        self.request.setHeader(QtNetwork.QNetworkRequest.ContentTypeHeader,
+                               "application/x-www-form-urlencoded")
+        query = QtCore.QUrl()
+        query.addQueryItem('user', self.parent._username)
+        query.addQueryItem('pass', self.parent._password)
+        if self.params:
+            for key, value in list(self.params.items()):
                 query.addQueryItem(key, value)
         self.query = query.encodedQuery()
 
-    def _extract_reply(self):
-        self.parent.replies.remove(self)
-        if self.reply.error():
-            logger.error(self.reply.errorString())
-        else:
-            if logger.isEnabledFor(logging.INFO):
-                logger.info("received reply to %s", self.url.toString())
-            raw_reply = self.reply.readAll()
-            data = json.loads(raw_reply, parse_float=Decimal, parse_int=Decimal)
-
-            if 'Error' in data:
-                self._handle_error(data['Error'])
-            else:
-                self._handle_reply(data)
-
-"""
--            elif 'Info' in data:
--                msg = str(self.reply.url().toString()) + " : " + data['Error']
--                logger.warning(msg)
--            else:
--                if self.data:
--                    self.data.update(data)
--                    self.handler(self.data)
--                else:
--                    self.handler(data)
-"""
-
-class CampbxExchangeMarket(_Campbx, dojima.exchange.Exchange):
-
-    _xticker_url = QtCore.QUrl(_BASE_URL + "xticker.php")
-
-    def __init__(self, network_manager=None, parent=None):
-        if network_manager is None:
-            network_manager = dojima.network.get_network_manager()
-        super(CampbxExchangeMarket, self).__init__(parent)
-
-        self.base_query = QtCore.QUrl()
-        self.network_manager = network_manager
-        self.host_queue = self.network_manager.get_host_request_queue(
-            HOSTNAME, 500)
-        self.requests = list()
-        self.replies = set()
-        self._ticker_proxy = dojima.data.ticker.TickerProxy(self)
-        self._ticker_clients = 0
-        self._ticker_timer = QtCore.QTimer(self)
-        self._ticker_timer.timeout.connect(self.refresh_ticker)
-        search = exchanges_model.findItems(self.exchange_name,
-                                           QtCore.Qt.MatchExactly)
-        self._model_item = search[0]
-
-    def get_ticker_proxy(self, remote_market):
-        return self._ticker_proxy
-
-    def refresh_ticker(self, remote_market=None):
-        CampbxTickerRequest(self._xticker_url, self)
-
-    def set_ticker_stream_state(self, state, remote_market=None):
-        if state is True:
-            self._ticker_clients += 1
-            refresh_rate = self._model_item.child(
-                0, self._model_item.REFRESH_RATE).text()
-            if not refresh_rate:
-                refresh_rate = 10000
-            else:
-                refresh_rate = float(refresh_rate) * 1000
-            if self._ticker_timer.isActive():
-                self._ticker_timer.setInterval(refresh_rate)
-                return
-            logger.info(QtCore.QCoreApplication.translate(
-                'CampbxExchangeMarket', "starting ticker stream"))
-            self._ticker_timer.start(refresh_rate)
-        else:
-            if self._ticker_clients >1:
-                self._ticker_clients -= 1
-                return
-            if self._ticker_clients == 0:
-                return
-            self._ticker_clients = 0
-            logger.info(QtCore.QCoreApplication.translate(
-                'CampbxExchangeMarket', "stopping ticker stream"))
-            self._ticker_timer.stop()
+        
+class CampbxDepthRequest(_CampbxRequest):
+    url = QtCore.QUrl(URL_BASE + 'xdepth.php')
+    
+    def _handle_reply(self, raw):
+        logger.debug(raw)
+        data = json.loads(raw)
+        asks = np.array(data['Asks']).transpose()
+        bids = np.array(data['Bids']).transpose()
+        
+        self.parent.depth_proxy.processDepth(asks, bids)
 
 
 class CampbxTickerRequest(_CampbxRequest):
-    def _handle_reply(self, data):
+    url = QtCore.QUrl(URL_BASE + 'xticker.php')
+
+    def _handle_reply(self, raw):
+        logger.debug(raw)
+        data = json.loads(raw, object_pairs_hook=self.object_pairs_hook)
         logger.debug(data)
-        self.parent._ticker_proxy.ask_signal.emit(Decimal(data['Best Ask']))
-        self.parent._ticker_proxy.last_signal.emit(Decimal(data['Last Trade']))
-        self.parent._ticker_proxy.bid_signal.emit(Decimal(data['Best Bid']))
+        
+        self.parent.ticker_proxy.last_signal.emit(data['Last Trade'])
+        self.parent.ticker_proxy.ask_signal.emit(data['Best Ask'])
+        self.parent.ticker_proxy.bid_signal.emit(data['Best Bid'])
 
+    def object_pairs_hook(self, pairs):
+        d = dict()
+        for key, value in pairs:
+            d[key] = Decimal(value)
+        return d
+        
+        
+"""
+class CampbxExchangeAccount(_Campbx, dojima.exchange.ExchangeAccount):
 
-class CampbxAccount(_Campbx, dojima.exchange.ExchangeAccount):
+    accountChanged = QtCore.pyqtSignal(str)
+
     _myfunds_url = QtCore.QUrl(_BASE_URL + "myfunds.php")
     _myorders_url = QtCore.QUrl(_BASE_URL + "myorders.php")
     _tradeenter_url = QtCore.QUrl(_BASE_URL + "tradeenter.php")
@@ -183,76 +391,40 @@ class CampbxAccount(_Campbx, dojima.exchange.ExchangeAccount):
     _getbtcaddr_url = QtCore.QUrl(_BASE_URL + "getbtcaddr.php")
     _sendbtc_url = QtCore.QUrl(_BASE_URL + "sendbtc.php")
 
-    BTC_USD_ready_signal = QtCore.pyqtSignal(bool)
-
     bitcoin_deposit_address_signal = QtCore.pyqtSignal(str)
     withdraw_bitcoin_reply_signal = QtCore.pyqtSignal(str)
 
     commission = Decimal('0.0055')
 
-    def __init__(self, credentials, network_manager=None, parent=None):
+    def __init__(self, exchangeObj, network_manager=None):
         if network_manager is None:
             network_manager = dojima.network.get_network_manager()
-        super(CampbxAccount, self).__init__(parent)
+        super(CampbxExchangeAccount, self).__init__(exchangeObj)
         self.base_query = QtCore.QUrl()
-        self.set_credentials(credentials)
         self.network_manager = network_manager
         self.host_queue = self.network_manager.get_host_request_queue(
             HOSTNAME, 500)
         self.requests = list()
         self.replies = set()
-        self.funds_proxies = dict()
-        self.orders_proxy = dojima.data.orders.OrdersProxy(self)
+
+        self.offers_model = dojima.data.offers.Model()
 
         self._bitcoin_deposit_address = None
 
-    def set_credentials(self, credentials):
-        self.base_query.addQueryItem('user', credentials[0])
-        self.base_query.addQueryItem('pass', credentials[1])
+        settings = QtCore.QSettings()
+        settings.beginGroup('CampBX')
+        self._username = settings.value('username')
+        self._password = settings.value('password')
 
-    def get_orders_proxy(self, remote_market=None):
-        return self.orders_proxy
+    def hasAccount(self, market=None):
+        return (self._username and self._password)
 
-    def check_order_status(self, remote_pair):
-        self.BTC_USD_ready_signal.emit(True)
+    def getOffersModel(self, market=None):
+        return self.offers_model
 
-    def refresh_ticker(self):
-        self._refresh_funds()
-
-    def refresh_funds(self):
-        CampbxFundsRequest(self._myfunds_url, self)
-
-    def refresh_orders(self):
-        CampbxOrdersRequest(self._myorders_url, self)
-
-    def place_ask_limit_order(self, pair, amount, price):
-        self._place_order("AdvancedSell", amount, price)
-    def place_bid_limit_order(self, pair, amount, price):
-        self._place_order("AdvancedBuy", amount, price)
-
-    def place_ask_market_order(self, pair, amount):
-        self._place_order("AdvancedSell", amount)
-    def place_bid_market_order(self, pair, amount):
-        self._place_order("AdvancedBuy", amount)
 
     def _place_order(self, trade_type, amount, price=None):
-        if price is None:
-            price = 'Market'
-        query = {'TradeMode': trade_type,
-                 'Quantity': amount,
-                 'Price': price}
-        data = {'query': query}
-        request = CampbxTradeRequest(self._tradeadv_url, self, data)
 
-    def cancel_ask_order(self, pair, order_id):
-        self._cancel_order(order_id, 'Sell')
-    def cancel_bid_order(self, pair, order_id):
-        self._cancel_order(order_id, 'Buy')
-
-    def _cancel_order(self, order_id, order_type):
-        data = {'query':{ 'Type' : order_type,
-                          'OrderID' : order_id }}
-        CampbxCancelOrderRequest(self._tradecancel_url, self, data)
 
     def get_bitcoin_deposit_address(self):
         if self._bitcoin_deposit_address:
@@ -270,96 +442,159 @@ class CampbxAccount(_Campbx, dojima.exchange.ExchangeAccount):
 
     def get_commission(self, amount, remote_market=None):
         return amount * self.commission
-
-class CampbxFundsRequest(_CampbxRequest):
-    def _handle_reply(self, data):
-        logger.debug(data)
-        self.parent.funds_proxies['BTC'].balance.emit(
-            Decimal(data['Liquid BTC']))
-        self.parent.funds_proxies['USD'].balance.emit(
-            Decimal(data['Liquid USD']))
+"""
 
 
-class CampbxOrdersRequest(_CampbxRequest):
-    def _handle_reply(self, data):
-        logger.debug(data)
-        asks = list()
-        bids = list()
-        for raw_orders, processed_orders in ((data['Sell'], asks),
-                                             (data['Buy'], bids)):
-            if 'Info' in raw_orders[0]:
-                continue
-            for order in raw_orders:
-                processed_orders.append((order['Order ID'],
-                                         order['Price'],
-                                         order['Quantity']))
-        self.parent.orders_proxy.asks.emit(asks)
-        self.parent.orders_proxy.bids.emit(bids)
+class CampbxFundsRequest(_CampbxPrivateRequest):
+    url = QtCore.QUrl(URL_BASE + 'myfunds.php')
+    priority = 2
+    
+    def _handle_reply(self, raw):
+        logger.debug(raw)
+        data = json.loads(raw)
+
+        value = data['Total USD']
+        value = Decimal(value)
+        self.parent.counter_balance_proxy.balance_total.emit(value)
+        
+        value = data['Total BTC']
+        value = Decimal(value)
+        self.parent.base_balance_proxy.balance_total.emit(value)
+
+        value = data['Liquid USD']
+        value = Decimal(value)
+        self.parent.counter_balance_proxy.balance_liquid.emit(value)
+
+        value = data['Liquid BTC']
+        value = Decimal(value)
+        self.parent.base_balance_proxy.balance_liquid.emit(value)
+        
+
+class CampbxOrdersRequest(_CampbxPrivateRequest):
+    url = QtCore.QUrl(URL_BASE + 'myorders.php')
+    
+    def _handle_reply(self, raw):
+        logger.debug(raw)
+        data = json.loads(raw)
+
+        self.parent.offers_model.clear()
+        row = 0
+
+        if not 'Info' in data['Buy'][0]:
+            for order in data['Buy']:
+                self.addOrder(row, order, dojima.data.offers.BID)
+                row += 1
+
+        if not 'Info' in data['Sell'][0]:
+            for order in data['Sell']:
+                self.addOrder(row, order, dojima.data.offers.ASK)
+                row += 1
+
+    def addOrder(self, row, order, type_):
+        item = QtGui.QStandardItem(order['Order ID'])
+        self.parent.offers_model.setItem(row, dojima.data.offers.ID, item)
+
+        item = QtGui.QStandardItem()
+        item.setData(Decimal(order['Price']), QtCore.Qt.UserRole)
+        self.parent.offers_model.setItem(row, dojima.data.offers.PRICE, item)
+
+        assert order['Quantity']
+        item = QtGui.QStandardItem()
+        item.setData(Decimal(order['Quantity']), QtCore.Qt.UserRole)
+        self.parent.offers_model.setItem(row, dojima.data.offers.OUTSTANDING, item)
+            
+        item = QtGui.QStandardItem(type_)
+        self.parent.offers_model.setItem(row, dojima.data.offers.TYPE, item)
 
 
-class CampbxTradeRequest(_CampbxRequest):
+class CampbxTradeRequest(_CampbxPrivateRequest):
+    url = QtCore.QUrl(URL_BASE + 'tradeenter.php')
     priority = 1
-    def _handle_reply(self, data):
-        logger.debug(data)
-        order_id = data['Success']
-        data = self.data['query']
-        amount = data['Quantity']
-        price = data['Price']
 
-        if data['TradeMode'][-4:] == 'Sell':
-            self.parent.funds_proxies['BTC'].balance_changed.emit(
-                -Decimal(data['Quantity']))
-            if order_id:
-                logger.info("ask order %s in place", order_id)
-                self.parent.orders_proxy.ask.emit((order_id, price, amount))
-        elif data['TradeMode'][-3:] == 'Buy':
-            if order_id:
-                logger.info("bid order %s in place", order_id)
-                self.parent.orders_proxy.bid.emit((order_id, price, amount,))
-            if price == 'Market':
-                price = QtCore.QCoreApplication.translate(
-                    'CampbxTradeRequest', "market", "at market price")
-            else:
-                self.parent.funds_proxies['USD'].balance_changed.emit(
-                    -(Decimal(data['Quantity']) *
-                      Decimal(data['Price'])))
+    def _handle_reply(self, raw):
+        logger.debug(raw)
+        data = json.loads(raw)
+        
+        order_id = int(data['Success'])
 
+        #TODO commissions will throw off these balance estimates
+        
+        if self.type_ is dojima.data.offers.ASK:
+            total = (- self.quantity)
+            self.parent.base_balance_proxy.balance_liquid_changed.emit(total)
 
-class CampbxCancelOrderRequest(_CampbxRequest):
+            if not order_id:
+                self.parent.base_balance_proxy.balance_total_changed.emit(total)
+                
+        elif self.type_ is dojima.data.offers.BID:
+            total = (- (self.price * self.quantity))
+            self.parent.counter_balance_proxy.balance_liquid_changed.emit(total)
+
+            if not order_id:
+                self.parent.counte_balance_proxy.balance_total_changed.emit(total)
+
+        if order_id:
+            row = self.parent.offers_model.rowCount()
+
+            item = QtGui.QStandardItem(data['Success'])
+            self.parent.offers_model.setItem(row, dojima.data.offers.ID, item)
+
+            item = QtGui.QStandardItem()
+            item.setData(self.price, QtCore.Qt.UserRole)
+            self.parent.offers_model.setItem(row, dojima.data.offers.PRICE, item)
+        
+            item = QtGui.QStandardItem()
+            item.setData(self.quantity, QtCore.Qt.UserRole)
+            self.parent.offers_model.setItem(row, dojima.data.offers.OUTSTANDING, item)        
+
+            item = QtGui.QStandardItem(self.type_)
+            self.parent.offers_model.setItem(row, dojima.data.offers.TYPE, item)
+
+                
+class CampbxCancelOrderRequest(_CampbxPrivateRequest):
+    url = QtCore.QUrl(URL_BASE + 'tradecancel.php')
     priority = 0
-    def _handle_reply(self, data):
-        logger.debug(data)
+    
+    def _handle_reply(self, raw):
+        logger.debug(raw)
+        data = json.loads(raw)
+
         words = data['Success'].split()
         order_id = words[2]
-        order_type = self.data['query']['Type']
-        if order_type == 'Sell':
-            self.parent.orders_proxy.ask_cancelled.emit(order_id)
-            logger.info("ask order %s cancelled", order_id)
-        elif order_type == 'Buy':
-            self.parent.orders_proxy.bid_cancelled.emit(order_id)
-            logger.debug("bid order %s cancelled", order_id)
+        search = self.parent.offers_model.findItems(order_id)
+        for item in search:
+            self.parent.offers_model.removeRow(item.row())
 
-
-class CampbxBitcoinAddressRequest(_CampbxRequest):
+class CampbxBitcoinAddressRequest(_CampbxPrivateRequest):
+    url = QtCore.QUrl(URL_BASE + 'getbtcaddr.php')
     priority = 2
-    def _handle_reply(self, data):
+    
+    def _handle_reply(self, raw):
+        logger.debug(raw)
+        data = json.loads(raw)
+        
         logger.debug(data)
         address = data['Success']
         self.parent._bitcoin_deposit_address = address
         self.parent.bitcoin_deposit_address_signal.emit(address)
 
 
-class CampbxWithdrawBitcoinRequest(_CampbxRequest):
+class CampbxWithdrawBitcoinRequest(_CampbxPrivateRequest):
     priority = 2
-    def _handle_reply(self, data):
-        logger.debug(data)
+    
+    def _handle_reply(self, raw):
+        logger.debug(raw)
+        data = json.loads(raw)
+
         transaction = data['Success']
         reply = QtCore.QCoreApplication.translate(
             "CampbxWithdrawBitcoinRequest", "transaction id: {}")
         self.parent.withdraw_bitcoin_reply_signal.emit(
             reply.format(transaction))
 
+def parse_markets():
+    if 'campbx' in dojima.exchanges.container: return
+    exchange_proxy = CampbxExchangeProxy()
+    dojima.exchanges.container.addExchange(exchange_proxy)
 
-dojima.exchange.register_exchange(CampbxExchangeMarket)
-dojima.exchange.register_account(CampbxAccount)
-dojima.exchange.register_exchange_model_item(CampbxExchangeItem)
+parse_markets()

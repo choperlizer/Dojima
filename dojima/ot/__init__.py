@@ -1,5 +1,5 @@
 # Dojima, a markets client.
-# Copyright (C) 2012  Emery Hemingway
+# Copyright (C) 2012-2013  Emery Hemingway
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -15,6 +15,65 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import otapi
-#from PyQt4 import QtCore, QtGui
+from PyQt4 import QtCore
 
-objEasy = otapi.OTMadeEasy()
+
+class _OTRequestThread(QtCore.QThread):
+
+    objEasy = otapi.OTMadeEasy()
+
+    def __init__(self, parent=None):
+        super(_OTRequestThread, self).__init__(parent)
+
+        self.mutex = QtCore.QMutex()
+        self.requestAdded = QtCore.QWaitCondition()
+        self.requests = list()
+
+        self.start()
+
+    def __del__(self):
+        self.mutex.lock()
+        while self.requests:
+            request = self.requests.pop(0)
+            del request
+        self.requests.append(None)
+        self.requestAdded.wakeOne()
+
+        self.wait()
+        otapi.OTAPI_Basic_AppShutdown()
+
+    def addRequest(self, requestObject):
+        locker = QtCore.QMutexLocker(self.mutex)
+        self.requests.append( (requestObject.priority, requestObject,) )
+        self.requestAdded.wakeOne()
+
+    def run(self):
+        otapi.OTAPI_Basic_AppStartup()
+        otapi.OTAPI_Basic_Init()
+        otapi.OTAPI_Basic_LoadWallet()
+
+        while True:
+            self.mutex.lock()
+            if len(self.requests) == 0:
+                self.requestAdded.wait(self.mutex)
+
+            request = heapq.heappop(self.requests)[1]
+            self.mutex.unlock()
+
+            request.exec_(self.objEasy)
+            request.deleteLater()
+
+
+class OpenTxsAccessManager(QtCore.QObject):
+
+    thread = _OTRequestThread()
+
+    def __init__(self, parent=None):
+        super(OpenTxsAccessManager, self).__init__(parent)
+
+    def request(self, requestObject):
+        #print "queuing", requestObject.priority, requestObject
+        #self.queueRequest.emit( (requestObject.priority, requestObject,) )
+        #return requestObject.getReply()
+
+        self.thread.addRequest(requestObject)

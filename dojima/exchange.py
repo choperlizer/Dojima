@@ -1,5 +1,5 @@
 # Dojima, a markets client.
-# Copyright (C) 2012  Emery Hemingway
+# Copyright (C) 2012-2013  Emery Hemingway
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -14,7 +14,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-from PyQt4 import QtCore
+from PyQt4 import QtCore, QtGui
 
 import dojima.data.account
 import dojima.data.balance
@@ -44,18 +44,11 @@ class ExchangeProxy:
     def nextPage(self, wizard):
         raise NotImplementedError
 
+    
 class Exchange:
 
     def echoTicker(self, remoteMarketID):
         pass
-
-    def pop_request(self):
-        request = heapq.heappop(self._requests)
-        request.send()
-        self._replies.add(request)
-
-    def getAccountObject(self):
-        raise NotImplementedError
 
     def getAccountValidityProxy(self, marketID):
         if marketID not in self.account_validity_proxies:
@@ -64,12 +57,32 @@ class Exchange:
             return validity_proxy
         return self.account_validity_proxies[marketID]
 
-    def getFactors(self, remoteMarketID):
-        raise NotImplementedError
+    def getBalanceProxy(self, symbol):
+        if symbol not in self.funds_proxies:
+            proxy = dojima.data.funds.BalanceProxy(self)
+            self.funds_proxies[symbol] = proxy
+            return proxy
 
-    def getPower(self, remoteMarketID):
-        raise NotImplementedError
+        return self.funds_proxies[symbol]
 
+    def getOffersModelAsks(self, market_id):
+        if market_id in self.offers_proxies_asks:
+            return self.offers_proxies_asks[market_id]
+
+        base_model = self.getOffersModel(market_id)
+        asks_model = dojima.data.offers.FilterAsksModel(base_model)
+        self.offers_proxies_asks[market_id] = asks_model
+        return asks_model
+
+    def getOffersModelBids(self, market_id):
+        if market_id in self.offers_proxies_bids:
+            return self.offers_proxies_bids[market_id]
+
+        base_model = self.getOffersModel(market_id)
+        bids_model = dojima.data.offers.FilterBidsModel(base_model)
+        self.offers_proxies_bids[market_id] = bids_model
+        return bids_model
+        
     def getScale(self, remoteMarketID):
         return 1
 
@@ -80,63 +93,51 @@ class Exchange:
             return ticker_proxy
         return self.ticker_proxies[market_id]
 
-    def getDepthProxy(self, remoteMarketID):
-        raise NotImplementedError
+    def getTickerRefreshRate(self, market=None):
+        return self._ticker_exchange_rate
 
-    def hasDefaultAccount(self, remoteMarketID):
-        raise NotImplementedError
+    def getOffersModel(self, market_id):
+        if self.offers_model is None:
+            self.offers_model = dojima.data.offers.Model()
 
-    def populateMenuBar(self, menu, remoteMarketID):
-        pass
+        if market_id in self.offers_proxies:
+            return self.offers_proxies[market_id]
 
-    def setTickerStreamState(self, state, remoteMarketID):
-        raise NotImplementedError
+        base_symbol, counter_symbol = self.getMarketSymbols(market_id)
+        if base_symbol in self.base_offers_proxies:
+            base_proxy = self.base_offers_proxies[base_symbol]
+        else:
+            base_proxy = QtGui.QSortFilterProxyModel()
+            base_proxy.setSourceModel(self.offers_model)
+            base_proxy.setFilterKeyColumn(dojima.data.offers.BASE)
+            base_proxy.setFilterFixedString(base_symbol)
+            base_proxy.setDynamicSortFilter(True)
+            self.base_offers_proxies[base_symbol] = base_proxy
 
-
-class ExchangeAccount:
+        proxy = QtGui.QSortFilterProxyModel()
+        proxy.setSourceModel(base_proxy)
+        proxy.setFilterKeyColumn(dojima.data.offers.COUNTER)
+        proxy.setFilterFixedString(counter_symbol)
+        proxy.setDynamicSortFilter(True)
+        self.offers_proxies[market_id] = proxy
+        return proxy
 
     def pop_request(self):
         request = heapq.heappop(self._requests)
         request.send()
         self._replies.add(request)
 
-    def cancelAskOffer(self, offerId, remoteMarketID):
-        raise NotImplementedError
-
-    def cancelBidOffer(self, offerId, remoteMarketID):
-        raise NotImplementedError
-
-    def getCommission(self, remoteMarketID, amount):
-        raise NotImplementedError
-
-    def getBalanceProxy(self, symbol):
-        if symbol not in self.funds_proxies:
-            proxy = dojima.data.funds.BalanceProxy(self)
-            self.funds_proxies[symbol] = proxy
-            return proxy
-
-        return self.funds_proxies[symbol]
-
-    def getOffersProxy(self, remote_market):
-        if remote_market not in self.offers_proxies:
-            offers_proxy = dojima.data.offers.OffersProxy(self)
-            self.offers_proxies[remote_market] = offers_proxy
-            return offers_proxy
-
-        return self.offers_proxies[remote_market]
-
-    def refresh(self, marketId):
+    def populateMenuBar(self, menu, remoteMarketID):
+        pass
+        
+    def refresh(self, market_id):
         self.refreshOffers()
-        self.refreshBalance()
+        self.refreshBalance(market_id)
+        
+    def setTickerRefreshRate(self, rate):
+        self._ticker_refresh_rate = rate
+        if self.ticker_timer.isActive():
+            self.ticker_timer.setInterval(self._ticker_refresh_rate * 1000)
 
-    def refreshBalance(self):
-        raise NotImplementedError
 
-    def refreshOffers(self):
-        raise NotImplementedError
-
-    def placeAskLimitOffer(self, remoteMarketID, amount, price):
-        raise NotImplementedError
-
-    def placeBidLimitOffer(self, remoteMarketID, amount, price):
-        raise NotImplementedError
+        

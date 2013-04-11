@@ -17,6 +17,8 @@
 import logging
 import time
 
+from decimal import Decimal
+
 import matplotlib.dates
 import numpy as np
 from PyQt4 import QtCore, QtGui
@@ -29,9 +31,14 @@ logger = logging.getLogger(__name__)
 
 class TickerProxy(QtCore.QObject):
 
-    ask_signal = QtCore.pyqtSignal(int)
     last_signal = QtCore.pyqtSignal(int)
+    ask_signal = QtCore.pyqtSignal(int)
     bid_signal = QtCore.pyqtSignal(int)
+
+
+    last_signal = QtCore.pyqtSignal(Decimal)
+    ask_signal = QtCore.pyqtSignal(Decimal)
+    bid_signal = QtCore.pyqtSignal(Decimal)
 
 
 class _StatsProxy(QtCore.QObject):
@@ -50,14 +57,24 @@ class DepthProxy(_StatsProxy):
         self.exchange_obj.refreshDepth(self.market_id)
 
     def processDepth(self, asks, bids):
-        "depth data should be asks(prices, amounts), bids(prices, amounts)"
+        """depth data should be asks(prices, amounts), bids(prices, amounts)"""
+        time_start = time.time()
         price_steps = list()
         volume_sums = list()
         step_size = 0.001
 
+        if not (bids.any() and asks.any()):
+            return
+
+        max_bid_vol = bids[1].max()
+        max_ask_vol = asks[1].max()
+        if max_bid_vol < max_ask_vol:
+            max_vol = max_bid_vol
+        else:
+            max_vol = max_ask_vol
+
         #bids
-        if bids:
-            bids = np.array(bids).transpose()
+        if bids.any():
             prices = bids[0]
             volumes = bids[1]
             floor = prices.max()
@@ -70,12 +87,11 @@ class DepthProxy(_StatsProxy):
                 price_steps.append(floor)
                 volume_sums.append(volumes[array_mask].sum())
 
-            price_steps.reverse()
-            volume_sums.reverse()
+        price_steps.reverse()
+        volume_sums.reverse()
 
         # asks
-        if asks:
-            asks = np.array(asks).transpose()
+        if asks.any():
             prices = asks[0]
             volumes = asks[1]
             ceiling = prices.min()
@@ -88,8 +104,21 @@ class DepthProxy(_StatsProxy):
                 price_steps.append(ceiling)
                 volume_sums.append(volumes[array_mask].sum())
 
+        #Trim the table
+        if bids.any() and asks.any():
+            bid_max_vol = bids[1].max()
+            ask_max_vol = asks[1].max()
+        if bid_max_vol < ask_max_vol:
+            max_vol = bid_max_vol
+        else:
+            max_vol = ask_max_vol
+
         self.depth = np.array((price_steps, volume_sums)).transpose()
+        
+        time_stop = time.time()
+        logger.info("Depth table processed in %f seconds.", time_stop - time_start)
         self.refreshed.emit(self.depth)
+        
 
 
 """

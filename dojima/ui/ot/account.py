@@ -22,7 +22,7 @@ from PyQt4 import QtCore, QtGui
 import dojima.model.ot.nyms
 import dojima.model.ot.accounts
 
-from dojima.ot import objEasy
+objEasy = None
 
 logger = logging.getLogger(__name__)
 

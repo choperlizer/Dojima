@@ -24,7 +24,7 @@ import dojima.ui.ot.nym
 import dojima.ui.ot.views
 import dojima.ui.widget
 
-from dojima.ot import objEasy
+objEasy = None
 
 logger = logging.getLogger(__name__)
 

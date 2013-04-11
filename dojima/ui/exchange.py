@@ -1,5 +1,5 @@
 # Dojima, a markets client.
-# Copyright (C) 2012  Emery Hemingway
+# Copyright (C) 2012-2013  Emery Hemingway
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -15,12 +15,12 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import logging
+from decimal import Decimal
 
 from PyQt4 import QtCore, QtGui
 
 import dojima.ui.chart
 import dojima.ui.widget
-#import dojima.model.orders
 import dojima.model.commodities
 
 logger =  logging.getLogger(__name__)
@@ -60,16 +60,14 @@ class ExchangeDockWidget(QtGui.QDockWidget, ErrorHandling):
 
         self.remote_market = marketID
 
-        self.account_obj = None
-        self.exchange_obj = exchangeProxy.getExchangeObject()
+        self.exchange = exchangeProxy.getExchangeObject()
         self.enable_exchange_action = action
 
         # get our display parameters
-        self.base_factor, self.counter_factor = self.exchange_obj.getFactors(
-            self.remote_market)
-        self.base_power, self.counter_power = self.exchange_obj.getPowers(
-            self.remote_market)
-        self.scale = self.exchange_obj.getScale(self.remote_market)
+        if self.exchange.valueType is int:
+            self.base_factor, self.counter_factor = self.exchange.getFactors(self.remote_market)
+            self.base_power, self.counter_power = self.exchange.getPowers(self.remote_market)
+            self.scale = self.exchange.getScale(self.remote_market)
 
         self.base_precision = dojima.model.commodities.local_model.item(
             self.base_row, dojima.model.commodities.local_model.PRECISION).text()
@@ -85,89 +83,309 @@ class ExchangeDockWidget(QtGui.QDockWidget, ErrorHandling):
         else:
             self.counter_precision = int(self.counter_precision)
 
-
-        #Widgets
-        self.widget = QtGui.QWidget(self)
-        side_layout = QtGui.QVBoxLayout()
+        side_layout = QtGui.QGridLayout()
         label_font = QtGui.QFont()
         label_font.setPointSize(7)
 
-        row = 1
+        row = 0
         for translation, stat in (
-            (QtCore.QCoreApplication.translate(
-                'ExchangeDockWidget', "last", "price of last trade"), 'last'),
-            (QtCore.QCoreApplication.translate(
-                'ExchangeDockWidget', "ask", "best ask price"), 'ask'),
-            (QtCore.QCoreApplication.translate(
-                'ExchangeDockWidget', "bid", "best bid price"), 'bid')):
+            (QtCore.QCoreApplication.translate('ExchangeDockWidget', "ask", "best ask price"), 'ask'),
+            (QtCore.QCoreApplication.translate('ExchangeDockWidget', "last", "price of last trade"), 'last'),
+            (QtCore.QCoreApplication.translate('ExchangeDockWidget', "bid", "best bid price"), 'bid')):
 
             label = QtGui.QLabel(translation)
             label.setAlignment(QtCore.Qt.AlignRight)
             label.setFont(label_font)
-            widget = dojima.ui.widget.AssetLCDWidget(
-                factor=self.counter_factor)
+            
+            if self.exchange.valueType is int:
+                widget = dojima.ui.widget.LCDIntWidget(factor=self.counter_factor, power=self.counter_power)
+            elif self.exchange.valueType is Decimal:
+                widget = dojima.ui.widget.LCDDecimalWidget()
+            else:
+                raise NotImplementedError("{} is not a supported exchange.valueType".format(exchange.valueType))
+                    
             setattr(self, '{}_widget'.format(stat), widget)
-            side_layout.addWidget(label)
-            side_layout.addWidget(widget)
-            side_layout.setStretch(row, 1)
-            row += 2
+            side_layout.addWidget(label,  row, 0, 1, 2)
+            row += 1
+            side_layout.addWidget(widget, row, 0, 1, 2)
+            side_layout.setRowStretch(row, 1)
+            row += 1
+
+        refresh_label = QtGui.QLabel(QtCore.QCoreApplication.translate('ExchangeDockWidget', "refresh rate:", 
+                                                                        "ticker refresh rate"))
+        refresh_label.setAlignment(QtCore.Qt.AlignRight)
+        refresh_spin = QtGui.QSpinBox(maximum=3600, minimum=4,
+            prefix=QtCore.QCoreApplication.translate('ExchangeDockWidget', "", "The prefix before the number in the "
+                                                                                "refresh rate spin box"),
+            suffix=QtCore.QCoreApplication.translate('ExchangeDockWidget', "s", "The suffix after the number in the "
+                                                                                "refresh rate spin box") )
+        refresh_spin.valueChanged[int].connect(self.exchange.setTickerRefreshRate)
+        refresh_spin.setValue(self.exchange.getTickerRefreshRate())
+        side_layout.addWidget(refresh_label, row, 0)
+        side_layout.addWidget(refresh_spin,  row, 1)
 
         self.menu_bar = ExchangeDockWidgetMenuBar(self)
-        if hasattr(self.exchange_obj, 'getDepthProxy'):
+        if hasattr(self.exchange, 'getDepthProxy'):
             self.menu_bar.addDepthChartAction()
-        if hasattr(self.exchange_obj, 'getTradesProxy'):
+        if hasattr(self.exchange, 'getTradesProxy'):
             self.menu_bar.addTradesChartAction()
+
+        # account UI
+        account_layout = QtGui.QGridLayout()
+
+        # get the prefixi and suffixi
+        base_prefix = dojima.model.commodities.local_model.item(
+            self.base_row, dojima.model.commodities.local_model.PREFIX).text()
+        counter_prefix = dojima.model.commodities.local_model.item(
+            self.counter_row, dojima.model.commodities.local_model.PREFIX).text()
+
+        base_suffix = dojima.model.commodities.local_model.item(
+            self.base_row, dojima.model.commodities.local_model.SUFFIX).text()
+        counter_suffix = dojima.model.commodities.local_model.item(
+            self.counter_row, dojima.model.commodities.local_model.SUFFIX).text()
+
+        if self.exchange.valueType is int:
+            self.base_balance_total_label    = dojima.ui.widget.AssetAmountIntView(factor=self.base_factor)
+            self.counter_balance_total_label = dojima.ui.widget.AssetAmountIntView(factor=self.counter_factor)
+            
+            self.base_balance_liquid_label    = dojima.ui.widget.AssetAmountIntView(factor=self.base_factor)
+            self.counter_balance_liquid_label = dojima.ui.widget.AssetAmountIntView(factor=self.counter_factor)
+
+            self.amount_spin   = dojima.ui.widget.AssetIntSpinBox(factor=self.base_factor, power=self.base_power, 
+                                                                  scale=self.scale)
+            self.price_spin    = dojima.ui.widget.AssetIntSpinBox(factor=self.counter_factor, power=self.counter_power)
+            self.estimate_view = dojima.ui.widget.AssetAmountIntView(factor=self.counter_factor)
+
+            self.ask_price_delegate = dojima.ui.widget.OfferItemIntDelegate(prefix=counter_prefix, suffix=counter_suffix,
+                                                                            factor=self.counter_factor)
+            self.bid_price_delegate = dojima.ui.widget.OfferItemIntDelegate(prefix=counter_prefix, suffix=counter_suffix,
+                                                                            factor=self.counter_factor)
+
+            self.ask_outstanding_delegate = dojima.ui.widget.OfferItemIntDelegate(prefix=base_prefix, suffix=base_suffix,
+                                                                                  factor=self.base_factor)
+            self.bid_outstanding_delegate = dojima.ui.widget.OfferItemIntDelegate(prefix=base_prefix, suffix=base_suffix,
+                                                                                  factor=self.base_factor)
+
+        elif self.exchange.valueType is Decimal:
+            self.base_balance_total_label    = dojima.ui.widget.AssetAmountDecimalView()
+            self.counter_balance_total_label = dojima.ui.widget.AssetAmountDecimalView()
+
+            self.base_balance_liquid_label    = dojima.ui.widget.AssetAmountDecimalView()
+            self.counter_balance_liquid_label = dojima.ui.widget.AssetAmountDecimalView()
+
+            self.amount_spin = dojima.ui.widget.AssetDecimalSpinBox()
+            self.price_spin = dojima.ui.widget.AssetDecimalSpinBox()
+            self.estimate_view = dojima.ui.widget.AssetAmountDecimalView()
+
+            self.ask_price_delegate = dojima.ui.widget.OfferItemDecimalDelegate(prefix=counter_prefix, suffix=counter_suffix)
+            self.bid_price_delegate = dojima.ui.widget.OfferItemDecimalDelegate(prefix=counter_prefix, suffix=counter_suffix)
+
+            self.ask_outstanding_delegate = dojima.ui.widget.OfferItemDecimalDelegate(prefix=base_prefix, suffix=base_suffix)
+            self.bid_outstanding_delegate = dojima.ui.widget.OfferItemDecimalDelegate(prefix=base_prefix, suffix=base_suffix)
+            
+        else:
+            raise NotImplementedError("{} is not a supported exchange.valueType".format(exchange.valueType))
+
+        self.estimate_view.setDisabled(True)
+                
+        refresh_balance_action = QtGui.QAction(
+            QtCore.QCoreApplication.translate('ExchangeDockWidget',
+                                              "&refresh balance"),
+            self, triggered=self.refreshBalance)
+
+        balance_font = QtGui.QFont()
+        balance_font.setPointSize(13)
+        for label in (self.base_balance_total_label, self.counter_balance_total_label,
+                      self.base_balance_liquid_label, self.counter_balance_liquid_label):
+            label.setAlignment(QtCore.Qt.AlignHCenter)
+            label.setFont(balance_font)
+            label.setContextMenuPolicy(QtCore.Qt.ActionsContextMenu)
+            label.addAction(refresh_balance_action)
+
+        if base_prefix:
+            for widget in (self.base_balance_total_label, self.base_balance_liquid_label, self.amount_spin):
+                widget.setPrefix(base_prefix)
+
+        if base_suffix:
+            for widget in (self.base_balance_total_label, self.base_balance_liquid_label, self.amount_spin):
+                widget.setSuffix(base_suffix)
+
+        if counter_prefix:
+            for widget in (self.counter_balance_total_label,
+                           self.counter_balance_liquid_label,
+                           self.price_spin,
+                           self.estimate_view):
+                widget.setPrefix(counter_prefix)
+
+        if counter_suffix:
+            for widget in (self.counter_balance_total_label,
+                           self.counter_balance_liquid_label,
+                           self.price_spin,
+                           self.estimate_view):
+                widget.setSuffix(counter_suffix)
+
+        offer_button = QtGui.QPushButton(
+            QtCore.QCoreApplication.translate('ExchangeDockWidget', "offer",
+                                              "as in place offer"))
+        offer_button_menu = QtGui.QMenu()
+        offer_ask_action = QtGui.QAction(
+            QtCore.QCoreApplication.translate('ExchangeDockWidget', "Ask"),
+            offer_button)
+        offer_bid_action = QtGui.QAction(
+            QtCore.QCoreApplication.translate('ExchangeDockWidget', "Bid"),
+            offer_button)
+
+        offer_button_menu.addAction(offer_ask_action)
+        offer_button_menu.addAction(offer_bid_action)
+        offer_button.setMenu(offer_button_menu)
+
+        at_seperator = QtCore.QCoreApplication.translate('ExchangeDockWidget',
+                                                         "@", "amount @ price")
+
+        account_layout.addWidget(self.base_balance_total_label, 0,0)
+        account_layout.addWidget(self.counter_balance_total_label, 0,1)
+        account_layout.addWidget(self.base_balance_liquid_label, 1,0)
+        account_layout.addWidget(self.counter_balance_liquid_label, 1,1)
+        
+
+        sublayout = QtGui.QFormLayout()
+
+        sublayout.addRow(
+            QtCore.QCoreApplication.translate('ExchangeDockWidget',
+                                              "Amount:",
+                                              "The offer amount label."),
+            self.amount_spin)
+
+        sublayout.addRow(
+            QtCore.QCoreApplication.translate('ExchangeDockWidget',
+                                              "Price:",
+                                              "The offer price label."),
+            self.price_spin)
+
+        #TODO disable the offer menu actions when bid is higher than ask and so on
+        # also disable the actions when either price or amount is 0
+
+        account_layout.addLayout(sublayout, 2,0, 2,2)
+
+        account_layout.addWidget(offer_button, 4,0)
+        account_layout.addWidget(self.estimate_view, 4,1)
+
+        for spin in (self.amount_spin, self.price_spin):
+            spin.setMaximum(999999)
+
+        self.ask_offers_view = dojima.ui.widget.OffersView()
+        account_layout.addWidget(self.ask_offers_view, 5,0, 1,2)
+
+        self.bid_offers_view = dojima.ui.widget.OffersView()
+        account_layout.addWidget(self.bid_offers_view, 6,0, 1,2)
+
+
+        self.ask_offers_view.setItemDelegateForColumn(dojima.data.offers.PRICE, self.ask_price_delegate)
+        self.bid_offers_view.setItemDelegateForColumn(dojima.data.offers.PRICE, self.bid_price_delegate)
+        self.ask_offers_view.setItemDelegateForColumn(dojima.data.offers.OUTSTANDING, self.ask_outstanding_delegate)
+        self.bid_offers_view.setItemDelegateForColumn(dojima.data.offers.OUTSTANDING, self.bid_outstanding_delegate)
+
+        for view in self.ask_offers_view, self.bid_offers_view:
+            view.setSelectionMode(QtGui.QListView.SingleSelection)
+            view.setSelectionBehavior(QtGui.QListView.SelectRows)
+            view.setShowGrid(False)
+            view.verticalHeader().hide()
+            view.setContextMenuPolicy(QtCore.Qt.ActionsContextMenu)
+
+
+            #base_offer_delegate = dojima.ui.widget.OfferItemDelegate(
+            #    factor=self.base_factor,
+            #    prefix=base_prefix, suffix=base_suffix)
+            #view.setItemDelegateForColumn(dojima.data.offers.OUTSTANDING,
+            #                              base_offer_delegate)
+
+        #Refresh offers action
+        refresh_offers_action = QtGui.QAction(
+            "&refresh offers", self, triggered=self.exchange.refreshOffers)
+        #Cancel offer action
+        cancel_ask_action = QtGui.QAction(QtCore.QCoreApplication.translate('ExchangeDockWidget', "&cancel ask offer"),
+                                          self, triggered=self.cancelAsk)
+
+        self.ask_offers_view.addAction(cancel_ask_action)
+        self.ask_offers_view.addAction(refresh_offers_action)
+        cancel_bid_action = QtGui.QAction(QtCore.QCoreApplication.translate('ExchangeDockWidget', "&cancel bid offer"),
+                                          self, triggered=self.cancelBid)
+
+        self.bid_offers_view.addAction(cancel_bid_action)
+        self.bid_offers_view.addAction(refresh_offers_action)
+
+        # inter-widget connections
+        self.amount_spin.editingFinished.connect(self.offerChanged)
+        self.price_spin.editingFinished.connect(self.offerChanged)
+
+        # Connect to account
+        # these are remote ids, not local
+        self.exchange.accountChanged.connect(self.setAccounts)
+
+        self.exchange.exchange_error_signal.connect(
+            self.exchange_error_handler)
+
+        offer_ask_action.triggered.connect(self.placeAskLimit)
+        offer_bid_action.triggered.connect(self.placeBidLimit)
 
         self.layout = QtGui.QHBoxLayout()
         self.layout.setMenuBar(self.menu_bar)
         self.layout.addLayout(side_layout)
-        self.widget.setLayout(self.layout)
-        self.setWidget(self.widget)
+        self.layout.addLayout(account_layout)
+        self.layout.setStretchFactor(side_layout, 1)
+        self.layout.setStretchFactor(account_layout, 4)
+        widget = QtGui.QWidget(self)
+        widget.setLayout(self.layout)
+        self.setWidget(widget)
 
         # Exchanges may store a reference to this menu and update it
-        self.exchange_obj.populateMenuBar(self.menu_bar, self.remote_market)
+        self.exchange.populateMenuBar(self.menu_bar, self.remote_market)
 
-        proxy = self.exchange_obj.getAccountValidityProxy(self.remote_market)
-        proxy.accountValidityChanged.connect(self.enableAccount)
+        #proxy = self.exchange.getAccountValidityProxy(self.remote_market)
+        #proxy.accountValidityChanged.connect(self.setEnabled)
+
+        self.setAccounts(self.remote_market)
+
+    def placeAskLimit(self):
+        amount = self.amount_spin.value()
+        price = self.price_spin.value()
+
+        dialog = AskOfferConfirmationDialog(self.amount_spin.text(),
+                                            self.price_spin.text(),
+                                            self)
+        if dialog.exec_():
+            self.exchange.placeAskLimitOffer(amount, price, self.remote_market)
+
+
+    def placeBidLimit(self):
+        amount = self.amount_spin.value()
+        price = self.price_spin.value()
+
+        dialog = BidOfferConfirmationDialog(self.amount_spin.text(),
+                                            self.price_spin.text(),
+                                            self)
+        if dialog.exec_():
+            self.exchange.placeBidLimitOffer(amount, price, self.remote_market)
+
+    def cancelAsk(self):
+        row = self.ask_offers_view.currentIndex().row()
+        index = self.asks_model.index(row, dojima.data.offers.ID)
+        offer_id = self.asks_model.data(index)
+        if offer_id:
+            self.exchange.cancelAskOffer(offer_id, self.remote_market)
+
+    def cancelBid(self):
+        row = self.bid_offers_view.currentIndex().row()
+        index = self.bids_model.index(row, dojima.data.offers.ID)
+        offer_id = self.bids_model.data(index)
+        if offer_id:
+            self.exchange.cancelBidOffer(offer_id, self.remote_market)
 
     def changeMarket(self, market_id):
-        self.exchange_obj.setTickerStreamState(self.remote_market, False)
+        self.exchange.setTickerStreamState(self.remote_market, False)
         self.remote_market = marked_id
-        self.exchange_obj.setTickerStreamState(self.remote_market, True)
-        self.exchange_obj.echoTicker(self.remote_market)
-
-    def enableAccount(self, enable):
-        if enable and (self.account_obj is None):
-            self.createAccountWidget()
-            return
-
-        if self.account_widget:
-            self.account_widget.enableAccount(enable)
-
-    def enableExchange(self, enable):
-        self.setEnabled(enable)
-        self.setVisible(enable)
-        self.set_signal_connection_state(enable)
-        self.exchange_obj.setTickerStreamState(enable, self.remote_market)
-        if self.account_obj:
-            self.account_widget.enableAccount(enable)
-
-        if enable:
-            self.exchange_obj.echoTicker(self.remote_market)
-
-            if self.account_obj is None:
-                self.createAccountWidget()
-        # this model is gone for now, rewrite this when there is an active
-        # exchange markets model
-        """
-        market_item = self.exchange_item.child(0, self.exchange_item.MARKETS)
-        enable_item = market_item.child(self.market_row,
-                                        self.exchange_item.MARKET_ENABLE)
-        if enable:
-            enable_item.setText("true")
-        else:
-            enable_item.setText("false")
-        """
+        self.exchange.setTickerStreamState(self.remote_market, True)
+        self.exchange.echoTicker(self.remote_market)
 
     def closeEvent(self, event):
         self.enableExchange(False)
@@ -175,20 +393,75 @@ class ExchangeDockWidget(QtGui.QDockWidget, ErrorHandling):
         self.enable_exchange_action.setChecked(False)
         event.accept()
 
-    def createAccountWidget(self):
-        # try and make the menus pop up when they are needed
-        #if not self.exchange_obj.hasAccount(self.remote_market):
-        #    return
-        self.account_obj = self.exchange_obj.getAccountObject()
-        self.account_widget = AccountWidget(self.account_obj, self)
-        self.layout.addWidget(self.account_widget)
+    def enableExchange(self, enable):
+        self.setEnabled(enable)
+        self.setVisible(enable)
+        self.set_signal_connection_state(enable)
+        self.exchange.setTickerStreamState(enable, self.remote_market)
+
+        if enable:
+            self.exchange.echoTicker(self.remote_market)
+
+    def setAccounts(self, market_id):
+        if not self.exchange.hasAccount(market_id):
+            return
+
+        if hasattr(self, 'base_balance_proxy'):
+            self.base_balance_proxy.balance_total_changed.disconnect(self.base_balance_total_label.change_value)
+            self.base_balance_proxy.balance_liquid_changed.disconnect(self.base_balance_liquid_label.change_value)
+            
+        if hasattr(self, 'counter_balance_proxy'):
+            self.counter_balance_total_proxy.balance_changed.disconnect(self.counter_balance_total_label.change_value)
+            self.counter_balance_liquid_proxy.balance_changed.disconnect(self.counter_balance_liquid_label.change_value)
+
+        self.base_balance_proxy = self.exchange.getBalanceBaseProxy(self.remote_market)
+        self.base_balance_proxy.balance_total.connect(self.base_balance_total_label.setValue)
+        self.base_balance_proxy.balance_liquid.connect(self.base_balance_liquid_label.setValue)
+        self.base_balance_proxy.balance_total_changed.connect(self.base_balance_total_label.changeValue)
+        self.base_balance_proxy.balance_liquid_changed.connect(self.base_balance_liquid_label.changeValue)
+
+        self.counter_balance_proxy = self.exchange.getBalanceCounterProxy(self.remote_market)
+        self.counter_balance_proxy.balance_total.connect(self.counter_balance_total_label.setValue)
+        self.counter_balance_proxy.balance_liquid.connect(self.counter_balance_liquid_label.setValue)
+        self.counter_balance_proxy.balance_total_changed.connect(self.counter_balance_total_label.changeValue)
+        self.counter_balance_proxy.balance_liquid_changed.connect(self.counter_balance_liquid_label.changeValue)
+
+        self.asks_model = self.exchange.getOffersModelAsks(self.remote_market)
+        self.bids_model = self.exchange.getOffersModelBids(self.remote_market)
+
+        self.ask_offers_view.setModel(self.asks_model)
+        self.bid_offers_view.setModel(self.bids_model)
+        self.ask_offers_view.hideColumns()
+        self.bid_offers_view.hideColumns()
+
+        self.asks_model.dataChanged.connect(self.ask_offers_view.hideColumns)
+        self.bids_model.dataChanged.connect(self.bid_offers_view.hideColumns)
+ 
+        self.exchange.refresh(self.remote_market)       
+
+    def offerChanged(self):
+        amount = self.amount_spin.value()
+        if not amount: return
+        price = self.price_spin.value()
+        if not price: return
+
+        estimate = amount * price
+        if hasattr(self.exchange, 'getCommission'):
+            estimate -= self.exchange.getCommission(estimate, self.remote_market)
+        self.estimate_view.setValue(estimate)
+
+    def refreshBalance(self):
+        self.exchange.refreshBalance(self.remote_market)
+
+    def setPrice(self, price):
+        self.price_spin.setValue(price)
 
     def set_signal_connection_state(self, state):
         if not state: return
 
-        self.exchange_obj.exchange_error_signal.connect(
+        self.exchange.exchange_error_signal.connect(
             self.exchange_error_handler)
-        ticker_proxy = self.exchange_obj.getTickerProxy(self.remote_market)
+        ticker_proxy = self.exchange.getTickerProxy(self.remote_market)
         ticker_proxy.ask_signal.connect(self.ask_widget.setValue)
         ticker_proxy.last_signal.connect(self.last_widget.setValue)
         ticker_proxy.bid_signal.connect(self.bid_widget.setValue)
@@ -196,7 +469,7 @@ class ExchangeDockWidget(QtGui.QDockWidget, ErrorHandling):
 
 class ExchangeDockWidgetMenuBar(QtGui.QMenuBar):
 
-    def __init__(self, parent=None):
+    def __init__(self, parent):
         super(ExchangeDockWidgetMenuBar, self).__init__(parent)
         self.dock = parent
         self.market_menu = self.addMenu(
@@ -243,348 +516,14 @@ class ExchangeDockWidgetMenuBar(QtGui.QMenuBar):
         return self.account_menu
 
     def showDepthChart(self):
-        proxy = self.dock.exchange_obj.getDepthProxy(self.dock.remote_market)
+        proxy = self.dock.exchange.getDepthProxy(self.dock.remote_market)
         dialog = dojima.ui.chart.DepthDialog(proxy, self)
         dialog.show()
 
     def showTradesChart(self):
-        proxy = self.dock.exchange_obj.getTradesProxy(self.dock.remote_market)
+        proxy = self.dock.exchange.getTradesProxy(self.dock.remote_market)
         dialog = dojima.ui.chart.TradesDialog(proxy, self)
         dialog.show()
-
-
-class AccountWidget(QtGui.QWidget, ErrorHandling):
-
-    def __init__(self, account_object, parent):
-        super(AccountWidget, self).__init__(parent)
-        self.dock = parent
-
-        # Data
-        self.account_obj = account_object
-        self.dock.remote_market = parent.remote_market
-
-        # Create UI
-        layout = QtGui.QGridLayout()
-
-        self.base_balance_label = dojima.ui.widget.AssetAmountView(
-            factor=parent.base_factor)
-        self.counter_balance_label = dojima.ui.widget.AssetAmountView(
-            factor=parent.counter_factor)
-
-        refresh_balance_action = QtGui.QAction(
-            QtCore.QCoreApplication.translate('AccountWidget',
-                                              "&refresh balance"),
-            self, triggered=self.refreshBalance)
-
-        balance_font = QtGui.QFont()
-        balance_font.setPointSize(13)
-        for label in (self.base_balance_label, self.counter_balance_label):
-            label.setAlignment(QtCore.Qt.AlignHCenter)
-            label.setFont(balance_font)
-            label.setContextMenuPolicy(QtCore.Qt.ActionsContextMenu)
-            label.addAction(refresh_balance_action)
-
-        self.amount_spin = dojima.ui.widget.AssetSpinBox(
-            factor=parent.base_factor, power=parent.base_power,
-            scale=parent.scale)
-
-        self.price_spin = dojima.ui.widget.AssetSpinBox(
-            factor=parent.counter_factor, power=parent.counter_power)
-
-        self.estimate_view = dojima.ui.widget.AssetAmountView(
-            factor=parent.counter_factor)
-        self.estimate_view.setDisabled(True)
-
-        # Set the prefixi and suffixi
-        base_prefix = dojima.model.commodities.local_model.item(
-            parent.base_row, dojima.model.commodities.local_model.PREFIX).text()
-        counter_prefix = dojima.model.commodities.local_model.item(
-            parent.counter_row, dojima.model.commodities.local_model.PREFIX).text()
-
-        base_suffix = dojima.model.commodities.local_model.item(
-            parent.base_row, dojima.model.commodities.local_model.SUFFIX).text()
-        counter_suffix = dojima.model.commodities.local_model.item(
-            parent.counter_row, dojima.model.commodities.local_model.SUFFIX).text()
-
-        if base_prefix:
-            for widget in (self.base_balance_label, self.amount_spin):
-                widget.setPrefix(base_prefix)
-
-        if base_suffix:
-            for widget in (self.base_balance_label, self.amount_spin):
-                widget.setSuffix(base_suffix)
-
-        if counter_prefix:
-            for widget in (self.counter_balance_label,
-                           self.price_spin,
-                           self.estimate_view):
-                widget.setPrefix(counter_prefix)
-
-        if counter_suffix:
-            for widget in (self.counter_balance_label,
-                           self.price_spin,
-                           self.estimate_view):
-                widget.setSuffix(counter_suffix)
-
-        offer_button = QtGui.QPushButton(
-            QtCore.QCoreApplication.translate('AccountWidget', "offer",
-                                              "as in place offer"))
-        offer_button_menu = QtGui.QMenu()
-        offer_ask_action = QtGui.QAction(
-            QtCore.QCoreApplication.translate('AccountWidget', "Ask"),
-            offer_button)
-        offer_bid_action = QtGui.QAction(
-            QtCore.QCoreApplication.translate('AccountWidget', "Bid"),
-            offer_button)
-
-        offer_button_menu.addAction(offer_ask_action)
-        offer_button_menu.addAction(offer_bid_action)
-        offer_button.setMenu(offer_button_menu)
-
-        at_seperator = QtCore.QCoreApplication.translate('AccountWidget',
-                                                         "@", "amount @ price")
-
-        layout.addWidget(self.base_balance_label, 0,0)
-        layout.addWidget(self.counter_balance_label, 0,1)
-
-        sublayout = QtGui.QFormLayout()
-
-        sublayout.addRow(
-            QtCore.QCoreApplication.translate('AccountWidget',
-                                              "Amount:",
-                                              "The offer amount label."),
-            self.amount_spin)
-
-        sublayout.addRow(
-            QtCore.QCoreApplication.translate('AccountWidget',
-                                              "Price:",
-                                              "The offer price label."),
-            self.price_spin)
-
-        #TODO disable the offer menu actions when bid is higher than ask and so on
-        # also disable the actions when either price or amount is 0
-
-        layout.addLayout(sublayout, 1,0, 1,2)
-
-        layout.addWidget(offer_button, 3,0)
-        layout.addWidget(self.estimate_view, 3,1)
-
-        for spin in (self.amount_spin, self.price_spin):
-            spin.setMaximum(999999)
-
-        self.ask_offers_view = dojima.ui.widget.OffersView()
-        layout.addWidget(self.ask_offers_view, 4,0, 1,2)
-
-        self.bid_offers_view = dojima.ui.widget.OffersView()
-        layout.addWidget(self.bid_offers_view, 5,0, 1,2)
-
-        self.ask_price_delegate = dojima.ui.widget.OfferItemDelegate(
-            prefix=counter_prefix, suffix=counter_suffix,
-            factor=parent.counter_factor)
-
-        self.ask_offers_view.setItemDelegateForColumn(dojima.data.offers.PRICE,
-                                                      self.ask_price_delegate)
-
-        self.bid_price_delegate = dojima.ui.widget.OfferItemDelegate(
-            prefix=counter_prefix, suffix=counter_suffix,
-            factor=parent.counter_factor)
-
-        self.bid_offers_view.setItemDelegateForColumn(dojima.data.offers.PRICE,
-                                                      self.bid_price_delegate)
-
-
-        self.ask_outstanding_delegate = dojima.ui.widget.OfferItemDelegate(
-            prefix=base_prefix, suffix=base_suffix,
-            factor=parent.base_factor)
-
-        self.ask_offers_view.setItemDelegateForColumn(
-            dojima.data.offers.OUTSTANDING, self.ask_outstanding_delegate)
-
-        self.bid_outstanding_delegate = dojima.ui.widget.OfferItemDelegate(
-            prefix=base_prefix, suffix=base_suffix,
-            factor=parent.base_factor)
-
-        self.bid_offers_view.setItemDelegateForColumn(
-            dojima.data.offers.OUTSTANDING, self.bid_outstanding_delegate)
-
-        for view in self.ask_offers_view, self.bid_offers_view:
-            view.setSelectionMode(QtGui.QListView.SingleSelection)
-            view.setSelectionBehavior(QtGui.QListView.SelectRows)
-            view.setShowGrid(False)
-            view.verticalHeader().hide()
-            view.setContextMenuPolicy(QtCore.Qt.ActionsContextMenu)
-
-
-            #base_offer_delegate = dojima.ui.widget.OfferItemDelegate(
-            #    factor=parent.base_factor,
-            #    prefix=base_prefix, suffix=base_suffix)
-            #view.setItemDelegateForColumn(dojima.data.offers.OUTSTANDING,
-            #                              base_offer_delegate)
-
-        #Refresh offers action
-        refresh_offers_action = QtGui.QAction(
-            "&refresh offers", self, triggered=self.account_obj.refreshOffers)
-        #Cancel offer action
-        cancel_ask_action = QtGui.QAction(
-            QtCore.QCoreApplication.translate('AccountWidget',
-                                              "&cancel ask offer"),
-            self, triggered=self._cancel_ask)
-
-        self.ask_offers_view.addAction(cancel_ask_action)
-        self.ask_offers_view.addAction(refresh_offers_action)
-        cancel_bid_action = QtGui.QAction(
-            QtCore.QCoreApplication.translate('AccountWidget',
-                                              "&cancel bid offer"),
-            self, triggered=self._cancel_bid)
-
-        self.bid_offers_view.addAction(cancel_bid_action)
-        self.bid_offers_view.addAction(refresh_offers_action)
-
-        self.setLayout(layout)
-
-        # inter-widget connections
-        self.amount_spin.editingFinished.connect(self.offer_changed)
-        self.price_spin.editingFinished.connect(self.offer_changed)
-
-        # Connect to account
-        # these are remote ids, not local
-        self.account_obj.accountChanged.connect(self.changeAccount)
-
-        self.account_obj.exchange_error_signal.connect(
-            self.exchange_error_handler)
-
-        offer_ask_action.triggered.connect(self._ask_limit)
-        offer_bid_action.triggered.connect(self._bid_limit)
-
-        self.enableAccount(True)
-
-    def enableAccount(self, enable):
-        if not enable:
-            self.setDisabled(True)
-            return
-
-        if not self.account_obj.hasAccount(self.dock.remote_market):
-            self.setDisabled(True)
-            return
-
-        self.setEnabled(True)
-
-        if hasattr(self.account_obj, 'getAccountPair'):
-            base_account_id, counter_account_id = self.account_obj.getAccountPair(self.dock.remote_market)
-
-            self.base_balance_proxy = self.dock.exchange_obj.getBalanceProxy(
-                base_account_id)
-            self.counter_balance_proxy = self.dock.exchange_obj.getBalanceProxy(
-                counter_account_id)
-        else:
-            self.base_balance_proxy = self.dock.exchange_obj.getBaseBalanceProxy(
-                self.dock.remote_market)
-            self.counter_balance_proxy = self.dock.exchange_obj.getCounterBalanceProxy(
-                self.dock.remote_market)
-
-        self.base_balance_proxy.balance.connect(
-            self.base_balance_label.setValue)
-        #self.base_balance_proxy.balance_changed.connect(
-        #    self.base_balance_label.change_value)
-
-        self.counter_balance_proxy.balance.connect(
-            self.counter_balance_label.setValue)
-        #self.counter_balance_proxy.balance_changed.connect(
-        #    self.counter_balance_label.change_value)
-
-        offers_model = self.account_obj.getOffersModel(self.dock.remote_market)
-        self.asks_model = dojima.data.offers.FilterAsksModel(offers_model)
-        self.bids_model = dojima.data.offers.FilterBidsModel(offers_model)
-
-        self.ask_offers_view.setModel(self.asks_model)
-        self.bid_offers_view.setModel(self.bids_model)
-        self.ask_offers_view.hideColumns()
-        self.bid_offers_view.hideColumns()
-
-        offers_model.dataChanged.connect(self.ask_offers_view.hideColumns)
-        offers_model.dataChanged.connect(self.bid_offers_view.hideColumns)
-
-        self.account_obj.refresh(self.dock.remote_market)
-
-    def _ask_limit(self):
-        amount = self.amount_spin.value()
-        price = self.price_spin.value()
-
-        dialog = AskOfferConfirmationDialog(self.amount_spin.text(),
-                                            self.price_spin.text(),
-                                            self)
-        if dialog.exec_():
-            self.account_obj.placeAskLimitOffer(self.dock.remote_market,
-                                                amount, price)
-
-    def _bid_limit(self):
-        amount = self.amount_spin.value()
-        price = self.price_spin.value()
-
-        dialog = BidOfferConfirmationDialog(self.amount_spin.text(),
-                                            self.price_spin.text(),
-                                            self)
-        if dialog.exec_():
-            self.account_obj.placeBidLimitOffer(self.dock.remote_market,
-                                                amount, price)
-
-    def _cancel_ask(self):
-        row = self.ask_offers_view.currentIndex().row()
-        index = self.asks_model.index(row, dojima.data.offers.ID)
-        offer_id = self.asks_model.data(index)
-        if offer_id:
-            self.account_obj.cancelAskOffer(offer_id, self.dock.remote_market)
-
-    def _cancel_bid(self):
-        row = self.bid_offers_view.currentIndex().row()
-        index = self.bids_model.index(row, dojima.data.offers.ID)
-        offer_id = self.bids_model.data(index)
-        if offer_id:
-            self.account_obj.cancelBidOffer(offer_id, self.dock.remote_market)
-
-    def offer_changed(self):
-        amount = self.amount_spin.value()
-        if not amount: return
-        price = self.price_spin.value()
-        if not price: return
-
-        estimate = amount * price
-        commission = self.account_obj.getCommission(estimate, self.dock.remote_market)
-        if commission: estimate -= commission
-
-        self.estimate_view.setValue(estimate)
-
-    def changeAccount(self, market_id):
-        # maybe this slot should receive an account id
-        if market_id != self.dock.remote_market:
-            return
-
-        if not self.account_obj.hasAccount(market_id):
-            return
-
-        """
-        if hasattr(self, 'base_balance_proxy'):
-            self.base_balance_proxy.balance_changed.disconnect(
-                self.base_balance_label.change_value)
-        if hasattr(self, 'counter_balance_proxy'):
-            self.counter_balance_proxy.balance_changed.disconnect(
-                self.counter_balance_label.change_value)
-        """
-
-        b_ac_id, c_ac_id = self.account_obj.getAccountPair(self.dock.remote_market)
-
-        self.base_balance_proxy = self.account_obj.getBalanceProxy(b_ac_id)
-        self.base_balance_proxy.balance.connect(
-            self.base_balance_label.setValue)
-
-        self.counter_balance_proxy = self.account_obj.getBalanceProxy(c_ac_id)
-        self.counter_balance_proxy.balance.connect(
-            self.counter_balance_label.setValue)
-
-        self.account_obj.refreshBalance(self.dock.remote_market)
-
-    def refreshBalance(self):
-        self.account_obj.refreshBalance(self.dock.remote_market)
 
 
 class _OfferConfirmationDialog(QtGui.QDialog):
@@ -592,7 +531,7 @@ class _OfferConfirmationDialog(QtGui.QDialog):
     def __init__(self, amount, price, parent=None):
         super(_OfferConfirmationDialog, self).__init__(parent)
 
-        dialog_text_label = QtGui.QLabel(self.dialog_text.arg(amount).arg(price))
+        dialog_text_label = QtGui.QLabel(self.dialog_text.format(amount, price))
 
         place_offer_button = QtGui.QPushButton(
             QtCore.QCoreApplication.translate('ExchangeDockWidget',
@@ -617,18 +556,18 @@ class _OfferConfirmationDialog(QtGui.QDialog):
 class AskOfferConfirmationDialog(_OfferConfirmationDialog):
 
     dialog_text = QtCore.QCoreApplication.translate('ExchangeDockWidget',
-                                                    "Sell %1 at %2?",
+                                                    "Sell {0} at {1}?",
                                                     "Text on the "
                                                     "AskConfirmationDialog. "
-                                                    "1 will be the amount, and "
-                                                    "2 will be the price.")
+                                                    "{0} will be the amount, and "
+                                                    "{1} will be the price.")
 
 
 class BidOfferConfirmationDialog(_OfferConfirmationDialog):
 
     dialog_text = QtCore.QCoreApplication.translate('ExchangeDockWidget',
-                                                    "Buy %1 at %2?",
+                                                    "Buy {0} at {1}?",
                                                     "Text on the "
                                                     "BidConfirmationDialog. "
-                                                    "1 will be the amount, and "
-                                                    "2 will be the price.")
+                                                    "{0} will be the amount, and "
+                                                    "{1} will be the price.")

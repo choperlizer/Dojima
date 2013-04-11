@@ -196,8 +196,13 @@ class MtgoxWizardPage(QtGui.QWizardPage):
 
         settings = QtCore.QSettings()
         settings.beginGroup('MtGox')
-        self.key_edit.setText(settings.value('API_key'))
-        self.secret_edit.setText(settings.value('API_secret'))
+        key = settings.value('API_key')
+        secret = settings.value('API_secret')
+
+        if key:
+            self.key_edit.setText(key)
+        if password:
+            self.secret_edit.setText(secret)
 
         new_local_button.clicked.connect(self.showNewCommodityDialog)
 
@@ -306,7 +311,7 @@ class MtgoxExchange(QtCore.QObject, _Mtgox, dojima.exchange.Exchange):
             self.depth_proxies[market_id] = depth_proxy
             return depth_proxy
         return self.depth_proxies[market_id]
-    
+
     def getFactors(self, market):
         #base = market[:3]
         counter = market[3:]
@@ -354,7 +359,7 @@ class MtgoxExchange(QtCore.QObject, _Mtgox, dojima.exchange.Exchange):
         depth_url = QtCore.QUrl(_BASE_URL + remote_market + '/depth')
         MtgoxDepthRequest(depth_url, self, {'market_id':remote_market})
 
-                
+
     def refresh_ticker(self, remote_market):
         ticker_url = QtCore.QUrl(_BASE_URL + remote_market + '/ticker')
         MtgoxTickerRequest(ticker_url, self)
@@ -437,6 +442,7 @@ class MtgoxCurrencyRequest(MtgoxPublicRequest):
 
 class MtgoxExchangeAccount(QtCore.QObject, _Mtgox, dojima.exchange.ExchangeAccount):
     exchange_error_signal = QtCore.pyqtSignal(str)
+
     accountChanged = QtCore.pyqtSignal(str)
 
     bitcoin_deposit_address_signal = QtCore.pyqtSignal(str)
@@ -692,7 +698,7 @@ class MtgoxPlaceOrderRequest(MtgoxPrivateRequest):
         else:
             logger.error("Unrecognized order type: %s", offer_type)
             return
-        
+
         self.parent.offers_model.setItem(row, dojima.data.offers.TYPE, item)
 
 

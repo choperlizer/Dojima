@@ -20,7 +20,6 @@ import otapi
 from PyQt4 import QtCore, QtGui
 
 import dojima.ui.ot.nym
-from dojima.ot import objEasy
 
 
 class MarketTableView(QtGui.QTableView):
@@ -59,6 +58,8 @@ class MarketTableView(QtGui.QTableView):
         self.counterChanged.emit(model.data(index, QtCore.Qt.UserRole))
 
     def refreshContract(self):
+        pass
+        """
         row = self.currentIndex().row()
         if otapi.OTAPI_Basic_GetNymCount() == 1:
             nym_id = otapi.OTAPI_Basic_GetNym_ID(0)
@@ -75,6 +76,7 @@ class MarketTableView(QtGui.QTableView):
             contract_id = contract_item.data(QtCore.Qt.UserRole)
             objEasy.load_or_retrieve_contract(model.server_id, nym_id, contract_id)
             contract_item.setText(otapi.OTAPI_Basic_GetAssetType_Name(contract_id))
+            """
 
     def refreshAllContracts(self):
 

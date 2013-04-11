@@ -20,7 +20,7 @@ import otapi
 from PyQt4 import QtCore, QtGui
 
 import dojima.ui.ot.views
-from dojima.ot import objEasy
+objEasy = None
 
 
 class InitiateTransferAction(QtGui.QAction):

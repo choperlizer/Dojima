@@ -1,5 +1,5 @@
 # Dojima, a markets client.
-# Copyright (C) 2012  Emery Hemingway
+# Copyright (C) 2012-2013  Emery Hemingway
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -131,7 +131,7 @@ class ExchangeRequest(object):
         else:
             if logger.isEnabledFor(logging.INFO):
                 logger.info("received reply to %s", self.url.toString())
-            raw_reply = self.reply.readAll()
+            raw_reply = bytearray(self.reply.readAll()).decode()
             self._handle_reply(raw_reply)
 
     def _handle_error(self, error):
@@ -158,6 +158,6 @@ class ExchangePOSTRequest(ExchangeRequest):
         if logger.isEnabledFor(logging.INFO):
             logger.info("POST to %s", self.url.toString())
         self.reply = self.parent.network_manager.post(self.request,
-                                                        self.query)
+                                                      self.query)
         self.reply.finished.connect(self._extract_reply)
         self.parent.replies.add(self)

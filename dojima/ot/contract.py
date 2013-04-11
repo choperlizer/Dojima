@@ -20,8 +20,6 @@ import logging
 import otapi
 from PyQt4 import QtCore
 
-from dojima.ot import objEasy
-
 logger = logging.getLogger(__name__)
 
 
