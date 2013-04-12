@@ -102,10 +102,8 @@ class ExchangeRequest(object):
     priority = 3
     host_priority = None
 
-    def __init__(self, url, parent, data=None):
-        self.url = url
+    def __init__(self, parent):
         self.parent = parent
-        self.data = data
         self.reply = None
         parent.requests.append( (self.priority, self,) )
         parent.host_queue.enqueue(self.parent, self.host_priority)
@@ -119,8 +117,8 @@ class ExchangeRequest(object):
         self.request.setHeader(QtNetwork.QNetworkRequest.ContentTypeHeader,
                                "application/x-www-form-urlencoded")
         query = QtCore.QUrl()
-        if self.data:
-            for key, value in list(self.data['query'].items()):
+        if self.params:
+            for key, value in list(self.params['query'].items()):
                 query.addQueryItem(key, value)
         self.query = query.encodedQuery()
 
@@ -135,15 +133,15 @@ class ExchangeRequest(object):
             self._handle_reply(raw_reply)
 
     def _handle_error(self, error):
-        msg = self.reply.url().toString() + " : " + error
-        self.parent.exchange_error_signal.emit(msg)
-        logger.warning(msg)
+        logger.error(error)
+        #self.parent.exchange_error_signal.emit(msg)
+        #logger.warning(msg)
 
 
 class ExchangeGETRequest(ExchangeRequest):
 
     def send(self):
-        self._prepare_request()
+        self.request = NetworkRequest(self.url)
         if logger.isEnabledFor(logging.INFO):
             logger.info("GET to %s", self.url.toString())
         self.reply = self.parent.network_manager.get(self.request)
@@ -152,6 +150,14 @@ class ExchangeGETRequest(ExchangeRequest):
 
 
 class ExchangePOSTRequest(ExchangeRequest):
+
+    def __init__(self, params, parent):
+        self.parent = parent
+        self.params = params
+        self.reply = None
+        parent.requests.append( (self.priority, self,) )
+        parent.host_queue.enqueue(self.parent, self.host_priority)
+    
 
     def send(self):
         self._prepare_request()

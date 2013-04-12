@@ -1,5 +1,5 @@
 # Dojima, a markets client.
-# Copyright (C) 2012  Emery Hemingway
+# Copyright (C) 2012-2013 Emery Hemingway
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -20,121 +20,367 @@ import json
 import logging
 from decimal import Decimal
 
+import numpy as np
 from PyQt4 import QtCore, QtGui, QtNetwork
 
 import dojima.exchange
-import dojima.data.funds
-import dojima.data.orders
-import dojima.data.ticker
+import dojima.exchanges
+import dojima.data.market
+import dojima.data.offers
 import dojima.network
-from dojima.model.exchanges import exchanges_model
 
 
 logger = logging.getLogger(__name__)
 
-EXCHANGE_NAME = "Bitstamp"
+PRETTY_NAME = "Bitstamp"
 HOSTNAME = "www.bitstamp.net"
-_BASE_URL = "https://" + HOSTNAME + "/api/"
+URL_BASE = "https://" + HOSTNAME + "/api/"
+
+# type - buy or sell (0 - buy; 1 - sell)
+BUY = 0
+SELL = 1        
+
+def saveAccountSettings(username, password):
+    settings = QtCore.QSettings()
+    settings.beginGroup(__name__)
+    settings.setValue('username', username)
+    settings.setValue('password', password)
+
+def loadAccountSettings():
+    settings = QtCore.QSettings()
+    settings.beginGroup(__name__)
+    username = settings.value('username')
+    password = settings.value('password')
+    return username, password
 
 
-class BitstampExchangeItem(dojima.model.exchanges.ExchangeItem):
+class BitstampExchangeProxy(dojima.exchange.ExchangeProxySingleMarket):
 
-    exchange_name = EXCHANGE_NAME
+    id = __name__
+    name = PRETTY_NAME
+    local_market_map = None
+    remote_market_map = None
+    base_id = 'bitstamp-BTC'
+    counter_id = 'bitstamp-USD'
 
-    COLUMNS = 4
-    MARKETS, REFRESH_RATE, ACCOUNT_USERNAME, ACCOUNT_PASSWORD = list(range(COLUMNS))
-    mappings = (("ticker refresh rate (seconds)", REFRESH_RATE),
-                ("customer ID", ACCOUNT_USERNAME),
-                ("password", ACCOUNT_PASSWORD),)
-    markets = ('BTC_USD',)
+    def getExchangeObject(self):
+        if self.exchange_object is None:
+            self.exchange_object = BitstampExchange()
+        return self.exchange_object
 
-    numeric_settings = (REFRESH_RATE,)
-    boolean_settings = ()
-    required_account_settings = (ACCOUNT_USERNAME, ACCOUNT_PASSWORD,)
-    hidden_settings = (ACCOUNT_PASSWORD,)
+    def getWizardPage(self, wizard):
+        return BitstampWizardPage(wizard)
+
+    
+class BitstampWizardPage(QtGui.QWizardPage):
+
+    def __init__(self, parent):
+        super(BitstampWizardPage, self).__init__(parent)
+        self.setTitle(PRETTY_NAME)
+        self._is_complete = False
+
+    def checkCompleteState(self):
+        if ( len(self.username_edit.text()) < 4 or
+             len(self.password_edit.text()) < 4 or
+             self.base_combo.currentIndex() == self.counter_combo.currentIndex() ):
+            is_complete = False
+        else:
+            is_complete = True
+
+        if self._is_complete is not is_complete:
+            self._is_complete = is_complete
+            self.completeChanged.emit()
+
+    def initializePage(self):
+        self.username_edit = QtGui.QLineEdit()
+        self.password_edit = QtGui.QLineEdit(echoMode=QtGui.QLineEdit.Password)
+        self.base_combo = QtGui.QComboBox()
+        self.counter_combo = QtGui.QComboBox()
+
+        new_local_button = QtGui.QPushButton(
+            QtCore.QCoreApplication.translate(PRETTY_NAME, "New Commodity",
+                                              "The label on the new "
+                                              "commodity button in the "
+                                              "new market wizard."))
+
+        button_box = QtGui.QDialogButtonBox()
+        button_box.addButton(new_local_button, button_box.ActionRole)
+
+        layout = QtGui.QFormLayout()
+        layout.addRow(QtCore.QCoreApplication.translate(PRETTY_NAME, "Customer ID"), self.username_edit)
+        layout.addRow(QtCore.QCoreApplication.translate(PRETTY_NAME, "Password"), self.password_edit)
+        layout.addRow(QtCore.QCoreApplication.translate(PRETTY_NAME, "Local Bitcoin Commodity"), self.base_combo)
+        layout.addRow(QtCore.QCoreApplication.translate(PRETTY_NAME, "Local USD Commodity"), self.counter_combo)
+        layout.addRow(button_box)
+        self.setLayout(layout)
+
+        self.base_combo.setModel(dojima.model.commodities.local_model)
+        self.counter_combo.setModel(dojima.model.commodities.local_model)
+
+        self.username_edit.editingFinished.connect(self.checkCompleteState)
+        self.password_edit.editingFinished.connect(self.checkCompleteState)
+
+        new_local_button.clicked.connect(self.showNewCommodityDialog)
+        self.username_edit.textChanged.connect(self.checkCompleteState)
+        self.password_edit.textChanged.connect(self.checkCompleteState)
+        self.base_combo.currentIndexChanged.connect(self.checkCompleteState)
+        self.counter_combo.currentIndexChanged.connect(self.checkCompleteState)
+
+        username, password = loadAccountSettings()
+        if username:
+            self.username_edit.setText(username)
+        if password:
+            self.password_edit.setText(password)
+
+        self.checkCompleteState()
+
+    def isComplete(self):
+        return self._is_complete
+
+    def nextId(self):
+        return -1
+
+    def showNewCommodityDialog(self):
+        dialog = dojima.ui.edit.commodity.NewCommodityDialog(self)
+        dialog.exec_()
+
+    def validatePage(self):
+        saveAccountSettings(self.username_edit.text(), self.password_edit.text())
+
+        local_base_id    = self.base_combo.itemData(self.base_combo.currentIndex(), QtCore.Qt.UserRole)
+        local_counter_id = self.counter_combo.itemData(self.counter_combo.currentIndex(), QtCore.Qt.UserRole)
+
+        dojima.model.commodities.remote_model.map('bitstamp-BTC', local_base_id)
+        dojima.model.commodities.remote_model.map('bitstamp-USD', local_counter_id)
+        return dojima.model.commodities.remote_model.submit()
 
 
-class _Bitstamp(QtCore.QObject):
-    exchange_name = EXCHANGE_NAME
+class BitstampExchange(QtCore.QObject, dojima.exchange.ExchangeSingleMarket):
+    valueType = Decimal
+    
+    accountChanged = QtCore.pyqtSignal(str)
     exchange_error_signal = QtCore.pyqtSignal(str)
-
-    def pop_request(self):
-        request = heapq.heappop(self.requests)[1]
-        request.send()
-
-
-class BitstampExchangeMarket(_Bitstamp):
-
-    base_query = QtCore.QUrl()
-    _ticker_url = QtCore.QUrl(_BASE_URL + 'ticker/')
-    _transactions_url = QtCore.QUrl(_BASE_URL + 'transactions/')
-
-    trades_signal = QtCore.pyqtSignal(tuple)
 
     def __init__(self, network_manager=None, parent=None):
         if network_manager is None:
             network_manager = dojima.network.get_network_manager()
-        super(BitstampExchangeMarket, self).__init__(parent)
+        super(BitstampExchange, self).__init__(parent)
 
         self.network_manager = network_manager
-        self.host_queue = self.network_manager.get_host_request_queue(
-            HOSTNAME, 500)
+        self.host_queue = self.network_manager.get_host_request_queue(HOSTNAME, 500)
         self.requests = list()
         self.replies = set()
-        self._ticker_proxy = dojima.data.ticker.TickerProxy(self)
-        self._ticker_clients = 0
-        self._ticker_timer = QtCore.QTimer(self)
-        self._ticker_timer.timeout.connect(self.refresh_ticker)
-        search = exchanges_model.findItems(self.exchange_name,
-                                           QtCore.Qt.MatchExactly)
-        self._model_item = search[0]
 
-    def get_ticker_proxy(self, remote_market=None):
-        return self._ticker_proxy
+        self._ticker_refresh_rate = 16
 
-    def refresh_ticker(self, remote_market=None):
-        BitstampTickerRequest(self._ticker_url, self)
+        self.balance_proxies = dict()
+        self.ticker_proxy = dojima.data.market.TickerProxy(self)
+        self.depth_proxy = dojima.data.market.DepthProxy(self, 'BTCUSD')
+        self.ticker_clients = 0
+        self.ticker_timer = QtCore.QTimer(self)
+        self.ticker_timer.timeout.connect(self.refreshTicker)
 
-    def set_ticker_stream_state(self, state, remote_market=None):
-        if state is True:
-            self._ticker_clients += 1
-            refresh_rate = self._model_item.child(
-                0, self._model_item.REFRESH_RATE).text()
-            if not refresh_rate:
-                refresh_rate = 10000
-            else:
-                refresh_rate = float(refresh_rate) * 1000
-            if self._ticker_timer.isActive():
-                self._ticker_timer.setInterval(refresh_rate)
-                return
-            logger.info(QtCore.QCoreApplication.translate(
-                'BitstampExchangeMarket', "starting ticker stream"))
-            self._ticker_timer.start(refresh_rate)
-        else:
-            if self._ticker_clients >1:
-                self._ticker_clients -= 1
-                return
-            if self._ticker_clients == 0:
-                return
-            self._ticker_clients = 0
-            logger.info(QtCore.QCoreApplication.translate(
-                'BitstampExchangeMarket', "stopping ticker stream"))
-            self._ticker_timer.stop()
+        self.base_balance_proxy = dojima.data.balance.BalanceProxy(self)
+        self.counter_balance_proxy = dojima.data.balance.BalanceProxy(self)
 
-    def refresh_trade_data(self, remote_market=None):
-        BitstampTransactionsRequest(self._transactions_url, self)
+        self.offers_model = dojima.data.offers.Model()
+        self.offer_proxy_asks = dojima.data.offers.FilterAsksModel(self.offers_model)
+        self.offer_proxy_bids = dojima.data.offers.FilterBidsModel(self.offers_model)
+                
+        self.loadAccountCredentials()
 
+    def cancelOffer(self, order_id, market=None):
+        params = {'id': order_id}
+        BitstampCancelOrderRequest(params, self)
+        
+    cancelAskOffer = cancelOffer
+    cancelBidOffer = cancelOffer
 
-class BitstampTickerRequest(dojima.network.ExchangeGETRequest):
+    def hasAccount(self, market=None):
+        return (self._username and self._password)
+        
+    def loadAccountCredentials(self):
+        self._username, self._password = loadAccountSettings()
+
+    def placeAskLimitOffer(self, amount, price, market=None):
+        params = {'amount': str(amount), 'price': str(price)}
+        request = BitstampSellRequest(params, self)
+        request.amount = amount
+        request.price = price        
+
+    def placeBidLimitOffer(self, amount, price, market=None):
+        params = {'amount': str(amount), 'price': str(price)}
+        request = BitstampBuyRequest(params, self)
+        request.amount = amount
+        request.price = price        
+
+    def refreshBalance(self, market=None):
+        BitstampBalanceRequest(None, self)
+
+    def refreshDepth(self, market=None):
+        BitstampOrderBookRequest(self)
+
+    def refreshTicker(self, market=None):
+        BitstampTickerRequest(self)
+
+    def refreshOffers(self, market=None):
+        BitstampOpenOrdersRequest(None, self)
+
+        
+class _BitstampRequest(dojima.network.ExchangeGETRequest):
+    priority = 3
+    host_priority = None
+
+    
+class _BitstampPrivateRequest(dojima.network.ExchangePOSTRequest):
+
+    def _prepare_request(self):
+        self.request = dojima.network.NetworkRequest(self.url)
+        self.request.setHeader(QtNetwork.QNetworkRequest.ContentTypeHeader,
+                               "application/x-www-form-urlencoded")
+        query = QtCore.QUrl()
+        query.addQueryItem('user',     self.parent._username)
+        query.addQueryItem('password', self.parent._password)
+        
+        if self.params:
+            for key, value in list(self.params.items()):
+                query.addQueryItem(key, value)
+        self.query = query.encodedQuery()
+
+    
+class BitstampOrderBookRequest(_BitstampRequest):
+    url = QtCore.QUrl(URL_BASE + 'order_book/')
 
     def _handle_reply(self, raw):
         logger.debug(raw)
-        data = json.loads(raw, parse_float=Decimal)
-        self.parent._ticker_proxy.ask_signal.emit(Decimal(data['ask']))
-        self.parent._ticker_proxy.last_signal.emit(Decimal(data['last']))
-        self.parent._ticker_proxy.bid_signal.emit(Decimal(data['bid']))
 
 
+class BitstampTickerRequest(_BitstampRequest):
+    url = QtCore.QUrl(URL_BASE + 'ticker/')
+    
+    def _handle_reply(self, raw):
+        logger.debug(raw)
+        data = json.loads(raw)
+        self.parent.ticker_proxy.last_signal.emit(Decimal(data['last']))
+        self.parent.ticker_proxy.bid_signal.emit(Decimal(data['bid']))
+        self.parent.ticker_proxy.ask_signal.emit(Decimal(data['ask']))
+
+
+class BitstampBalanceRequest(_BitstampPrivateRequest):    
+    url = QtCore.QUrl(URL_BASE + 'balance/')
+    priority = 2
+
+    """
+    usd_balance - USD balance
+    btc_balance - BTC balance
+    usd_reserved - USD reserved in open orders
+    btc_reserved - BTC reserved in open orders
+    usd_available - USD available for trading
+    btc_available - BTC available for trading
+    fee - customer trading fee
+    """
+    
+    def _handle_reply(self, raw):
+        logger.debug(raw)
+        data = json.loads(raw)
+        self.parent.base_balance_proxy.balance_total.emit(Decimal(data['btc_balance']))
+        self.parent.base_balance_proxy.balance_liquid.emit(Decimal(data['btc_available']))
+        self.parent.counter_balance_proxy.balance_total.emit(Decimal(data['usd_balance']))
+        self.parent.counter_balance_proxy.balance_liquid.emit(Decimal(data['usd_available']))
+
+                
+        fee = data['fee'].rstrip('0')
+        self.parent.commission = Decimal(fee) / 100
+
+        
+class BitstampCancelOrderRequest(_BitstampPrivateRequest):
+    url = QtCore.QUrl(URL_BASE + 'cancel_order/')
+    priority = 0
+
+    def _handle_reply(self, raw):
+        logger.debug(raw)
+        data = json.loads(raw)
+
+        if data == True:
+            search = self.parent.offers_model.findItems(self.params['id'])
+            for item in search:
+                self.parent.offers_model.removeRow(item.row())
+
+        
+class _BitstampOrderRequest(_BitstampPrivateRequest):
+
+    def _handle_reply(self, raw):
+        logger.debug(raw)
+        data = json.loads(raw)
+
+        if 'error' in data:
+            self._handle_error(data['error'])
+            return
+        
+        row = self.parent.offers_model.rowCount()
+        
+        item = QtGui.QStandardItem(data['id'])
+        self.parent.offers_model.setItem(row, dojima.data.offers.ID, item)
+
+        item = QtGui.QStandardItem()
+        item.setData(Decimal(data['price']), QtCore.Qt.UserRole)
+        self.parent.offers_model.setItem(row, dojima.data.offers.PRICE, item)
+
+        item = QtGui.QStandardItem()
+        item.setData(Decimal(data['amount']), QtCore.Qt.UserRole)
+        self.parent.offers_model.setItem(row, dojima.data.offers.OUTSTANDING, item)
+
+        item = QtGui.QStandardItem(self.order_type)
+        self.parent.offers_model.setItem(row, dojima.data.offers.TYPE, item)
+
+        
+class BitstampBuyRequest(_BitstampOrderRequest):
+    url = QtCore.QUrl(URL_BASE + 'buy/')
+    order_type = dojima.data.offers.BID
+
+    
+class BitstampSellRequest(_BitstampOrderRequest):
+    url = QtCore.QUrl(URL_BASE + 'sell/')
+    order_type = dojima.data.offers.ASK
+        
+        
+class BitstampOpenOrdersRequest(_BitstampPrivateRequest):    
+    url = QtCore.QUrl(URL_BASE + 'open_orders/')
+    priority = 2
+
+    def _handle_reply(self, raw):
+        logger.debug(raw)
+        data = json.loads(raw)
+        self.parent.offers_model.clear()
+        if not data: return
+
+        row = 0
+
+        for order in data:
+            self.addOrder(row, order)
+            row += 1
+
+    def addOrder(self, row, order):
+        item = QtGui.QStandardItem(str(order['id']))
+        self.parent.offers_model.setItem(row, dojima.data.offers.ID, item)        
+
+        item = QtGui.QStandardItem()
+        item.setData(order['price'], QtCore.Qt.UserRole)
+        self.parent.offers_model.setItem(row, dojima.data.offers.PRICE, item)
+
+        item = QtGui.QStandardItem()
+        item.setData(order['amount'], QtCore.Qt.UserRole)
+        self.parent.offers_model.setItem(row, dojima.data.offers.OUTSTANDING, item)
+
+        if order['type'] == BUY:
+            order_type = dojima.data.offers.BID
+        else:
+            order_type = dojima.data.offers.ASK
+        
+        item = QtGui.QStandardItem(order_type)           
+        self.parent.offers_model.setItem(row, dojima.data.offers.TYPE, item)
+        
+"""
 class BitstampTransactionsRequest(dojima.network.ExchangeGETRequest):
 
     def _handle_reply(self, raw):
@@ -189,48 +435,8 @@ class BitstampAccount(_Bitstamp, dojima.exchange.ExchangeAccount):
         self.requests = list()
         self.replies = set()
         self._bitcoin_deposit_address = None
-        self.funds_proxies = dict()
         self.orders_proxy = dojima.data.orders.OrdersProxy(self)
         self.commission = None
-
-    def get_orders_proxy(self, remote_market=None):
-        return self.orders_proxy
-
-    def set_credentials(self, credentials):
-        self.base_query.addQueryItem('user', credentials[0])
-        self.base_query.addQueryItem('password', credentials[1])
-
-    def check_order_status(self, remote_pair):
-        self.BTC_USD_ready_signal.emit(True)
-
-    def refresh_funds(self):
-        BitstampBalanceRequest(self._balance_url, self)
-
-    def refresh_orders(self):
-        BitstampOpenOrdersRequest(self._open_orders_url, self)
-
-    def place_ask_limit_order(self, pair, amount, price):
-        self._place_limit_order(amount, price, self._sell_limit_url)
-
-    def place_bid_limit_order(self, pair, amount, price):
-        self._place_limit_order(amount, price, self._buy_limit_url)
-
-    def _place_limit_order(self, amount, price, url):
-        query = {'amount': amount,
-                 'price': str(price).rstrip('0')}
-        data = {'query': query}
-        BitstampPlaceOrderRequest(url, self, data)
-
-    def cancel_ask_order(self, pair, order_id):
-        self._cancel_order(order_id, 1)
-
-    def cancel_bid_order(self, pair, order_id):
-        self._cancel_order(order_id, 0)
-
-    def _cancel_order(self, order_id, order_type):
-        data = {'type': order_type,
-                'query':{ 'id': order_id }}
-        BitstampCancelOrderRequest(self._cancel_order_url, self, data)
 
     def get_bitcoin_deposit_address(self):
         if self._bitcoin_deposit_address:
@@ -255,98 +461,6 @@ class BitstampAccount(_Bitstamp, dojima.exchange.ExchangeAccount):
         return amount * self.commission
 
 
-class BitstampPrivateRequest(dojima.network.ExchangePOSTRequest):
-
-    def _prepare_request(self):
-        self.request = dojima.network.NetworkRequest(self.url)
-        self.request.setHeader(QtNetwork.QNetworkRequest.ContentTypeHeader,
-                               "application/x-www-form-urlencoded")
-        query = self.parent.base_query
-        if self.data:
-            for key, value in list(self.data['query'].items()):
-                query.addQueryItem(key, value)
-        self.query = query.encodedQuery()
-
-
-class BitstampBalanceRequest(BitstampPrivateRequest):
-    prority = 1
-
-    def _handle_reply(self, raw):
-        logger.debug(raw)
-        data = json.loads(raw, parse_float=Decimal, parse_int=Decimal)
-        self.parent.funds_proxies['BTC'].balance.emit(
-            Decimal(data['btc_available']))
-        self.parent.funds_proxies['USD'].balance.emit(
-            Decimal(data['usd_available']))
-        fee = data['fee'].rstrip('0')
-        self.parent.commission = Decimal(fee) / 100
-
-
-class BitstampOpenOrdersRequest(BitstampPrivateRequest):
-    priority = 2
-
-    def _handle_reply(self, raw):
-        logger.debug(raw)
-        data = json.loads(raw)
-        if not data:
-            return
-        ask_orders, bid_orders = [], []
-        for order in data:
-            order_id = order['id']
-            price = Decimal(order['price'])
-            amount = Decimal(order['amount'])
-            # type - buy or sell (0 - buy; 1 - sell)
-            if order['type'] == 0:
-                bid_orders.append((order_id, price, amount,))
-            elif order['type'] == 1:
-                ask_orders.append((order_id, price, amount,))
-            else:
-                logger.warning('unknown order type %s, WTF!!', order['type'])
-        self.parent.orders_proxy.asks.emit(ask_orders)
-        self.parent.orders_proxy.bids.emit(bid_orders)
-
-
-class BitstampPlaceOrderRequest(BitstampPrivateRequest):
-    priority = 1
-
-    def _handle_reply(self, raw):
-        logger.debug(raw)
-        data = json.loads(raw, parse_float=Decimal)
-        if 'error' in data:
-            self._handle_error(data['error'])
-            return
-
-        order_id = data['id']
-        amount = Decimal(data['amount'])
-        price = Decimal(data['price'])
-        # type - buy or sell (0 - buy; 1 - sell)
-        if data['type'] == 0:
-            logger.info("bid order %s in place", order_id)
-            self.parent.orders_proxy.bid.emit((order_id, price, amount,))
-            self.parent.funds_proxies['USD'].balance_changed( -(amount) * price)
-
-        elif data['type'] == 1:
-            logger.info("ask order %s in place", order_id)
-            self.parent.orders_proxy.ask.emit((order_id, price, amount,))
-            self.parent.funds_proxies['BTC'].balance_changed.emit( -amount)
-
-
-class BitstampCancelOrderRequest(BitstampPrivateRequest):
-    prority = 0
-
-    def _handle_reply(self, raw):
-        logger.debug(raw)
-        data = json.loads(raw)
-
-        if data:
-            order_id = self.data['query']['id']
-            # type - buy or sell (0 - buy; 1 - sell)
-            if self.data['type'] == 1:
-                self.parent.orders_proxy.ask_cancelled.emit(order_id)
-            else:
-                self.parent.orders_proxy.bid_cancelled.emit(order_id)
-            logger.info("order %s cancelled", order_id)
-
 
 class BitstampBitcoinDepositAddressRequest(BitstampPrivateRequest):
     priority = 2
@@ -364,10 +478,13 @@ class BitstampBitcoinWithdrawalRequest(BitstampPrivateRequest):
         logger.debug(raw)
         result = json.loads(raw)
         reply = QtCore.QCoreApplication.translate(
-            "BitstampExchangeAccount", """Bitstamp replied "{}" """)
         self.parent.withdraw_bitcoin_reply_signal.emit(reply.format(result))
 
+"""
 
-dojima.exchange.register_exchange(BitstampExchangeMarket)
-dojima.exchange.register_account(BitstampAccount)
-dojima.exchange.register_exchange_model_item(BitstampExchangeItem)
+def parse_markets():
+    if __name__ in dojima.exchanges.container: return
+    exchange_proxy = BitstampExchangeProxy()
+    dojima.exchanges.container.addExchange(exchange_proxy)
+
+parse_markets()

@@ -14,6 +14,9 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+import heapq
+import logging
+
 from PyQt4 import QtCore, QtGui
 
 import dojima.data.account
@@ -22,6 +25,9 @@ import dojima.data.balance
 
 
 class ExchangeProxy:
+
+    def __init__(self):
+        self.exchange_object = None
 
     def getLocaltoRemote(self, key):
         return self.local_market_map[key]
@@ -43,6 +49,35 @@ class ExchangeProxy:
 
     def nextPage(self, wizard):
         raise NotImplementedError
+
+    
+class ExchangeProxySingleMarket(ExchangeProxy):
+
+    def getLocaltoRemote(self, key):
+        return self.local_market_map
+    
+    def getRemoteMapping(self, key):
+        return self.remote_market_map
+
+    def getRemoteMarketIDs(self, localPair=None):
+        return (self.local_market_map,)
+
+    def getRemoteToLocal(self, marketID=None):
+        return self.local_market
+
+    def getPrettyMarketName(self, market_id):
+        return market_id
+
+    def refreshMarkets(self):
+        local_base_id = dojima.model.commodities.remote_model.getRemoteToLocalMap(self.base_id)
+        local_counter_id = dojima.model.commodities.remote_model.getRemoteToLocalMap(self.counter_id)
+
+        if ((local_base_id is None) or
+            (local_counter_id is None)): return
+
+        local_pair = local_base_id + '_' + local_counter_id
+        self.local_market = local_pair
+        dojima.markets.container.addExchange(self, local_pair, local_base_id, local_counter_id)
 
     
 class Exchange:
@@ -123,9 +158,8 @@ class Exchange:
         return proxy
 
     def pop_request(self):
-        request = heapq.heappop(self._requests)
+        request = heapq.heappop(self.requests)[1]
         request.send()
-        self._replies.add(request)
 
     def populateMenuBar(self, menu, remoteMarketID):
         pass
@@ -139,5 +173,41 @@ class Exchange:
         if self.ticker_timer.isActive():
             self.ticker_timer.setInterval(self._ticker_refresh_rate * 1000)
 
+class ExchangeSingleMarket(Exchange):
 
-        
+    def getBalanceBaseProxy(self, market=None):
+        return self.base_balance_proxy
+
+    def getBalanceCounterProxy(self, market=None):
+        return self.counter_balance_proxy
+
+    def getDepthProxy(self, market=None):
+        return self.depth_proxy
+
+    def getOffersModelAsks(self, market=None):
+        return self.offer_proxy_asks
+
+    def getOffersModelBids(self, market=None):
+        return self.offer_proxy_bids
+    
+    def getTickerProxy(self, market=None):
+        return self.ticker_proxy
+
+    def getTickerRefreshRate(self):
+        return self._ticker_refresh_rate
+
+    def setTickerStreamState(self, state, market=None):
+        if state:
+            self.ticker_clients += 1
+            if self.ticker_timer.isActive():
+                self.ticker_timer.setInterval(self._ticker_refresh_rate * 1000)
+                return
+            self.ticker_timer.start(self._ticker_refresh_rate * 1000)
+        else:
+            if self.ticker_clients >1:
+                self.ticker_clients -= 1
+                return
+            if self.ticker_clients == 0:
+                return
+            self.ticker_clients = 0
+            self.ticker_timer.stop()

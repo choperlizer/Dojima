@@ -31,9 +31,6 @@ import dojima.ui.transfer.bitcoin
 #import dojima.ui.transfer.ot
 
 
-
-
-
 logger = logging.getLogger(__name__)
 
 class MainWindow(QtGui.QMainWindow):
@@ -115,8 +112,7 @@ class MainWindow(QtGui.QMainWindow):
                 else:
                     exchange_menu = market_menu.addExchangeMenu(
                         exchange_proxy.id, exchange_proxy.name)
-                    for market_id in exchange_proxy.getRemoteMarketIDs(
-                            market_container.pair):
+                    for market_id in exchange_proxy.getRemoteMarketIDs(market_container.pair):
                         if market_id not in exchange_menu:
                             action = exchange_menu.addMarketAction(
                                 exchange_proxy, market_id)
@@ -224,7 +220,7 @@ class ShowTradeDockAction(QtGui.QAction):
         self.dock.enableExchange(state)
 
     def createDock(self):
-        marketPair = self.exchange_proxy.getRemoteToLocal(self.marketID)
+        marketPair = self.exchange_proxy.getRemoteToLocal(self.marketID) ##
         self.dock = dojima.ui.exchange.ExchangeDockWidget(
                 self.exchange_proxy, marketPair, self.marketID, self)
         self.parent().getMainWindow().addDockWidget(
