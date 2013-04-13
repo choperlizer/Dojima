@@ -239,7 +239,11 @@ class AssetDecimalSpinBox(_AssetSpinBox):
         return str(value)
 
     def value(self):
-        return Decimal(self.cleanText())
+        text = self.cleanText()
+        if not len(text):
+            return 0
+        else:
+            return Decimal(text)
 
         
 class AssetIntSpinBox(_AssetSpinBox):

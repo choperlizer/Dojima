@@ -38,8 +38,8 @@ class ExchangeProxy:
     def getRemoteMapping(self, key):
         return self.remote_market_map[key]
 
-    def getRemoteMarketIDs(self, localPair):
-        return self.local_market_map[localPair]
+    def getRemoteMarketIDs(self, localMarket_id):
+        return self.local_market_map[localMarket_id]
 
     def getRemoteToLocal(self, marketID):
         return self.remote_market_map[marketID]
@@ -59,7 +59,7 @@ class ExchangeProxySingleMarket(ExchangeProxy):
     def getRemoteMapping(self, key):
         return self.remote_market_map
 
-    def getRemoteMarketIDs(self, localPair=None):
+    def getRemoteMarketIDs(self, localMarket_id=None):
         return (self.local_market_map,)
 
     def getRemoteToLocal(self, marketID=None):
@@ -75,9 +75,9 @@ class ExchangeProxySingleMarket(ExchangeProxy):
         if ((local_base_id is None) or
             (local_counter_id is None)): return
 
-        local_pair = local_base_id + '_' + local_counter_id
-        self.local_market = local_pair
-        dojima.markets.container.addExchange(self, local_pair, local_base_id, local_counter_id)
+        local_market_id = local_base_id + '_' + local_counter_id
+        self.local_market = local_market_id
+        dojima.markets.container.addExchange(self, local_market_id, local_base_id, local_counter_id)
 
     
 class Exchange:
@@ -99,6 +99,12 @@ class Exchange:
             return proxy
 
         return self.funds_proxies[symbol]
+
+    def getBalanceBaseProxy(self, market_id):
+        raise NotImplementedError
+
+    def getBalanceCounterProxy(self, market_id):
+        raise NotImplementedError
 
     def getOffersModelAsks(self, market_id):
         if market_id in self.offers_proxies_asks:
@@ -129,12 +135,9 @@ class Exchange:
         return self.ticker_proxies[market_id]
 
     def getTickerRefreshRate(self, market=None):
-        return self._ticker_exchange_rate
+        return self._ticker_refresh_rate
 
     def getOffersModel(self, market_id):
-        if self.offers_model is None:
-            self.offers_model = dojima.data.offers.Model()
-
         if market_id in self.offers_proxies:
             return self.offers_proxies[market_id]
 
@@ -165,13 +168,38 @@ class Exchange:
         pass
         
     def refresh(self, market_id):
-        self.refreshOffers()
+        self.refreshOffers(market_id)
         self.refreshBalance(market_id)
         
     def setTickerRefreshRate(self, rate):
         self._ticker_refresh_rate = rate
         if self.ticker_timer.isActive():
             self.ticker_timer.setInterval(self._ticker_refresh_rate * 1000)
+
+    def setTickerStreamState(self, state, market_id):
+        if state is True:
+            if not market_id in self._ticker_clients:
+                self._ticker_clients[market_id] = 1
+            else:
+                self._ticker_clients[market_id] += 1
+                
+            if self.ticker_timer.isActive(): return
+                
+            self.ticker_timer.start(self._ticker_refresh_rate * 1000)
+        else:
+            if market_id not in self._ticker_clients: return
+        
+            market_clients = self._ticker_clients[market_id]
+            if market_clients > 1:
+                self._ticker_clients[market_id] -= 1
+                return
+            
+            if market_clients == 1:
+                self._ticker_clients.pop(market_id)
+
+            if sum(self._ticker_clients.values()) == 0:
+                self.ticker_timer.stop()
+        
 
 class ExchangeSingleMarket(Exchange):
 
@@ -197,7 +225,7 @@ class ExchangeSingleMarket(Exchange):
         return self._ticker_refresh_rate
 
     def setTickerStreamState(self, state, market=None):
-        if state:
+        if state is True:
             self.ticker_clients += 1
             if self.ticker_timer.isActive():
                 self.ticker_timer.setInterval(self._ticker_refresh_rate * 1000)

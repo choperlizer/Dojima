@@ -301,7 +301,7 @@ class ExchangeDockWidget(QtGui.QDockWidget, ErrorHandling):
 
         #Refresh offers action
         refresh_offers_action = QtGui.QAction(
-            "&refresh offers", self, triggered=self.exchange.refreshOffers)
+            "&refresh offers", self, triggered=self.refreshOffers)
         #Cancel offer action
         cancel_ask_action = QtGui.QAction(QtCore.QCoreApplication.translate('ExchangeDockWidget', "&cancel ask offer"),
                                           self, triggered=self.cancelAsk)
@@ -345,28 +345,7 @@ class ExchangeDockWidget(QtGui.QDockWidget, ErrorHandling):
         #proxy.accountValidityChanged.connect(self.setEnabled)
 
         self.setAccounts(self.remote_market)
-
-    def placeAskLimit(self):
-        amount = self.amount_spin.value()
-        price = self.price_spin.value()
-
-        dialog = AskOfferConfirmationDialog(self.amount_spin.text(),
-                                            self.price_spin.text(),
-                                            self)
-        if dialog.exec_():
-            self.exchange.placeAskLimitOffer(amount, price, self.remote_market)
-
-
-    def placeBidLimit(self):
-        amount = self.amount_spin.value()
-        price = self.price_spin.value()
-
-        dialog = BidOfferConfirmationDialog(self.amount_spin.text(),
-                                            self.price_spin.text(),
-                                            self)
-        if dialog.exec_():
-            self.exchange.placeBidLimitOffer(amount, price, self.remote_market)
-
+        
     def cancelAsk(self):
         row = self.ask_offers_view.currentIndex().row()
         index = self.asks_model.index(row, dojima.data.offers.ID)
@@ -402,6 +381,30 @@ class ExchangeDockWidget(QtGui.QDockWidget, ErrorHandling):
         if enable:
             self.exchange.echoTicker(self.remote_market)
 
+    def placeAskLimit(self):
+        amount = self.amount_spin.value()
+        price = self.price_spin.value()
+
+        dialog = AskOfferConfirmationDialog(self.amount_spin.text(),
+                                            self.price_spin.text(),
+                                            self)
+        if dialog.exec_():
+            self.exchange.placeAskLimitOffer(amount, price, self.remote_market)
+
+
+    def placeBidLimit(self):
+        amount = self.amount_spin.value()
+        price = self.price_spin.value()
+
+        dialog = BidOfferConfirmationDialog(self.amount_spin.text(),
+                                            self.price_spin.text(),
+                                            self)
+        if dialog.exec_():
+            self.exchange.placeBidLimitOffer(amount, price, self.remote_market)
+
+    def refreshOffers(self):
+        self.exchange.refreshOffers(self.remote_market)
+                
     def setAccounts(self, market_id):
         if not self.exchange.hasAccount(market_id):
             return

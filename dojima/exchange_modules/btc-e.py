@@ -1,5 +1,5 @@
 # Dojima, a markets client.
-# Copyright (C) 2012  Emery Hemingway
+# Copyright (C) 2012-2013 Emery Hemingway
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -20,44 +20,213 @@ import hmac
 import json
 import logging
 import time
+import urllib.parse
+
 from decimal import Decimal
 
 from PyQt4 import QtCore, QtGui, QtNetwork
 
+import dojima.exchanges
 import dojima.exchange
-import dojima.data.funds
-import dojima.data.orders
-import dojima.data.ticker
+import dojima.data.account
+import dojima.data.market
+import dojima.data.offers
+import dojima.markets
 import dojima.network
-from dojima.model.exchanges import exchanges_model
+
 
 logger = logging.getLogger(__name__)
 
-EXCHANGE_NAME = "BTC-e"
-COMMODITIES = ( 'btc', 'ltc', 'nmc', 'rur', 'usd' )
+PRETTY_NAME = "BTC-e"
 HOSTNAME = "btc-e.com"
 _PUBLIC_BASE_URL = "https://" + HOSTNAME + "/api/2/"
-_PRIVATE_URL = "https://" + HOSTNAME + "/tapi"
+SETTINGS_GROUP = PRETTY_NAME
+
+MARKETS = ( 'btc_eur', 'btc_rur', 'btc_usd', 
+            'eur_usd', 
+            'ltc_btc', 'ltc_rur', 'ltc_usd', 
+            'nmc_btc', 
+            'nvc_btc', 
+            'ppc_btc',
+            'trc_btc', 
+            'usd_rur', )
+
+FACTORS = { 'btc':100000000,
+            'eur':1000,
+            'ltc':100000000,
+            'nmc':1000,
+            'nvc':1000,
+            'ppc':1000,
+            'rur':1000,
+            'trc':1000,
+            'usd':1000 }
+
+POWERS = { 'btc':8,
+           'eur':3,
+           'ltc':8,
+           'nmc':3,
+           'nvc':3,
+           'ppc':3,
+           'rur':3,
+           'trc':3,
+           'usd':3 }
+
+def get_symbols(pair):
+    return pair.split('_')
+    
+def saveAccountSettings(key, secret):
+    settings = QtCore.QSettings()
+    settings.beginGroup(SETTINGS_GROUP)
+    settings.setValue('API_key', key)
+    settings.setValue('API_secret', secret)
+
+def loadAccountSettings():
+    settings = QtCore.QSettings()
+    settings.beginGroup(SETTINGS_GROUP)
+    key = settings.value('API_key')
+    secret = settings.value('API_secret')
+    return key, secret
 
 
-class BtceProviderItem(dojima.model.exchanges.ExchangeItem):
+class BtceExchangeProxy(dojima.exchange.ExchangeProxy):
 
-    exchange_name = EXCHANGE_NAME
+    id = 'btce'
+    name = PRETTY_NAME
+    local_market_map = dict()
+    remote_market_map = dict()
 
-    COLUMNS = 4
-    MARKETS, REFRESH_RATE, ACCOUNT_KEY, ACCOUNT_SECRET = list(range(COLUMNS))
-    mappings = (("refresh rate (seconds)", REFRESH_RATE),
-                ("key", ACCOUNT_KEY),
-                ("secret", ACCOUNT_SECRET),)
-    markets = ( 'btc_usd', 'btc_rur', 'ltc_btc', 'nmc_btc', 'usd_rur' )
+    def __init__(self):
+        self.exchange_object = None
 
-    numeric_settings = (REFRESH_RATE,)
-    boolean_settings = ()
-    required_account_settings = (ACCOUNT_KEY, ACCOUNT_SECRET)
-    hidden_settings = ()
+    def getExchangeObject(self):
+        if self.exchange_object is None:
+            self.exchange_object = BtceExchange()
 
+        return self.exchange_object
 
-class BtceRequest(QtCore.QObject):
+    def getPrettyMarketName(self, remote_market_id):
+        # TODO make the asset seperator (/) locale dependant
+        s = remote_market_id.replace('_', '/')
+        return s.upper()
+
+    def getWizardPage(self, wizard):
+        return BtceWizardPage(wizard)
+        
+    def refreshMarkets(self):
+        for market_symbol in MARKETS:
+            remote_base_id, remote_counter_id = market_symbol.split('_')
+            local_counter_id = dojima.model.commodities.remote_model.getRemoteToLocalMap('btce-' + remote_counter_id)
+            local_base_id = dojima.model.commodities.remote_model.getRemoteToLocalMap('btce-' + remote_base_id)
+            if ((local_base_id is None) or
+                (local_counter_id is None)) : continue
+
+            local_pair = local_base_id + '_' + local_counter_id
+
+            if local_pair in self.local_market_map:
+                local_map = self.local_market_map[local_pair]
+            else:
+                local_map = list()
+                self.local_market_map[local_pair] = local_map
+
+            if market_symbol not in local_map:
+                local_map.append(market_symbol)
+
+            self.remote_market_map[market_symbol] = local_pair
+
+            dojima.markets.container.addExchange(self, local_pair,
+                                                 local_base_id, local_counter_id)
+
+            
+class BtceWizardPage(QtGui.QWizardPage):
+
+    def __init__(self, parent):
+        super(BtceWizardPage, self).__init__(parent)
+        self.setTitle(PRETTY_NAME)
+        self.setSubTitle(QtCore.QCoreApplication.translate(PRETTY_NAME,
+            "TODO: write something here."))
+        self._is_complete = False
+
+    def checkCompleteState(self):
+        if ( len(self.key_edit.text())    != 44 or
+             len(self.secret_edit.text()) != 64 or
+             self.base_combo.currentIndex() == self.counter_combo.currentIndex() ):
+            is_complete = False
+            
+        else:
+            is_complete = True
+
+        if self._is_complete is not is_complete:
+            self._is_complete = is_complete
+            self.completeChanged.emit()
+
+    def initializePage(self):
+        self.key_edit = QtGui.QLineEdit()
+        self.secret_edit = QtGui.QLineEdit()
+        self.market_combo = QtGui.QComboBox()
+        self.base_combo = QtGui.QComboBox()
+        self.counter_combo = QtGui.QComboBox()
+
+        new_local_button = QtGui.QPushButton(
+            QtCore.QCoreApplication.translate(PRETTY_NAME, "New Commodity",
+                                              "The label on the new commodity button in the "
+                                              "new market wizard."))
+        button_box = QtGui.QDialogButtonBox()
+        button_box.addButton(new_local_button, button_box.ActionRole)
+
+        layout = QtGui.QFormLayout()
+        layout.addRow(QtCore.QCoreApplication.translate(PRETTY_NAME, "API Key"), self.key_edit)
+        layout.addRow(QtCore.QCoreApplication.translate(PRETTY_NAME, "API Secret"), self.secret_edit)
+        layout.addRow(QtCore.QCoreApplication.translate(PRETTY_NAME, "Market"), self.market_combo)
+        layout.addRow(QtCore.QCoreApplication.translate(PRETTY_NAME, "Local Base Commodity"), self.base_combo)
+        layout.addRow(QtCore.QCoreApplication.translate(PRETTY_NAME, "Local Counter Commodity"), self.counter_combo)
+        layout.addRow(button_box)
+        self.setLayout(layout)
+
+        self.market_combo.addItems(MARKETS)
+        self.base_combo.setModel(dojima.model.commodities.local_model)
+        self.counter_combo.setModel(dojima.model.commodities.local_model)
+                
+        new_local_button.clicked.connect(self.showNewCommodityDialog)
+        self.key_edit.textChanged.connect(self.checkCompleteState)
+        self.secret_edit.textChanged.connect(self.checkCompleteState)
+        self.base_combo.currentIndexChanged.connect(self.checkCompleteState)
+        self.counter_combo.currentIndexChanged.connect(self.checkCompleteState)
+
+        key, secret = loadAccountSettings()
+        if key:
+            self.key_edit.setText(key)
+        if secret:
+            self.secret_edit.setText(secret)
+
+    def isComplete(self):
+        return self._is_complete
+
+    def nextId(self):
+        return -1
+
+    def showNewCommodityDialog(self):
+        dialog = dojima.ui.edit.commodity.NewCommodityDialog(self)
+        dialog.exec_()
+
+    def validatePage(self):
+        saveAccountSettings(self.key_edit.text(), self.secret_edit.text())
+        
+        base_symbol, counter_symbol = self.market_combo.currentText().split('_')
+        base_symbol    = 'btce-' + base_symbol
+        counter_symbol = 'btce-' + counter_symbol
+        
+        local_base_id    = self.base_combo.itemData(self.base_combo.currentIndex(),
+                                                    QtCore.Qt.UserRole)
+        local_counter_id = self.base_combo.itemData(self.counter_combo.currentIndex(),
+                                                    QtCore.Qt.UserRole)
+
+        dojima.model.commodities.remote_model.map(base_symbol,    local_base_id)
+        dojima.model.commodities.remote_model.map(counter_symbol, local_counter_id)
+        
+        return dojima.model.commodities.remote_model.submit()
+
+"""
+class _BtceRequest:
 
     def __init__(self, url, handler, parent, data=None):
         self.url = url
@@ -89,7 +258,7 @@ class BtceRequest(QtCore.QObject):
         for key, value in pairs:
             if key == 'ticker':
                 return value
-            dct[key] = Decimal(value)
+            dct[key] = value
         return dct
 
     def _process_reply(self):
@@ -101,78 +270,18 @@ class BtceRequest(QtCore.QObject):
             raw = self.reply.readAll()
             logger.debug(raw)
             self.data = json.loads(raw,
-                                   parse_float=Decimal,
                                    object_pairs_hook=self._object_pairs_hook)
             self.handler(self.data)
         self.reply.deleteLater()
         self.parent._replies.remove(self)
+"""
+        
 
+class BtceExchange(QtCore.QObject, dojima.exchange.Exchange):
+    valueType = Decimal
 
-class BtcePrivateRequest(BtceRequest):
-    url = QtCore.QUrl(_PRIVATE_URL)
-
-    def __init__(self, method, handler, parent, data=None):
-        self.method = method
-        self.handler = handler
-        self.parent = parent
-        self.data = data
-        self.reply = None
-
-    def _prepare_request(self):
-        self.request = dojima.network.NetworkRequest(self.url)
-        self.request.setHeader(QtNetwork.QNetworkRequest.ContentTypeHeader,
-                               "application/x-www-form-urlencoded")
-        query = QtCore.QUrl()
-        query.addQueryItem('method', self.method)
-        self.parent.nonce += 1
-        query.addQueryItem('nonce', self.parent.nonce)
-        if self.data:
-            for key, value in list(self.data['query'].items()):
-                query.addQueryItem(key, value)
-        self.query = query.encodedQuery()
-
-        h = hmac.new(self.parent._secret, digestmod=hashlib.sha512)
-        h.update(self.query)
-        sign = h.hexdigest()
-
-        self.request.setRawHeader('Key', self.parent._key)
-        self.request.setRawHeader('Sign', sign)
-
-    def _process_reply(self):
-        if self.reply.error():
-            logger.error(self.reply.errorString())
-        else:
-            if logger.isEnabledFor(logging.DEBUG):
-                logger.debug("received reply to %s", self.url.toString())
-            raw = self.reply.readAll()
-            logger.debug(raw)
-            data = json.loads(raw, parse_float=Decimal)
-            if data['success'] != 1:
-                if data['error'] != 'no orders':
-                    msg = HOSTNAME + " " + self.method + " : " + data['error']
-                    self.parent.exchange_error_signal.emit(msg)
-                    logger.warning(msg)
-            else:
-                if self.data:
-                    self.data.update(data)
-                else:
-                    self.data = data
-                self.handler(self.data)
-        self.reply.deleteLater()
-        self.parent.replies.remove(self)
-
-
-class _Btce(QtCore.QObject):
-
-    exchange_name = EXCHANGE_NAME
+    accountChanged = QtCore.pyqtSignal(str)
     exchange_error_signal = QtCore.pyqtSignal(str)
-
-    def pop_request(self):
-        request = heapq.heappop(self.requests)[1]
-        request.send()
-
-
-class BtceExchange(_Btce):
 
     def __init__(self, network_manager=None, parent=None):
         if not network_manager:
@@ -181,136 +290,311 @@ class BtceExchange(_Btce):
 
         # TODO make this wait time a user option
         self.network_manager = network_manager
-        self.host_queue = self.network_manager.get_host_request_queue(
-            HOSTNAME, 500)
+        self.host_queue = self.network_manager.get_host_request_queue(HOSTNAME, 500)
         self.requests = list()
         self.replies = set()
-        self._ticker_proxies = dict()
+        
+        self.account_validity_proxies = dict()
+        self.ticker_proxies = dict()
+        self.ticker_clients = dict()
+        self.balance_proxies = dict()
+        self.depth_proxies = dict()
+        self.trades_proxies = dict()
+
+        self.offers_model = dojima.data.offers.Model()
+        self.base_offers_proxies = dict()
+        self.offers_proxies = dict()
+        self.offers_proxies_asks = dict()
+        self.offers_proxies_bids = dict()
+
+        self._ticker_refresh_rate = 16
+        self.ticker_timer = QtCore.QTimer(self)
+        self.ticker_timer.timeout.connect(self._refresh_tickers)
         self._ticker_clients = dict()
-        self._ticker_timer = QtCore.QTimer(self)
-        self._ticker_timer.timeout.connect(self._refresh_tickers)
-        search = exchanges_model.findItems(self.exchange_name,
-                                           QtCore.Qt.MatchExactly)
-        self._model_item = search[0]
+        
+        self.loadAccountCredentials()
 
-    def get_ticker_proxy(self, remote_market):
-        if remote_market not in self._ticker_proxies:
-            ticker_proxy = dojima.data.ticker.TickerProxy(self)
-            self._ticker_proxies[remote_market] = ticker_proxy
-            return ticker_proxy
-        return self._ticker_proxies[remote_market]
+    def cancelOffer(self, order_id, pair=None):
+        params = {'order_id': order_id}
+        request = BtceCancelOrderRequest(params, self)
+        request.order_id = order_id
+                
+    cancelAskOffer = cancelOffer
+    cancelBidOffer = cancelOffer
 
-    def set_ticker_stream_state(self, state, remote_market):
-        if state is True:
-            if not remote_market in self._ticker_clients:
-                self._ticker_clients[remote_market] = 1
-            else:
-                self._ticker_clients[remote_market] += 1
-            refresh_rate = self._model_item.child(
-                0, self._model_item.REFRESH_RATE).text()
-            if not refresh_rate:
-                refresh_rate = 10000
-            else:
-                refresh_rate = float(refresh_rate) * 1000
-            if self._ticker_timer.isActive():
-                self._ticker_timer.setInterval(refresh_rate)
-                return
-            logger.info(QtCore.QCoreApplication.translate(
-                'BteExchange', "starting ticker stream"))
-            self._ticker_timer.start(refresh_rate)
+    def getBalanceBaseProxy(self, market_id):
+        symbol = market_id.split('_')[0]
+        if symbol not in self.balance_proxies:
+            proxy = dojima.data.balance.BalanceProxy(self)
+            self.balance_proxies[symbol] = proxy
+            return proxy
+
+        return self.balance_proxies[symbol]
+
+    def getBalanceCounterProxy(self, market_id):
+        symbol = market_id.split('_')[1]
+        if symbol not in self.balance_proxies:
+            proxy = dojima.data.balance.BalanceProxy(self)
+            self.balance_proxies[symbol] = proxy
+            return proxy
+
+        return self.balance_proxies[symbol]
+
+    def getMarketSymbols(self, pair):
+        return pair.split('_')
+    
+    def hasAccount(self, market_id=None):
+        return (self._key and self._secret)
+        
+    def loadAccountCredentials(self):
+        key, secret = loadAccountSettings()
+        if len(key) != 44 or len(secret) != 64:
+            self._key, self._secret = None, None
+            return
+
+        self._key = key
+        self._secret = bytes(secret, 'utf')
+        self._nonce = int(time.time() / 2)
+
+    def placeAskLimitOffer(self, amount, price, pair):
+        params = {'pair': pair,
+                  'type': 'sell',
+                  'rate': price,
+                  'amount': amount}       
+        request = BtceTradeRequest(params, self)
+        request.pair = pair
+        request.amount = amount
+        request.price = price
+        request.type_ = dojima.data.offers.ASK
+    
+    def placeBidLimitOffer(self, amount, price, pair):
+        params = {'pair': pair,
+                  'type': 'buy',
+                  'rate': price,
+                  'amount': amount}       
+        request = BtceTradeRequest(params, self)
+        request.pair = pair
+        request.amount = amount
+        request.price = price
+        request.type_ = dojima.data.offers.BID
+        
+    def refreshBalance(self, market_id=None):
+        BtceInfoRequest(None, self)
+                
+    def refreshDepth(self, market_id):
+        BtceDepthRequest(market_id, self)
+
+    def refreshOffers(self, pair=None):
+        if pair is None:
+            param = None
         else:
-            if remote_market in self._ticker_clients:
-                market_clients = self._ticker_clients[remote_market]
-                if market_clients > 1:
-                    self._ticker_clients[remote_market] -= 1
-                    return
-                if market_clients == 1:
-                    self._ticker_clients.pop(remote_market)
+            params = {'pair': pair}
 
-            if sum(self._ticker_clients.values()) == 0:
-                logger.info(QtCore.QCoreApplication.translate(
-                    'BtceExchange', "stopping ticker stream"))
-                self._ticker_timer.stop()
+        BtceOrdersRequest(params, self)
 
-    def refresh_ticker(self, remote_market):
-        ticker_url = QtCore.QUrl(_PUBLIC_BASE_URL + remote_market + "/ticker")
-        BtceTickerRequest(ticker_url, self)
-
+    def refreshTrades(self, market_id):
+        BtceTradesRequest(market_id, self)
+        
     def _refresh_tickers(self):
-        for remote_market in list(self._ticker_clients.keys()):
-            ticker_url = QtCore.QUrl(
-                _PUBLIC_BASE_URL + remote_market + "/ticker")
-            BtceTickerRequest(ticker_url, self)
+        for pair in list(self._ticker_clients.keys()):
+            BtceTickerRequest(pair, self)
 
-class BtceTickerRequest(dojima.network.ExchangeGETRequest):
 
+class _BtcePublicRequest(dojima.network.ExchangeGETRequest):
+
+    def __init__(self, pair, parent):
+        self.pair = pair
+        self.parent = parent
+        self.url = QtCore.QUrl(self._url.format(pair))
+        self.reply = None
+        parent.requests.append( (self.priority, self,) )
+        parent.host_queue.enqueue(self.parent, self.host_priority)
+
+
+class BtceDepthRequest(_BtcePublicRequest):
+    _url = _PUBLIC_BASE_URL + "{}/depth"
+
+    def _handle_reply(self, raw):
+        logger.debug(raw)
+        data = json.loads(raw)
+
+        proxy = self.parent.getDepthProxy(self.pair)
+        proxy.processDepth(data['asks'], data['bids'])
+
+class BtceTickerRequest(_BtcePublicRequest):
+    _url = _PUBLIC_BASE_URL + "{}/ticker"
+    
     def _handle_reply(self, raw):
         logger.debug(raw)
         data = json.loads(raw, parse_float=Decimal, parse_int=Decimal)
         data = data['ticker']
-        path = self.url.path().split('/')
-        remote_market = path[3]
-        proxy = self.parent._ticker_proxies[remote_market]
+        proxy = self.parent.ticker_proxies[self.pair]
         proxy.ask_signal.emit(data['buy'])
         proxy.last_signal.emit(data['last'])
         proxy.bid_signal.emit(data['sell'])
 
+        
+class BtceTradesRequest(_BtcePublicRequest):
+    _url = _PUBLIC_BASE_URL + "{}/trades"
 
-class BtceAccount(_Btce, dojima.exchange.ExchangeAccount):
+    def _handle_reply(self, raw):
+        logger.debug(raw)
+        data = json.loads(raw)
 
-    # BAD rudunant
-    markets = ( 'btc_usd', 'btc_rur', 'ltc_btc', 'nmc_btc', 'usd_rur' )
+        proxy = self.parent.getTradesProxy(self.pair)
+        # TODO finish me
 
-    btc_usd_ready_signal = QtCore.pyqtSignal(bool)
-    btc_rur_ready_signal = QtCore.pyqtSignal(bool)
-    ltc_btc_ready_signal = QtCore.pyqtSignal(bool)
-    nmc_btc_ready_signal = QtCore.pyqtSignal(bool)
-    usd_rur_ready_signal = QtCore.pyqtSignal(bool)
+            
+class _BtcePrivateRequest(dojima.network.ExchangePOSTRequest):
+    priority = 1
+    host_priority = 0
+    url = QtCore.QUrl("https://" + HOSTNAME + "/tapi")
 
-    commission = Decimal('0.002')
+    def __init__(self, params, parent):
+        self.params = params
+        self.parent = parent
+        self.reply = None
+        parent.requests.append( (self.priority, self,) )
+        parent.host_queue.enqueue(self.parent, self.host_priority)    
 
-    def __init__(self, credentials, network_manager=None, parent=None):
-        if network_manager is None:
-            network_manager = dojima.network.get_network_manager()
-        super(BtceAccount, self).__init__(parent)
-        self.set_credentials(credentials)
+    def _prepare_request(self):
+        self.request = QtNetwork.QNetworkRequest(self.url)
+        self.request.setHeader(QtNetwork.QNetworkRequest.ContentTypeHeader,
+                               "application/x-www-form-urlencoded")
+        params = {'method': self.method,
+                  'nonce': str(self.parent._nonce)}
+        self.parent._nonce += 1
+        if self.params:
+            params.update(self.params)
+        self.query = urllib.parse.urlencode(params)
+                
+        h = hmac.new(self.parent._secret, bytes(self.query, 'utf'), hashlib.sha512)
+        signature = h.hexdigest()
+        
+        self.request.setRawHeader('Key', self.parent._key)
+        self.request.setRawHeader('Sign', signature)
 
-        self.network_manager = network_manager
-        self.host_queue = self.network_manager.get_host_request_queue(
-            HOSTNAME, 5000)
-        self.requests = list()
-        self.replies = set()
-        self.funds_proxies = dict()
-        self.orders_proxies = dict()
+    def _handle_reply(self, raw):
+        logger.debug(raw)
+        data = json.loads(raw, parse_float=Decimal, parse_int=Decimal)
+        logger.debug(data)
+        if data['success'] == 0:
+            logger.error("%s: %s", data['error'], self.query)
+            return
 
-        # TODO maybe divide smaller
-        self.nonce = int(time.time() / 2)
+        self.handle_reply(data['return'])
+        
 
-    def pop_request(self):
-        request = heapq.heappop(self.requests)[1]
-        request.post()
-        self.replies.add(request)
+class BtceInfoRequest(_BtcePrivateRequest):
+    method = 'getInfo'
 
-    def set_credentials(self, credentials):
-        self._key = credentials[0]
-        self._secret = credentials[1]
+    def handle_reply(self, data):
+        for symbol, balance in list(data['funds'].items()):
+            if symbol in self.parent.balance_proxies:
+                proxy = self.parent.balance_proxies[symbol]
+                proxy.balance_liquid.emit(balance)
 
-    def check_order_status(self, remote_pair):
-        signal = getattr(self, remote_pair + "_ready_signal")
-        signal.emit(True)
+                
+class BtceCancelOrderRequest(_BtcePrivateRequest):
+    method = 'CancelOrder'
+    priority = 0
 
-    def refresh_funds(self):
-        request = BtcePrivateRequest('getInfo', self._getinfo_handler, self)
-        self.requests.append((2, request))
-        self.host_queue.enqueue(self, 2)
+    def _handle_reply(self, raw):
+        logger.debug(raw)
+        data = json.loads(raw, parse_float=Decimal, parse_int=Decimal)
+        logger.debug(data)
+        if data['success'] == 0:
+            logger.error("%s: %s", data['error'], self.query)
+            return
+               
+        search = self.parent.offers_model.findItems(self.order_id)
+        for item in search:
+            self.parent.offers_model.removeRows(item.row(), 1)
 
-    def _getinfo_handler(self, data):
-        self._emit_funds(data['return']['funds'])
+            
+class BtceOrdersRequest(_BtcePrivateRequest):
+    method = 'OrderList'
 
-    def refresh_orders(self):
-        request = BtcePrivateRequest('OrderList', self._orderlist_handler, self)
-        self.requests.append((2, request))
-        self.host_queue.enqueue(self, 2)
+    def handle_reply(self, data):
+        self.parent.offers_model.clear
+        print(data)
+        row = 0
+        for order_id, order in list(data.items()):
+
+            #id 
+            item = QtGui.QStandardItem(order_id)
+            self.parent.offers_model.setItem(row, dojima.data.offers.ID, item)
+
+            # price
+            item = QtGui.QStandardItem()
+            item.setData(order['rate'], QtCore.Qt.UserRole)
+            self.parent.offers_model.setItem(row, dojima.data.offers.PRICE, item)
+
+            # offer outstanding
+            item = QtGui.QStandardItem()
+            item.setData(order['amount'], QtCore.Qt.UserRole)
+            self.parent.offers_model.setItem(row, dojima.data.offers.OUTSTANDING, item)
+
+            offer_type = order['type']
+            if offer_type == 'sell':
+                item = QtGui.QStandardItem(dojima.data.offers.ASK)
+                self.parent.offers_model.setItem(row, dojima.data.offers.TYPE, item)
+            elif offer_type == 'buy':
+                item = QtGui.QStandardItem(dojima.data.offers.BID)
+                self.parent.offers_model.setItem(row, dojima.data.offers.TYPE, item)
+            else:
+                logger.error("Unrecognized order type: %s", offer_type)
+
+            base_symbol, counter_symbol = get_symbols(order['pair'])
+            item = QtGui.QStandardItem(base_symbol)
+            self.parent.offers_model.setItem(row, dojima.data.offers.BASE, item)
+            item = QtGui.QStandardItem(counter_symbol)
+            self.parent.offers_model.setItem(row, dojima.data.offers.COUNTER, item)            
+            row += 1
+
+
+class BtceTradeRequest(_BtcePrivateRequest):
+    method = 'Trade'
+
+    def _handle_reply(self, raw):
+        logger.debug(raw)
+        data = json.loads(raw)
+        if data['success'] == 0:
+            logger.error("%s: %s", data['error'], self.query)
+            return
+
+        base_symbol, counter_symbol = get_symbols(self.pair)
+        row = self.parent.offers_model.rowCount()
+
+        item = QtGui.QStandardItem()
+        item.setData(self.price, QtCore.Qt.UserRole)
+        self.parent.offers_model.setItem(row, dojima.data.offers.PRICE, item)
+        
+        item = QtGui.QStandardItem()
+        item.setData(self.amount, QtCore.Qt.UserRole)
+        self.parent.offers_model.setItem(row, dojima.data.offers.OUTSTANDING, item)        
+
+        item = QtGui.QStandardItem(self.type_)
+        self.parent.offers_model.setItem(row, dojima.data.offers.TYPE, item)
+
+        item = QtGui.QStandardItem(base_symbol)
+        self.parent.offers_model.setItem(row, dojima.data.offers.BASE, item)
+        item = QtGui.QStandardItem(counter_symbol)
+        self.parent.offers_model.setItem(row, dojima.data.offers.COUNTER, item)
+        
+        if self.type_ is dojima.data.offers.ASK:
+            total = (- self.amount)
+            proxy = self.parent.balance_proxies[base_symbol]
+            proxy.balance_liquid_changed.emit(total)
+                
+        elif self.type_ is dojima.data.offers.BID:
+            total = (- (self.price * self.amount))
+            proxy = self.parent.balance_proxies[counter_symbol]
+            proxy.balance_liquid_changed.emit(total)
+
+
+"""        
+class BtceAccount:
 
     def _orderlist_handler(self, data):
         data = data['return']
@@ -349,13 +633,11 @@ class BtceAccount(_Btce, dojima.exchange.ExchangeAccount):
         self._place_order(remote, 'buy', amount, price)
 
     def _place_order(self, remote_pair, order_type, amount, price):
-        data = {'query':{'pair': remote_pair,
-                         'type': order_type,
-                         'amount': amount,
-                         'rate': price} }
-        request = BtcePrivateRequest('Trade', self._trade_handler, self, data)
-        self.requests.append((1, request))
-        self.host_queue.enqueue(self, 1)
+        params = {'pair': remote_pair,
+                  'type': order_type,
+                  'amount': str(amount),
+                  'rate': str(price)}
+        raise NotImplementedError
 
     def _trade_handler(self, data):
         order_id = data['return']['order_id']
@@ -373,32 +655,6 @@ class BtceAccount(_Btce, dojima.exchange.ExchangeAccount):
                 self.orders_proxies[pair].bid.emit((order_id, price, amount,))
         self._emit_funds(data['return']['funds'])
 
-    def cancel_ask_order(self, pair, order_id):
-        self._cancel_order(pair, order_id, 'ask')
-
-    def cancel_bid_order(self, pair, order_id):
-        self._cancel_order(pair, order_id, 'bid')
-
-    def _cancel_order(self, pair, order_id, order_type):
-        data = {'pair':pair,
-                'type':order_type,
-                'query':{'order_id':order_id}}
-        request = BtcePrivateRequest('CancelOrder', self._cancelorder_handler,
-                                     self, data)
-        self.requests.append((0, request))
-        self.host_queue.enqueue(self, 0)
-
-    def _cancelorder_handler(self, data):
-        order_id = data['return']['order_id']
-        pair = data['pair']
-        order_type = data['type']
-        if order_type == 'ask':
-            if pair in self.orders_proxies:
-                self.orders_proxies[pair].ask_cancelled.emit(order_id)
-        elif order_type == 'bid':
-            if pair in self.orders_proxies:
-                self.orders_proxies[pair].bid_cancelled.emit(order_id)
-        self._emit_funds(data['return']['funds'])
 
     def _emit_funds(self, data):
         for symbol, balance in list(data.items()):
@@ -409,8 +665,12 @@ class BtceAccount(_Btce, dojima.exchange.ExchangeAccount):
 
     def get_commission(self, amount, remote_market=None):
         return amount * self.commission
+"""
+    
+def parse_markets():
+    if __name__ in dojima.exchanges.container: return
 
+    exchange_proxy = BtceExchangeProxy()
+    dojima.exchanges.container.addExchange(exchange_proxy)
 
-dojima.exchange.register_exchange(BtceExchange)
-dojima.exchange.register_account(BtceAccount)
-dojima.exchange.register_exchange_model_item(BtceProviderItem)
+parse_markets()

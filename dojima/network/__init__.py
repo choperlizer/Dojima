@@ -1,5 +1,5 @@
 # Dojima, a markets client.
-# Copyright (C) 2012-2013  Emery Hemingway
+# Copyright (C) 2012-2013 Emery Hemingway
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -89,15 +89,6 @@ class NetworkAccessManager(QtNetwork.QNetworkAccessManager):
         return host_queue
 
 
-class NetworkRequest(QtNetwork.QNetworkRequest):
-
-    def __init__(self, url):
-        super(NetworkRequest, self).__init__(url)
-        # BAD hardcoding
-        # TODO get this from QApplication
-        self.setRawHeader("User-Agent", "dojima/0.7.0")
-
-
 class ExchangeRequest(object):
     priority = 3
     host_priority = None
@@ -113,7 +104,7 @@ class ExchangeRequest(object):
             self.reply.deleteLater()
 
     def _prepare_request(self):
-        self.request = NetworkRequest(self.url)
+        self.request = QtNetwork.QNetworkRequest(self.url)
         self.request.setHeader(QtNetwork.QNetworkRequest.ContentTypeHeader,
                                "application/x-www-form-urlencoded")
         query = QtCore.QUrl()
@@ -141,7 +132,7 @@ class ExchangeRequest(object):
 class ExchangeGETRequest(ExchangeRequest):
 
     def send(self):
-        self.request = NetworkRequest(self.url)
+        self.request = QtNetwork.QNetworkRequest(self.url)
         if logger.isEnabledFor(logging.INFO):
             logger.info("GET to %s", self.url.toString())
         self.reply = self.parent.network_manager.get(self.request)
@@ -158,7 +149,6 @@ class ExchangePOSTRequest(ExchangeRequest):
         parent.requests.append( (self.priority, self,) )
         parent.host_queue.enqueue(self.parent, self.host_priority)
     
-
     def send(self):
         self._prepare_request()
         if logger.isEnabledFor(logging.INFO):

@@ -28,6 +28,7 @@ import dojima.exchanges
 import dojima.data.market
 import dojima.data.offers
 import dojima.network
+import dojima.ui.wizard
 
 
 logger = logging.getLogger(__name__)
@@ -69,7 +70,7 @@ class CampbxExchangeProxy(dojima.exchange.ExchangeProxySingleMarket):
         return CampbxWizardPage(wizard)
 
 
-class CampbxWizardPage(QtGui.QWizardPage):
+class CampbxWizardPage(dojima.ui.wizard.ExchangeWizardPage):
 
     def __init__(self, parent):
         super(CampbxWizardPage, self).__init__(parent)
@@ -130,16 +131,6 @@ class CampbxWizardPage(QtGui.QWizardPage):
             self.password_edit.setText(password)
 
         self.checkCompleteState()
-
-    def isComplete(self):
-        return self._is_complete
-
-    def nextId(self):
-        return -1
-
-    def showNewCommodityDialog(self):
-        dialog = dojima.ui.edit.commodity.NewCommodityDialog(self)
-        dialog.exec_()
 
     def validatePage(self):
         saveAccountSettings(self.username_edit.text(), self.password_edit.text())
@@ -246,7 +237,7 @@ class _CampbxPrivateRequest(dojima.network.ExchangePOSTRequest):
         parent.host_queue.enqueue(self.parent, self.host_priority)
 
     def _prepare_request(self):
-        self.request = dojima.network.NetworkRequest(self.url)
+        self.request = QtNetwork.QNetworkRequest(self.url)
         self.request.setHeader(QtNetwork.QNetworkRequest.ContentTypeHeader,
                                "application/x-www-form-urlencoded")
         query = QtCore.QUrl()

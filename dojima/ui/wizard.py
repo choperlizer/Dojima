@@ -32,6 +32,18 @@ class AddMarketsWizard(QtGui.QWizard):
     # would be shown.
     """
 
+class ExchangeWizardPage(QtGui.QWizardPage):
+
+    def isComplete(self):
+        return self._is_complete
+
+    def nextId(self):
+        return -1
+
+    def showNewCommodityDialog(self):
+        dialog = dojima.ui.edit.commodity.NewCommodityDialog(self)
+        dialog.exec_()
+        
 
 class SelectExchangePage(QtGui.QWizardPage):
 
