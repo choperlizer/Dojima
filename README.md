@@ -33,10 +33,11 @@ If you don't want to commit to a sudo, you can install to ~/.local:
     # you'll have to run the command  ~/.local/bin/dojima
 
 ### Gentoo
+
   layman -a bitcoin && emerge dojima
 
 ### OS X
-Probably works, but too expensive to test.
+Probably works, but you'll have to manually install the dependecies.
 
 ### Ubuntu
 It should work on Ubuntu in theory, but only Ubuntu raring whatever.
