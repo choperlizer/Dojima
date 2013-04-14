@@ -34,7 +34,7 @@ If you don't want to commit to a sudo, you can install to ~/.local:
 
 ### Gentoo
 
-  layman -a bitcoin && emerge dojima
+    layman -a bitcoin && emerge dojima
 
 ### OS X
 Probably works, but you'll have to manually install the dependecies.
