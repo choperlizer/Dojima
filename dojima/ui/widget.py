@@ -144,11 +144,10 @@ class AssetAmountDecimalView(_AssetAmountView):
         self._value = None
 
     def textFromValue(self, value):
-        text = str(value)
-        if self.prefix:
-            text = self.prefix + text
-        if self.suffix:
-            text = text + self.suffix
+        text = str(value).rstrip('0')
+        if not text:    text = '0'
+        if self.prefix: text = self.prefix + text
+        if self.suffix: text = text + self.suffix
         return text
 
 

@@ -293,6 +293,10 @@ class BtceExchange(QtCore.QObject, dojima.exchange.Exchange):
         self.host_queue = self.network_manager.get_host_request_queue(HOSTNAME, 500)
         self.requests = list()
         self.replies = set()
+
+        self._key = None
+        self._secret = None
+        self._nonce = int(time.time() / 2)
         
         self.account_validity_proxies = dict()
         self.ticker_proxies = dict()
@@ -344,17 +348,16 @@ class BtceExchange(QtCore.QObject, dojima.exchange.Exchange):
         return pair.split('_')
     
     def hasAccount(self, market_id=None):
-        return (self._key and self._secret)
+        return bool(self._key and self._secret)
         
     def loadAccountCredentials(self):
         key, secret = loadAccountSettings()
-        if len(key) != 44 or len(secret) != 64:
-            self._key, self._secret = None, None
-            return
-
-        self._key = key
-        self._secret = bytes(secret, 'utf')
-        self._nonce = int(time.time() / 2)
+        secret = bytes(secret, 'utf')
+        if self._key != key or self._secret != secret:
+            self._key = key
+            self._secret = secret
+            for pair in MARKETS:
+                self.accountChanged.emit(pair)
 
     def placeAskLimitOffer(self, amount, price, pair):
         params = {'pair': pair,
@@ -377,6 +380,12 @@ class BtceExchange(QtCore.QObject, dojima.exchange.Exchange):
         request.amount = amount
         request.price = price
         request.type_ = dojima.data.offers.BID
+
+    def populateMenuBar(self, menu_bar, market_id):
+        account_menu = menu_bar.getAccountMenu()
+        edit_credentials_action = BtceEditCredentialsAction(account_menu)
+        account_menu.addAction(edit_credentials_action)
+        edit_credentials_action.accountSettingsChanged.connect(self.loadAccountCredentials)
         
     def refreshBalance(self, market_id=None):
         BtceInfoRequest(None, self)
@@ -592,7 +601,43 @@ class BtceTradeRequest(_BtcePrivateRequest):
             proxy = self.parent.balance_proxies[counter_symbol]
             proxy.balance_liquid_changed.emit(total)
 
+            
+class BtceEditCredentialsAction(dojima.exchange.EditCredentialsAction):
 
+    def show_dialog(self):
+        dialog = BtceEditCredentialsDialog(self.parent())
+        if dialog.exec_():
+            self.accountSettingsChanged.emit()
+
+        
+class BtceEditCredentialsDialog(QtGui.QDialog):
+
+    def __init__(self, parent=None):
+        super(BtceEditCredentialsDialog, self).__init__(parent)
+
+        self.key_edit = QtGui.QLineEdit()
+        self.secret_edit = QtGui.QLineEdit()
+        button_box = QtGui.QDialogButtonBox(QtGui.QDialogButtonBox.Save)
+        button_box.accepted.connect(self.save)
+        button_box.rejected.connect(self.reject)
+        
+        layout = QtGui.QFormLayout()
+        layout.addRow(QtCore.QCoreApplication.translate(PRETTY_NAME, "API Key"), self.key_edit)
+        layout.addRow(QtCore.QCoreApplication.translate(PRETTY_NAME, "API Secret"), self.secret_edit)
+        layout.addRow(button_box)
+        self.setLayout(layout)
+
+        key, secret = loadAccountSettings()
+        if key:
+            self.key_edit.setText(key)
+        if secret:
+            self.secret_edit.setText(secret)      
+
+    def save(self):
+        saveAccountSettings(self.key_edit.text(), self.secret_edit.text())
+        self.accept()
+        
+            
 """        
 class BtceAccount:
 

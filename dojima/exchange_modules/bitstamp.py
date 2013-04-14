@@ -35,6 +35,7 @@ PRETTY_NAME = "Bitstamp"
 PLAIN_NAME = "bitstamp"
 HOSTNAME = "www.bitstamp.net"
 URL_BASE = "https://" + HOSTNAME + "/api/"
+MARKET_ID = 'BTCUSD'
 
 logger = logging.getLogger(PLAIN_NAME)
 
@@ -173,6 +174,9 @@ class BitstampExchange(QtCore.QObject, dojima.exchange.ExchangeSingleMarket):
         self.requests = list()
         self.replies = set()
 
+        self._username = None
+        self._password = None
+        
         self._ticker_refresh_rate = 16
         self.balance_proxies = dict()
         self.ticker_proxy = dojima.data.market.TickerProxy(self)
@@ -198,10 +202,14 @@ class BitstampExchange(QtCore.QObject, dojima.exchange.ExchangeSingleMarket):
     cancelBidOffer = cancelOffer
 
     def hasAccount(self, market=None):
-        return (self._username and self._password)
+        return bool(self._username and self._password)
         
-    def loadAccountCredentials(self):
-        self._username, self._password = loadAccountSettings()
+    def loadAccountCredentials(self, market=None):
+        username, password = loadAccountSettings()
+        if self._username != username or self._password != password:
+            self._username = username
+            self._password = password
+            self.accountChanged.emit(MARKET_ID)
 
     def placeAskLimitOffer(self, amount, price, market=None):
         params = {'amount': str(amount), 'price': str(price)}
@@ -213,7 +221,13 @@ class BitstampExchange(QtCore.QObject, dojima.exchange.ExchangeSingleMarket):
         params = {'amount': str(amount), 'price': str(price)}
         request = BitstampBuyRequest(params, self)
         request.amount = amount
-        request.price = price        
+        request.price = price  
+
+    def populateMenuBar(self, menu_bar, market_id):
+        account_menu = menu_bar.getAccountMenu()
+        edit_credentials_action = BitstampEditCredentialsAction(account_menu)
+        account_menu.addAction(edit_credentials_action)
+        edit_credentials_action.accountSettingsChanged.connect(self.loadAccountCredentials)
 
     def refreshBalance(self, market=None):
         BitstampBalanceRequest(None, self)
@@ -486,8 +500,49 @@ class BitstampBitcoinWithdrawalRequest(BitstampPrivateRequest):
         reply = QtCore.QCoreApplication.translate(
         self.parent.withdraw_bitcoin_reply_signal.emit(reply.format(result))
 
-"""
 
+
+
+        """
+
+
+
+class BitstampEditCredentialsAction(dojima.exchange.EditCredentialsAction):
+
+    def show_dialog(self):
+        dialog = BitstampEditCredentialsDialog(self.parent())
+        if dialog.exec_():
+            self.accountSettingsChanged.emit()
+
+        
+class BitstampEditCredentialsDialog(QtGui.QDialog):
+
+    def __init__(self, parent=None):
+        super(BitstampEditCredentialsDialog, self).__init__(parent)
+        
+        self.username_edit = QtGui.QLineEdit()
+        self.password_edit = QtGui.QLineEdit(echoMode=QtGui.QLineEdit.Password)
+        button_box = QtGui.QDialogButtonBox(QtGui.QDialogButtonBox.Save)
+        button_box.accepted.connect(self.save)
+        button_box.rejected.connect(self.reject)
+        
+        layout = QtGui.QFormLayout()
+        layout.addRow(QtCore.QCoreApplication.translate(PLAIN_NAME, "Username"), self.username_edit)
+        layout.addRow(QtCore.QCoreApplication.translate(PLAIN_NAME, "Password"), self.password_edit)
+        layout.addRow(button_box)
+        self.setLayout(layout)
+
+        username, password = loadAccountSettings()
+        if username:
+            self.username_edit.setText(username)
+        if password:
+            self.password_edit.setText(password)
+
+    def save(self):
+        saveAccountSettings(self.username_edit.text(), self.password_edit.text())
+        self.accept()
+        
+        
 def parse_markets():
     if PLAIN_NAME in dojima.exchanges.container: return
     exchange_proxy = BitstampExchangeProxy()

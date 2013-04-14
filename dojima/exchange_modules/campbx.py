@@ -35,6 +35,7 @@ PRETTY_NAME = "CampBX"
 PLAIN_NAME = "campbx"
 HOSTNAME = "campbx.com"
 URL_BASE = "https://" + HOSTNAME + "/api/"
+MARKET_ID = 'BTCUSD'
 
 logger = logging.getLogger(PLAIN_NAME)
 
@@ -158,6 +159,8 @@ class CampbxExchange(QtCore.QObject, dojima.exchange.ExchangeSingleMarket):
         self.host_queue = self.network_manager.get_host_request_queue(HOSTNAME, 500)
         self.requests = list()
         self.replies = set()
+        self._username = None
+        self._password = None
 
         self._ticker_refresh_rate = 16
 
@@ -191,10 +194,14 @@ class CampbxExchange(QtCore.QObject, dojima.exchange.ExchangeSingleMarket):
         CampbxCancelOrderRequest(params, self)
         
     def hasAccount(self, market=None):
-        return (self._username and self._password)
+        return bool(self._username and self._password)
 
-    def loadAccountCredentials(self):
-        self._username, self._password = loadAccountSettings()
+    def loadAccountCredentials(self, market=None):
+        username, password = loadAccountSettings()
+        if self._username != username or self._password != password:
+            self._username = username
+            self._password = password
+            self.accountChanged.emit(MARKET_ID)
 
     def placeAskLimitOffer(self, amount, price, market=None):
          self._place_order(dojima.data.offers.ASK, "QuickSell", amount, price)
@@ -202,6 +209,12 @@ class CampbxExchange(QtCore.QObject, dojima.exchange.ExchangeSingleMarket):
     def placeBidLimitOffer(self, amount, price, market=None):
         self._place_order(dojima.data.offers.BID, "QuickBuy", amount, price)
 
+    def populateMenuBar(self, menu_bar, market_id):
+        account_menu  = menu_bar.getAccountMenu()
+        edit_credentials_action = CampbxEditCredentialsAction(account_menu)
+        account_menu.addAction(edit_credentials_action)
+        edit_credentials_action.accountSettingsChanged.connect(self.loadAccountCredentials)
+        
     def _place_order(self, type_, mode, quantity, price):
         params = {'TradeMode': mode, 'Quantity': str(quantity), 'Price': str(price)}
         request = CampbxTradeRequest(params, self)
@@ -482,9 +495,47 @@ class CampbxWithdrawBitcoinRequest(_CampbxPrivateRequest):
         self.parent.withdraw_bitcoin_reply_signal.emit(
             reply.format(transaction))
 
+
+class CampbxEditCredentialsAction(dojima.exchange.EditCredentialsAction):
+
+    def show_dialog(self):
+        dialog = CampbxEditCredentialsDialog(self.parent())
+        if dialog.exec_():
+            self.accountSettingsChanged.emit()
+
+        
+class CampbxEditCredentialsDialog(QtGui.QDialog):
+
+    def __init__(self, parent=None):
+        super(CampbxEditCredentialsDialog, self).__init__(parent)
+        
+        self.username_edit = QtGui.QLineEdit()
+        self.password_edit = QtGui.QLineEdit(echoMode=QtGui.QLineEdit.Password)
+        button_box = QtGui.QDialogButtonBox(QtGui.QDialogButtonBox.Save)
+        button_box.accepted.connect(self.save)
+        button_box.rejected.connect(self.reject)
+        
+        layout = QtGui.QFormLayout()
+        layout.addRow(QtCore.QCoreApplication.translate(PLAIN_NAME, "Username"), self.username_edit)
+        layout.addRow(QtCore.QCoreApplication.translate(PLAIN_NAME, "Password"), self.password_edit)
+        layout.addRow(button_box)
+        self.setLayout(layout)
+
+        username, password = loadAccountSettings()
+        if username:
+            self.username_edit.setText(username)
+        if password:
+            self.password_edit.setText(password)
+
+    def save(self):
+        saveAccountSettings(self.username_edit.text(), self.password_edit.text())
+        self.accept()
+        
+
 def parse_markets():
     if PLAIN_NAME in dojima.exchanges.container: return
     exchange_proxy = CampbxExchangeProxy()
     dojima.exchanges.container.addExchange(exchange_proxy)
 
 parse_markets()
+

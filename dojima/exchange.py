@@ -239,3 +239,15 @@ class ExchangeSingleMarket(Exchange):
                 return
             self.ticker_clients = 0
             self.ticker_timer.stop()
+
+            
+class EditCredentialsAction(QtGui.QAction):
+
+    accountSettingsChanged = QtCore.pyqtSignal()
+
+    def __init__(self, parent):
+        super(EditCredentialsAction, self).__init__(
+            QtCore.QCoreApplication.translate("ExchangeDockWidget", "Edit Credentials",
+                                              "The title of an option on the 'Account' menu"),
+            parent)
+        self.triggered.connect(self.show_dialog)

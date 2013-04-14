@@ -7,7 +7,7 @@
 # (at your option) any later version.
 #
 # This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# but WITHOUT ANY WARANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
 #
@@ -300,8 +300,8 @@ class ExchangeDockWidget(QtGui.QDockWidget, ErrorHandling):
             #                              base_offer_delegate)
 
         #Refresh offers action
-        refresh_offers_action = QtGui.QAction(
-            "&refresh offers", self, triggered=self.refreshOffers)
+        refresh_offers_action = QtGui.QAction(QtCore.QCoreApplication.translate('ExchangeDockWidget', "&refresh offers")
+                                              , self, triggered=self.refreshOffers)
         #Cancel offer action
         cancel_ask_action = QtGui.QAction(QtCore.QCoreApplication.translate('ExchangeDockWidget', "&cancel ask offer"),
                                           self, triggered=self.cancelAsk)
@@ -344,7 +344,16 @@ class ExchangeDockWidget(QtGui.QDockWidget, ErrorHandling):
         #proxy = self.exchange.getAccountValidityProxy(self.remote_market)
         #proxy.accountValidityChanged.connect(self.setEnabled)
 
-        self.setAccounts(self.remote_market)
+        self.account_widgets = ( self.base_balance_total_label,     
+                                 self.base_balance_liquid_label, 
+                                 self.counter_balance_total_label, 
+                                 self.counter_balance_liquid_label,
+                                 self.amount_spin,
+                                 self.price_spin,
+                                 self.ask_offers_view,
+                                 self.bid_offers_view )
+        
+        self.setAccounts(self.remote_market)               
         
     def cancelAsk(self):
         row = self.ask_offers_view.currentIndex().row()
@@ -406,16 +415,21 @@ class ExchangeDockWidget(QtGui.QDockWidget, ErrorHandling):
         self.exchange.refreshOffers(self.remote_market)
                 
     def setAccounts(self, market_id):
-        if not self.exchange.hasAccount(market_id):
-            return
+        has_account = self.exchange.hasAccount(market_id)
 
+        for widget in self.account_widgets:
+            widget.setEnabled(has_account)
+
+        if has_account is False:
+            return
+        
         if hasattr(self, 'base_balance_proxy'):
-            self.base_balance_proxy.balance_total_changed.disconnect(self.base_balance_total_label.change_value)
-            self.base_balance_proxy.balance_liquid_changed.disconnect(self.base_balance_liquid_label.change_value)
+            self.base_balance_proxy.balance_total_changed.disconnect(self.base_balance_total_label.changeValue)
+            self.base_balance_proxy.balance_liquid_changed.disconnect(self.base_balance_liquid_label.changeValue)
             
         if hasattr(self, 'counter_balance_proxy'):
-            self.counter_balance_total_proxy.balance_changed.disconnect(self.counter_balance_total_label.change_value)
-            self.counter_balance_liquid_proxy.balance_changed.disconnect(self.counter_balance_liquid_label.change_value)
+            self.counter_balance_proxy.balance_total_changed.disconnect(self.counter_balance_total_label.changeValue)
+            self.counter_balance_proxy.balance_liquid_changed.disconnect(self.counter_balance_liquid_label.changeValue)
 
         self.base_balance_proxy = self.exchange.getBalanceBaseProxy(self.remote_market)
         self.base_balance_proxy.balance_total.connect(self.base_balance_total_label.setValue)
