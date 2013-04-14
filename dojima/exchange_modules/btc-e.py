@@ -35,12 +35,12 @@ import dojima.markets
 import dojima.network
 
 
-logger = logging.getLogger(__name__)
-
 PRETTY_NAME = "BTC-e"
 HOSTNAME = "btc-e.com"
 _PUBLIC_BASE_URL = "https://" + HOSTNAME + "/api/2/"
-SETTINGS_GROUP = PRETTY_NAME
+PLAIN_NAME = "btce"
+
+logger = logging.getLogger(PLAIN_NAME)
 
 MARKETS = ( 'btc_eur', 'btc_rur', 'btc_usd', 
             'eur_usd', 
@@ -76,13 +76,13 @@ def get_symbols(pair):
     
 def saveAccountSettings(key, secret):
     settings = QtCore.QSettings()
-    settings.beginGroup(SETTINGS_GROUP)
+    settings.beginGroup(PLAIN_NAME)
     settings.setValue('API_key', key)
     settings.setValue('API_secret', secret)
 
 def loadAccountSettings():
     settings = QtCore.QSettings()
-    settings.beginGroup(SETTINGS_GROUP)
+    settings.beginGroup(PLAIN_NAME)
     key = settings.value('API_key')
     secret = settings.value('API_secret')
     return key, secret
@@ -668,7 +668,7 @@ class BtceAccount:
 """
     
 def parse_markets():
-    if __name__ in dojima.exchanges.container: return
+    if PLAIN_NAME in dojima.exchanges.container: return
 
     exchange_proxy = BtceExchangeProxy()
     dojima.exchanges.container.addExchange(exchange_proxy)

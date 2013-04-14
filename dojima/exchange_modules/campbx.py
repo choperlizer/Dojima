@@ -31,22 +31,22 @@ import dojima.network
 import dojima.ui.wizard
 
 
-logger = logging.getLogger(__name__)
-
 PRETTY_NAME = "CampBX"
+PLAIN_NAME = "campbx"
 HOSTNAME = "campbx.com"
 URL_BASE = "https://" + HOSTNAME + "/api/"
 
+logger = logging.getLogger(PLAIN_NAME)
 
 def saveAccountSettings(username, password):
     settings = QtCore.QSettings()
-    settings.beginGroup(__name__)
+    settings.beginGroup(PLAIN_NAME)
     settings.setValue('username', username)
     settings.setValue('password', password)
 
 def loadAccountSettings():
     settings = QtCore.QSettings()
-    settings.beginGroup(__name__)
+    settings.beginGroup(PLAIN_NAME)
     username = settings.value('username')
     password = settings.value('password')
     return username, password
@@ -54,7 +54,7 @@ def loadAccountSettings():
 
 class CampbxExchangeProxy(dojima.exchange.ExchangeProxySingleMarket):
 
-    id = __name__
+    id = PLAIN_NAME
     name = PRETTY_NAME
     local_market_map = None
     remote_market_map = None
@@ -96,7 +96,7 @@ class CampbxWizardPage(dojima.ui.wizard.ExchangeWizardPage):
         self.counter_combo = QtGui.QComboBox()
 
         new_local_button = QtGui.QPushButton(
-            QtCore.QCoreApplication.translate(PRETTY_NAME, "New Commodity",
+            QtCore.QCoreApplication.translate(PLAIN_NAME, "New Commodity",
                                               "The label on the new "
                                               "commodity button in the "
                                               "new market wizard."))
@@ -105,10 +105,10 @@ class CampbxWizardPage(dojima.ui.wizard.ExchangeWizardPage):
         button_box.addButton(new_local_button, button_box.ActionRole)
 
         layout = QtGui.QFormLayout()
-        layout.addRow(QtCore.QCoreApplication.translate(PRETTY_NAME, "Username"), self.username_edit)
-        layout.addRow(QtCore.QCoreApplication.translate(PRETTY_NAME, "Password"), self.password_edit)
-        layout.addRow(QtCore.QCoreApplication.translate(PRETTY_NAME, "Local Bitcoin Commodity"), self.base_combo)
-        layout.addRow(QtCore.QCoreApplication.translate(PRETTY_NAME, "Local USD Commodity"), self.counter_combo)
+        layout.addRow(QtCore.QCoreApplication.translate(PLAIN_NAME, "Username"), self.username_edit)
+        layout.addRow(QtCore.QCoreApplication.translate(PLAIN_NAME, "Password"), self.password_edit)
+        layout.addRow(QtCore.QCoreApplication.translate(PLAIN_NAME, "Local Bitcoin Commodity"), self.base_combo)
+        layout.addRow(QtCore.QCoreApplication.translate(PLAIN_NAME, "Local USD Commodity"), self.counter_combo)
         layout.addRow(button_box)
         self.setLayout(layout)
 
@@ -483,7 +483,7 @@ class CampbxWithdrawBitcoinRequest(_CampbxPrivateRequest):
             reply.format(transaction))
 
 def parse_markets():
-    if __name__ in dojima.exchanges.container: return
+    if PLAIN_NAME in dojima.exchanges.container: return
     exchange_proxy = CampbxExchangeProxy()
     dojima.exchanges.container.addExchange(exchange_proxy)
 

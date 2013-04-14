@@ -25,16 +25,18 @@ from PyQt4 import QtCore, QtGui, QtNetwork
 
 import dojima.exchange
 import dojima.exchanges
+import dojima.data.account
 import dojima.data.market
 import dojima.data.offers
 import dojima.network
 
 
-logger = logging.getLogger(__name__)
-
 PRETTY_NAME = "Bitstamp"
+PLAIN_NAME = "bitstamp"
 HOSTNAME = "www.bitstamp.net"
 URL_BASE = "https://" + HOSTNAME + "/api/"
+
+logger = logging.getLogger(PLAIN_NAME)
 
 # type - buy or sell (0 - buy; 1 - sell)
 BUY = 0
@@ -42,13 +44,13 @@ SELL = 1
 
 def saveAccountSettings(username, password):
     settings = QtCore.QSettings()
-    settings.beginGroup(__name__)
+    settings.beginGroup(PLAIN_NAME)
     settings.setValue('username', username)
     settings.setValue('password', password)
 
 def loadAccountSettings():
     settings = QtCore.QSettings()
-    settings.beginGroup(__name__)
+    settings.beginGroup(PLAIN_NAME)
     username = settings.value('username')
     password = settings.value('password')
     return username, password
@@ -56,7 +58,7 @@ def loadAccountSettings():
 
 class BitstampExchangeProxy(dojima.exchange.ExchangeProxySingleMarket):
 
-    id = __name__
+    id = PLAIN_NAME
     name = PRETTY_NAME
     local_market_map = None
     remote_market_map = None
@@ -172,7 +174,6 @@ class BitstampExchange(QtCore.QObject, dojima.exchange.ExchangeSingleMarket):
         self.replies = set()
 
         self._ticker_refresh_rate = 16
-
         self.balance_proxies = dict()
         self.ticker_proxy = dojima.data.market.TickerProxy(self)
         self.depth_proxy = dojima.data.market.DepthProxy(self, 'BTCUSD')
@@ -235,7 +236,7 @@ class _BitstampRequest(dojima.network.ExchangeGETRequest):
 class _BitstampPrivateRequest(dojima.network.ExchangePOSTRequest):
 
     def _prepare_request(self):
-        self.request = dojima.network.NetworkRequest(self.url)
+        self.request = QtNetwork.QNetworkRequest(self.url)
         self.request.setHeader(QtNetwork.QNetworkRequest.ContentTypeHeader,
                                "application/x-www-form-urlencoded")
         query = QtCore.QUrl()
@@ -253,6 +254,11 @@ class BitstampOrderBookRequest(_BitstampRequest):
 
     def _handle_reply(self, raw):
         logger.debug(raw)
+        data = json.loads(raw)
+        asks = np.array(data['asks'], dtype=np.float).transpose()
+        bids = np.array(data['bids'], dtype=np.float).transpose()
+        
+        self.parent.depth_proxy.processDepth(asks, bids)
 
 
 class BitstampTickerRequest(_BitstampRequest):
@@ -483,7 +489,7 @@ class BitstampBitcoinWithdrawalRequest(BitstampPrivateRequest):
 """
 
 def parse_markets():
-    if __name__ in dojima.exchanges.container: return
+    if PLAIN_NAME in dojima.exchanges.container: return
     exchange_proxy = BitstampExchangeProxy()
     dojima.exchanges.container.addExchange(exchange_proxy)
 
