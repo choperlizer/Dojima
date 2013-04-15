@@ -24,7 +24,7 @@ around the edges but it works.
 I have not figured out how to get this thing to run from
 within the repo, so it'll have to be installed with setup.py:
 
-    sudo python setup.py install
+    sudo python3 setup.py install
 
 If you don't want to commit to a sudo, you can install to ~/.local:
 
@@ -40,8 +40,10 @@ If you don't want to commit to a sudo, you can install to ~/.local:
 Probably works, but you'll have to manually install the dependecies.
 
 ### Ubuntu
-It should work on Ubuntu in theory, but only Ubuntu raring whatever.
-I hear debian doesn't have recent enough packages for matplotlib.
+    sudo apt-get instal python3-matplotlib python3-pyqt4
+    git clone git@github.com:3M3RY/Dojima.git dojima
+    cd dojima
+    sudo python3 setup.py install
 
 ### Windows
 It works in Windows, but it takes a lot of work. I could make an 
