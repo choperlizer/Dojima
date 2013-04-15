@@ -1,10 +1,4 @@
-#!python
-
-# This is only needed for Python v2 but is harmless for Python v3.
-import sip
-sip.setapi('QVariant', 2)
-
-import pdb
+#!python3
 
 import argparse
 import logging
@@ -47,11 +41,10 @@ if __name__ == '__main__':
     #otapi.OTAPI_Basic_LoadWallet()    
     
     #start translation testing
-    # translator = QtCore.QTranslator()
-    # translator.load("farsi.qm")
-    # app.installTranslator(translator)
+    #translator = QtCore.QTranslator()
+    #translator.load("shavian.qm")
+    #app.installTranslator(translator)
     #end
-
 
     from dojima.ui.mainwindow import MainWindow
 
