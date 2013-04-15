@@ -486,7 +486,6 @@ class _BtcePrivateRequest(dojima.network.ExchangePOSTRequest):
     def _handle_reply(self, raw):
         logger.debug(raw)
         data = json.loads(raw, parse_float=Decimal, parse_int=Decimal)
-        logger.debug(data)
         if data['success'] == 0:
             logger.error("%s: %s", data['error'], self.query)
             return
@@ -524,11 +523,16 @@ class BtceCancelOrderRequest(_BtcePrivateRequest):
 class BtceOrdersRequest(_BtcePrivateRequest):
     method = 'OrderList'
 
-    def handle_reply(self, data):
-        self.parent.offers_model.clear
-        print(data)
+    def _handle_reply(self, raw):
+        logger.debug(raw)
+        data = json.loads(raw, parse_float=Decimal, parse_int=Decimal)
+        self.parent.offers_model.clear()
+
+        if 'return' not in data:
+            return
+
         row = 0
-        for order_id, order in list(data.items()):
+        for order_id, order in list(data['return'].items()):
 
             #id 
             item = QtGui.QStandardItem(order_id)
