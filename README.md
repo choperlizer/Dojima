@@ -14,10 +14,12 @@ the client, bring up the market you want, and punch in orders.
 No logging in, no images to load.
 
 I would very much like to support exchanges running 
-[Open Transactions](https://github.com/FellowTraveler/Open-Transactions)
-someday. The internal structure of Dōjima was rebuilt to support 
-Open Transactions and does to an extent but that is on hold for now 
-until I can put together a general purpose Qt API wrapper for OT.
+[Open Transactions](https://github.com/FellowTraveler/Open-Transactions).
+The internal structure of Dōjima was rebuilt for the 
+purposes of Open Transactions, and support was about half done but
+that is on hold for now until I can put together a general purpose 
+Qt API wrapper for OT, rather than hack around some issues with the
+Python GIL and interactivity placing orders.
 
 ## Supported Exchanges
 
@@ -34,7 +36,7 @@ until I can put together a general purpose Qt API wrapper for OT.
  - Passwords and API keys are stored plaintext.
  - Requests and responses are not logged graphically which may be
    confusing, but are printed to Standard Error. Run **dojima -v**
-    in a terminal to see them.
+   in a terminal to see them.
  - The depth chart locks the window and is slow to draw because 
    tabulating the orders for the depth chart is currently very
    inefficient.
