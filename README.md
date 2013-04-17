@@ -14,14 +14,10 @@ the client, bring up the market you want, and punch in orders.
 No logging in, no images to load.
 
 I would very much like to support exchanges running 
-[Open Transactions](https://github.com/FellowTraveler/Open-Transactions),
+[Open Transactions](https://github.com/FellowTraveler/Open-Transactions)
 someday. The internal structure of Dōjima was rebuilt to support 
-Open Transactions, and but that is on hold for now until I can put 
-together a Qt/PyQt centric API wrapper for OT.
-
-Some will probably notice that MtGox is not supported. It's 
-nothing personal but I think the size of MtGox has become too much 
-of a liability for bitcoin.
+Open Transactions and does to an extent but that is on hold for now 
+until I can put together a general purpose Qt API wrapper for OT.
 
 ## Supported Exchanges
 
@@ -40,8 +36,8 @@ of a liability for bitcoin.
    confusing, but are printed to Standard Error. Run **dojima -v**
     in a terminal to see them.
  - The depth chart locks the window and is slow to draw because 
-   tabulating the orders for the depth chart is done very 
-   inefficiently at this point.
+   tabulating the orders for the depth chart is currently very
+   inefficient.
 
 ## Install
 I have not figured out how to get this thing to run from
