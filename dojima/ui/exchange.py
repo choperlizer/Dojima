@@ -186,6 +186,14 @@ class ExchangeDockWidget(QtGui.QDockWidget, ErrorHandling):
         else:
             raise NotImplementedError("{} is not a supported exchange.valueType".format(exchange.valueType))
 
+        tool_tip_total_text = QtCore.QCoreApplication.translate('ExchangeDockWidget', "Total balance.")
+        tool_tip_liquid_text = QtCore.QCoreApplication.translate('ExchangeDockWidget', "Balance available for trade.")
+        
+        self.base_balance_total_label.setToolTip(tool_tip_total_text)
+        self.counter_balance_total_label.setToolTip(tool_tip_total_text)
+        self.base_balance_liquid_label.setToolTip(tool_tip_liquid_text)
+        self.counter_balance_liquid_label.setToolTip(tool_tip_liquid_text)
+        
         self.estimate_view.setDisabled(True)
                 
         refresh_balance_action = QtGui.QAction(
@@ -495,11 +503,13 @@ class ExchangeDockWidgetMenuBar(QtGui.QMenuBar):
                                               "The title of a drop down menu "
                                               "to edit market settings."))
 
+        """
         self.exchange_menu = self.addMenu(
             QtCore.QCoreApplication.translate('ExchangeDockWidget',
                                               "Exchange",
                                               "The title of a drop down menu "
                                               "to edit exchange settings."))
+        """
 
         self.account_menu = self.addMenu(
             QtCore.QCoreApplication.translate('ExchangeDockWidget',

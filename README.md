@@ -8,17 +8,40 @@
 This is a PyQt Bitcoin exchange client. It is still a little rough 
 around the edges but it works. 
 
+## Rationale
+I think trading through a browser sucks. With Dōjima you just run 
+the client, bring up the market you want, and punch in orders. 
+No logging in, no images to load.
+
+I would very much like to support exchanges running 
+[Open Transactions](https://github.com/FellowTraveler/Open-Transactions),
+someday. The internal structure of Dōjima was rebuilt to support 
+Open Transactions, and but that is on hold for now until I can put 
+together a Qt/PyQt centric API wrapper for OT.
+
+Some will probably notice that MtGox is not supported. It's 
+nothing personal but I think the size of MtGox has become too much 
+of a liability for bitcoin.
+
 ## Supported Exchanges
 
  - [Bitstamp](https://www.bitstamp.net/)
  - [BTC-e](https://btc-e.com/)
  - [Campbx](https://campbx.com/) - [referral url](https://campbx.com/register.php?r=P3hAnksjDmY)
- - [Open Transactions](https://github.com/FellowTraveler/Open-Transactions) *in progress*
 
 ## Dependencies
  - Python-3.1
  - Matplotlib
  - PyQt4
+
+## Issues
+ - Passwords and API keys are stored plaintext.
+ - Requests and responses are not logged graphically which may be
+   confusing, but are printed to Standard Error. Run **dojima -v**
+    in a terminal to see them.
+ - The depth chart locks the window and is slow to draw because 
+   tabulating the orders for the depth chart is done very 
+   inefficiently at this point.
 
 ## Install
 I have not figured out how to get this thing to run from
@@ -33,7 +56,6 @@ If you don't want to commit to a sudo, you can install to ~/.local:
     # you'll have to run the command  ~/.local/bin/dojima
 
 ### Gentoo
-
     layman -a bitcoin && emerge dojima
 
 ### OS X
@@ -47,7 +69,7 @@ Probably works, but you'll have to manually install the dependecies.
 
 ### Windows
 It works in Windows, but it takes a lot of work. I could make an 
-installer or standalone EXE but I hate windows.
+installer or standalone EXE but I can't stand using Windows.
 
 ## Donate
 Bitcoin: 1NKKQBSaQ6XMViwC46b4JCxGUiUp6EDZR5
