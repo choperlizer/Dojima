@@ -18,6 +18,7 @@ import logging
 from PyQt4 import QtCore, QtGui
 
 import dojima.bitcoin
+import dojima.exchanges
 
 
 class BitcoinDepositAction(QtGui.QAction):
@@ -33,7 +34,7 @@ class BitcoinDepositAction(QtGui.QAction):
         dialog = GetDepositAddressDialog(self.parent())
         dialog.show()
 
-
+"""
 class BitcoinTransferAction(QtGui.QAction):
 
     def __init__(self, parent):
@@ -46,7 +47,7 @@ class BitcoinTransferAction(QtGui.QAction):
     def _show_dialog(self):
         dialog = TransferDialog(self.parent())
         dialog.show()
-
+"""
 
 class BitcoinWithdrawAction(QtGui.QAction):
 
@@ -61,9 +62,8 @@ class BitcoinWithdrawAction(QtGui.QAction):
         dialog = WithdrawDialog(self.parent())
         dialog.show()
 
-actions = (BitcoinDepositAction, BitcoinTransferAction, BitcoinWithdrawAction)
-
-
+#actions = (BitcoinDepositAction, BitcoinTransferAction,  BitcoinWithdrawAction)
+actions = (BitcoinDepositAction, BitcoinWithdrawAction)
 
 class GetDepositAddressDialog(QtGui.QDialog):
 
@@ -71,57 +71,64 @@ class GetDepositAddressDialog(QtGui.QDialog):
         super(GetDepositAddressDialog, self).__init__(parent)
 
         self.exchange_combo = QtGui.QComboBox()
-        self.accounts = list()
-        self.request_button = QtGui.QPushButton(
-            QtCore.QCoreApplication.translate("GetDepositAddressDialog",
-                                              "get address"))
+        self.exchange_objs = list()
+
         self.address_view = QtGui.QLineEdit()
         self.address_view.setReadOnly(True)
         self.address_view.setMinimumWidth(280)
 
-        button_box = QtGui.QDialogButtonBox()
+        self.request_button = QtGui.QPushButton(QtCore.QCoreApplication.translate("GetDepositAddressDialog", "Get Address"))
 
-        layout = QtGui.QGridLayout()
-        layout.setColumnStretch(0, 1)
-        layout.addWidget(self.exchange_combo, 0,0)
-        layout.addWidget(self.request_button, 0,1)
-        layout.addWidget(self.address_view, 1,0, 1,2)
-        layout.addWidget(button_box, 2,0, 1,2)
+        button_box = QtGui.QDialogButtonBox()
+        button_box.addButton(self.request_button, button_box.ActionRole)
+        button_box.addButton(button_box.Close)
+
+        layout = QtGui.QFormLayout()
+        layout.addRow(QtCore.QCoreApplication.translate("GetDepositAddressDialog", "Exchange:"), self.exchange_combo)
+        layout.addRow(self.address_view)
+        layout.addRow(button_box)
         self.setLayout(layout)
 
-        for exchange_name, exchange_dict in list(parent.exchanges.items()):
-            if 'account' not in exchange_dict:
-                continue
-            account_object = exchange_dict['account']
-            if not account_object:
-                continue
-            if hasattr(account_object, 'get_bitcoin_deposit_address'):
-                self.exchange_combo.addItem(exchange_name)
-                self.accounts.append(account_object)
+        for exchange_proxy in dojima.exchanges.container:
+            exchange_obj = exchange_proxy.getExchangeObject()
 
-        self.request_button.clicked.connect(self._request)
+            if exchange_obj.hasAccount() is False:
+                continue
+            
+            if hasattr(exchange_obj, 'getBitcoinDepositAddress'):
+                self.exchange_combo.addItem(exchange_proxy.name)
+                self.exchange_objs.append(exchange_obj)
+
+        self.request_button.clicked.connect(self.request)
         button_box.rejected.connect(self.reject)
 
-    def _request(self):
+    def request(self):
         self.exchange_combo.setEnabled(False)
         self.request_button.setEnabled(False)
         self.address_view.clear()
 
         index = self.exchange_combo.currentIndex()
-        account_obj = self.accounts[index]
-        account_obj.bitcoin_deposit_address_signal.connect(self._process_address)
-        account_obj.get_bitcoin_deposit_address()
+        exchange_obj = self.exchange_objs[index]
+        exchange_obj.bitcoinDepositAddress.connect(self._process_address)
+        exchange_obj.getBitcoinDepositAddress()
 
     def _process_address(self, address):
-        if not dojima.bitcoin.is_valid_address(address):
-            self.address_view.setText(QtCore.QCoreApplication.translate(
-                "GetDepositAddressDialog", "received invalid address",
-                "try and make 34 characters or less in length."))
-            return
+        index = self.exchange_combo.currentIndex()
+        exchange_obj = self.exchange_objs[index]
+        exchange_obj.bitcoinDepositAddress.disconnect(self._process_address)
 
-        self.address_view.setText(address)
         self.exchange_combo.setEnabled(True)
         self.request_button.setEnabled(True)
+
+        """
+        if not dojima.bitcoin.is_valid_address(address):
+            self.address_view.setText(QtCore.QCoreApplication.translate("GetDepositAddressDialog", "received invalid address",
+                                                                        "the width of the box this message appears in is 34 "
+                                                                        "characters in length, so try and make the translation"
+                                                                        "no longer than that."))
+            return
+        """            
+        self.address_view.setText(address)
 
 
 class TransferDialog(QtGui.QDialog):
@@ -131,7 +138,7 @@ class TransferDialog(QtGui.QDialog):
 
         self.withdraw_combo = QtGui.QComboBox(self)
         self.deposit_combo = QtGui.QComboBox(self)
-        self.amount_spin = dojima.widget.BitcoinSpin(self)
+        self.amount_spin = dojima.ui.widget.BitcoinSpin(self)
         self.log_view = QtGui.QPlainTextEdit(self)
         self.log_view.setReadOnly(True)
 
@@ -173,16 +180,16 @@ class TransferDialog(QtGui.QDialog):
         for exchange_name, exchange_dict in list(parent.exchanges.items()):
             if 'account' not in exchange_dict:
                 continue
-            account_object = exchange_dict['account']
-            if not account_object:
+            exchange_object = exchange_dict['account']
+            if not exchange_object:
                 continue
-            if hasattr(account_object, 'withdraw_bitcoin'):
+            if hasattr(exchange_object, 'withdraw_bitcoin'):
                 self.withdraw_combo.addItem(exchange_name)
-                self.withdraw_accounts.append(account_object)
+                self.withdraw_accounts.append(exchange_object)
 
-            if hasattr(account_object, 'get_bitcoin_deposit_address'):
+            if hasattr(exchange_object, 'get_bitcoin_deposit_address'):
                 self.deposit_combo.addItem(exchange_name)
-                self.deposit_accounts.append(account_object)
+                self.deposit_accounts.append(exchange_object)
 
     def _check_exchanges(self, ignored):
         withdraw_exchange = self.withdraw_combo.currentText()
@@ -234,49 +241,48 @@ class WithdrawDialog(QtGui.QDialog):
         super(WithdrawDialog, self).__init__(parent)
 
         self.exchange_combo = QtGui.QComboBox()
-        self.accounts = list()
+        self.exchange_objs = list()
         self.address_edit = QtGui.QLineEdit()
         self.address_edit.setMinimumWidth(280)
-        self.address_edit.setPlaceholderText
-        self.amount_spin = dojima.widget.BitcoinSpin()
+
+        self.amount_spin = dojima.ui.widget.BitcoinSpin()
         self.log_view = QtGui.QPlainTextEdit()
         self.log_view.setReadOnly(True)
 
         self.withdraw_button = QtGui.QPushButton(
             QtCore.QCoreApplication.translate("WithdrawDialog",
-                                              "withdraw"))
+                                              "Withdraw"))
         button_box = QtGui.QDialogButtonBox()
-        button_box.addButton(self.withdraw_button,
-                             QtGui.QDialogButtonBox.ActionRole)
+        button_box.addButton(self.withdraw_button, QtGui.QDialogButtonBox.ActionRole)
         button_box.addButton(QtGui.QDialogButtonBox.Close)
 
-        self.input_widgets = (self.exchange_combo, self.address_edit,
-                              self.amount_spin, self.withdraw_button)
+        self.input_widgets = (self.exchange_combo, self.address_edit, self.amount_spin, self.withdraw_button)
 
-        entry_layout = QtGui.QFormLayout()
-        entry_layout.addRow(QtCore.QCoreApplication.translate(
-            "WithdrawDialog", "destination address"),
-            self.address_edit)
-        entry_layout.addRow(QtCore.QCoreApplication.translate(
-            "WithdrawDialog", "amount"),
-            self.amount_spin)
-
-        layout = QtGui.QVBoxLayout()
-        layout.addWidget(self.exchange_combo)
-        layout.addLayout(entry_layout)
-        layout.addWidget(self.log_view)
-        layout.addWidget(button_box)
+        layout = QtGui.QFormLayout()
+        layout.addRow(QtCore.QCoreApplication.translate("WithdrawDialog", "Exchange:",
+                                                        "Label next to the comboBox to determine which exchange to"
+                                                        "withraw from."), self.exchange_combo)
+        layout.addRow(QtCore.QCoreApplication.translate("WithdrawDialog", "Destination:",
+                                                        "Placeholder text for the text entry box where"
+                                                        "users enter an address to send money to from "
+                                                        "an exchange to"), self.address_edit)
+        
+        layout.addRow(QtCore.QCoreApplication.translate("WithdrawDialog", "Amount:",
+                                                        "The label next to the widget specifying the withdrawl"
+                                                        "amount."), self.amount_spin)
+        layout.addRow(self.log_view)
+        layout.addRow(button_box)
         self.setLayout(layout)
 
-        for exchange_name, exchange_dict in list(parent.exchanges.items()):
-            if 'account' not in exchange_dict:
+        for exchange_proxy in dojima.exchanges.container:
+            exchange_obj = exchange_proxy.getExchangeObject()
+
+            if exchange_obj.hasAccount() is False:
                 continue
-            account_object = exchange_dict['account']
-            if not account_object:
-                continue
-            if hasattr(account_object, 'withdraw_bitcoin'):
-                self.exchange_combo.addItem(exchange_name)
-                self.accounts.append(account_object)
+
+            if hasattr(exchange_obj, 'withdrawBitcoin'):
+                self.exchange_combo.addItem(exchange_proxy.name)
+                self.exchange_objs.append(exchange_obj)
 
         self.withdraw_button.clicked.connect(self.withdraw)
         button_box.rejected.connect(self.reject)
@@ -286,17 +292,17 @@ class WithdrawDialog(QtGui.QDialog):
             widget.setEnabled(False)
 
         index = self.exchange_combo.currentIndex()
-        account_obj = self.accounts[index]
-        account_obj.withdraw_bitcoin_reply_signal.connect(self.receive_reply)
+        exchange_obj = self.exchange_objs[index]
+        exchange_obj.bitcoinWithdrawalReply.connect(self.receive_reply)
         address = self.address_edit.text()
-        if dojima.bitcoin.is_valid_address(address):
+        #if dojima.bitcoin.is_valid_address(address):
+        if True:
             amount = self.amount_spin.value()
-            account_obj.withdraw_bitcoin(address, amount)
-            self.log_view.appendPlainText(QtCore.QCoreApplication.translate(
-                "WithdrawDialog", "address validated"))
-            self.log_view.appendPlainText(QtCore.QCoreApplication.translate(
-                "WithdrawDialog", "requesting withdraw from %1...").arg(
-                    self.exchange_combo.currentText()))
+            exchange_obj.withdrawBitcoin(address, amount)
+            #self.log_view.appendPlainText(QtCore.QCoreApplication.translate("WithdrawDialog", "address validated"))
+            self.log_view.appendPlainText(QtCore.QCoreApplication.translate("WithdrawDialog", 
+                                                                            "requesting withdraw from {0}...").format(
+                                                                                self.exchange_combo.currentText()))
         else:
             self.log_view.appendPlainText(QtCore.QCoreApplication.translate(
                 "WithdrawDialog", "address failed verification"))

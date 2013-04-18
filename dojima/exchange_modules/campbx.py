@@ -148,6 +148,8 @@ class CampbxExchange(QtCore.QObject, dojima.exchange.ExchangeSingleMarket):
     valueType = Decimal
 
     accountChanged = QtCore.pyqtSignal(str)
+    bitcoinDepositAddress = QtCore.pyqtSignal(str)
+    bitcoinWithdrawalReply = QtCore.pyqtSignal(str)
     exchange_error_signal = QtCore.pyqtSignal(str)
     
     def __init__(self, network_manager=None, parent=None):
@@ -161,6 +163,7 @@ class CampbxExchange(QtCore.QObject, dojima.exchange.ExchangeSingleMarket):
         self.replies = set()
         self._username = None
         self._password = None
+        self._bitcoin_deposit_address = None
 
         self._ticker_refresh_rate = 16
 
@@ -182,6 +185,7 @@ class CampbxExchange(QtCore.QObject, dojima.exchange.ExchangeSingleMarket):
         self.offer_proxy_bids = dojima.data.offers.FilterBidsModel(self.offers_model)
                 
         self.loadAccountCredentials()
+        
 
     def cancelAskOffer(self, order_id, market_id=None):
         self._cancel_offer(order_id, 'Sell')
@@ -192,6 +196,13 @@ class CampbxExchange(QtCore.QObject, dojima.exchange.ExchangeSingleMarket):
     def _cancel_offer(self, order_id, order_type):
         params = {'Type' : order_type, 'OrderID' : order_id}
         CampbxCancelOrderRequest(params, self)
+
+    def getBitcoinDepositAddress(self):
+        if self._bitcoin_deposit_address:
+            self.bitcoinDepositAddress.emit(self._bitcoin_deposit_address)
+            return
+
+        CampbxBitcoinAddressRequest(None, self)
         
     def hasAccount(self, market=None):
         return bool(self._username and self._password)
@@ -234,10 +245,16 @@ class CampbxExchange(QtCore.QObject, dojima.exchange.ExchangeSingleMarket):
     def refreshOffers(self, market=None):
         CampbxOrdersRequest(None, self)
 
+    def withdrawBitcoin(self, address, amount):
+        params = { 'BTCTo': address,
+                   'BTCAmt': str(amount) }
+        CampbxBitcoinWithdrawalRequest(params, self)
+
 
 class _CampbxRequest(dojima.network.ExchangeGETRequest):
     priority = 3
     host_priority = None
+
     
 class _CampbxPrivateRequest(dojima.network.ExchangePOSTRequest):
     priority = 2
@@ -280,7 +297,6 @@ class CampbxTickerRequest(_CampbxRequest):
     def _handle_reply(self, raw):
         logger.debug(raw)
         data = json.loads(raw, object_pairs_hook=self.object_pairs_hook)
-        logger.debug(data)
         
         self.parent.ticker_proxy.last_signal.emit(data['Last Trade'])
         self.parent.ticker_proxy.ask_signal.emit(data['Best Ask'])
@@ -292,74 +308,31 @@ class CampbxTickerRequest(_CampbxRequest):
             d[key] = Decimal(value)
         return d
         
+
+class CampbxBitcoinAddressRequest(_CampbxPrivateRequest):
+    url = QtCore.QUrl(URL_BASE + 'getbtcaddr.php')
+    priority = 2
+    
+    def _handle_reply(self, raw):
+        logger.debug(raw)
+        data = json.loads(raw)
         
-"""
-class CampbxExchangeAccount(_Campbx, dojima.exchange.ExchangeAccount):
+        address = data['Success']
+        self.parent._bitcoin_deposit_address = address
+        self.parent.bitcoinDepositAddress.emit(address)
 
-    accountChanged = QtCore.pyqtSignal(str)
+        
+class CampbxBitcoinWithdrawalRequest(_CampbxPrivateRequest):
+    url = QtCore.QUrl(URL_BASE + 'sendbtc.php')
+    priority = 2
 
-    _myfunds_url = QtCore.QUrl(_BASE_URL + "myfunds.php")
-    _myorders_url = QtCore.QUrl(_BASE_URL + "myorders.php")
-    _tradeenter_url = QtCore.QUrl(_BASE_URL + "tradeenter.php")
-    _tradeadv_url = QtCore.QUrl(_BASE_URL + "tradeadv.php")
-    _tradecancel_url = QtCore.QUrl(_BASE_URL + "tradecancel.php")
-    _getbtcaddr_url = QtCore.QUrl(_BASE_URL + "getbtcaddr.php")
-    _sendbtc_url = QtCore.QUrl(_BASE_URL + "sendbtc.php")
+    def _handle_reply(self, raw):
+        logger.debug(raw)
+        #data = json.loads(raw)
 
-    bitcoin_deposit_address_signal = QtCore.pyqtSignal(str)
-    withdraw_bitcoin_reply_signal = QtCore.pyqtSignal(str)
-
-    commission = Decimal('0.0055')
-
-    def __init__(self, exchangeObj, network_manager=None):
-        if network_manager is None:
-            network_manager = dojima.network.get_network_manager()
-        super(CampbxExchangeAccount, self).__init__(exchangeObj)
-        self.base_query = QtCore.QUrl()
-        self.network_manager = network_manager
-        self.host_queue = self.network_manager.get_host_request_queue(
-            HOSTNAME, 500)
-        self.requests = list()
-        self.replies = set()
-
-        self.offers_model = dojima.data.offers.Model()
-
-        self._bitcoin_deposit_address = None
-
-        settings = QtCore.QSettings()
-        settings.beginGroup('CampBX')
-        self._username = settings.value('username')
-        self._password = settings.value('password')
-
-    def hasAccount(self, market=None):
-        return (self._username and self._password)
-
-    def getOffersModel(self, market=None):
-        return self.offers_model
-
-
-    def _place_order(self, trade_type, amount, price=None):
-
-
-    def get_bitcoin_deposit_address(self):
-        if self._bitcoin_deposit_address:
-            self.bitcoin_deposit_address_signal.emit(
-                self._bitcoin_deposit_address)
-        else:
-            request = CampbxBitcoinAddressRequest(
-                self._getbtcaddr_url, self)
-
-    def withdraw_bitcoin(self, address, amount):
-        data = {'query':
-                {'BTCTo': address,
-                 'BTCAmt': amount}}
-        CampbxWithdrawBitcoinRequest(self._sendbtc_url, self, data)
-
-    def get_commission(self, amount, remote_market=None):
-        return amount * self.commission
-"""
-
-
+        self.parent.bitcoinWithdrawalReply.emit(raw)
+        
+        
 class CampbxFundsRequest(_CampbxPrivateRequest):
     url = QtCore.QUrl(URL_BASE + 'myfunds.php')
     priority = 2
@@ -468,20 +441,6 @@ class CampbxCancelOrderRequest(_CampbxPrivateRequest):
             self.parent.offers_model.removeRow(item.row())
 
             
-class CampbxBitcoinAddressRequest(_CampbxPrivateRequest):
-    url = QtCore.QUrl(URL_BASE + 'getbtcaddr.php')
-    priority = 2
-    
-    def _handle_reply(self, raw):
-        logger.debug(raw)
-        data = json.loads(raw)
-        
-        logger.debug(data)
-        address = data['Success']
-        self.parent._bitcoin_deposit_address = address
-        self.parent.bitcoin_deposit_address_signal.emit(address)
-
-
 class CampbxWithdrawBitcoinRequest(_CampbxPrivateRequest):
     priority = 2
     

@@ -57,7 +57,7 @@
 <context>
     <name>BitcoinDepositAction</name>
     <message>
-        <location filename="dojima/ui/transfer/bitcoin.py" line="26"/>
+        <location filename="dojima/ui/transfer/bitcoin.py" line="27"/>
         <source>&amp;deposit</source>
         <translation>𐑛𐑰𐑐𐑭𐑟𐑦𐑑</translation>
     </message>
@@ -65,34 +65,29 @@
 <context>
     <name>BitcoinDialog</name>
     <message>
-        <location filename="dojima/ui/transfer/bitcoin.py" line="196"/>
+        <location filename="dojima/ui/transfer/bitcoin.py" line="203"/>
         <source>requesting deposit address from %1... 
 <byte value="x9"/></source>
         <translation>𐑮𐑰𐑒𐑢𐑧𐑕𐑑𐑦𐑙 𐑛𐑦𐑐𐑭𐑟𐑦𐑑 𐑨𐑑𐑮𐑧𐑕 𐑓𐑮𐑪𐑯 {}</translation>
     </message>
     <message>
-        <location filename="dojima/ui/transfer/bitcoin.py" line="207"/>
+        <location filename="dojima/ui/transfer/bitcoin.py" line="214"/>
         <source>deposit address failed verification</source>
         <translation type="unfinished">𐑮𐑰𐑒𐑢𐑧𐑕𐑑𐑦𐑙 𐑛𐑦𐑐𐑭𐑟𐑦𐑑 𐑓𐑮𐑪𐑯 {}</translation>
     </message>
     <message>
-        <location filename="dojima/ui/transfer/bitcoin.py" line="212"/>
+        <location filename="dojima/ui/transfer/bitcoin.py" line="219"/>
         <source>deposit address validated</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
     <name>BitcoinTransferAction</name>
-    <message>
-        <location filename="dojima/ui/transfer/bitcoin.py" line="40"/>
-        <source>inter-exchange &amp;transfer</source>
-        <translation type="unfinished"></translation>
-    </message>
 </context>
 <context>
     <name>BitcoinWithdrawAction</name>
     <message>
-        <location filename="dojima/ui/transfer/bitcoin.py" line="54"/>
+        <location filename="dojima/ui/transfer/bitcoin.py" line="55"/>
         <source>&amp;withdraw</source>
         <translation type="unfinished"></translation>
     </message>
@@ -108,7 +103,7 @@
 <context>
     <name>CampbxWithdrawBitcoinRequest</name>
     <message>
-        <location filename="dojima/exchange_modules/campbx.py" line="480"/>
+        <location filename="dojima/exchange_modules/campbx.py" line="452"/>
         <source>transaction id: {}</source>
         <translation type="unfinished"></translation>
     </message>
@@ -463,51 +458,51 @@ A negative precision is not recommended.</source>
         <translation>𐑕𐑧𐑒𐑪𐑯𐑛𐑕</translation>
     </message>
     <message>
-        <location filename="dojima/ui/exchange.py" line="191"/>
+        <location filename="dojima/ui/exchange.py" line="199"/>
         <source>&amp;refresh balance</source>
         <translation>𐑮𐑰𐑓𐑮𐑧𐑖 𐑚𐑨𐑤𐑦𐑯𐑕</translation>
     </message>
     <message>
-        <location filename="dojima/ui/exchange.py" line="227"/>
+        <location filename="dojima/ui/exchange.py" line="235"/>
         <source>offer</source>
         <comment>as in place offer</comment>
         <translation>𐑭𐑓𐑻</translation>
     </message>
     <message>
-        <location filename="dojima/ui/exchange.py" line="231"/>
+        <location filename="dojima/ui/exchange.py" line="239"/>
         <source>Ask</source>
         <translation>𐑨𐑕𐑒</translation>
     </message>
     <message>
-        <location filename="dojima/ui/exchange.py" line="234"/>
+        <location filename="dojima/ui/exchange.py" line="242"/>
         <source>Bid</source>
         <translation>𐑚𐑦𐑛</translation>
     </message>
     <message>
-        <location filename="dojima/ui/exchange.py" line="242"/>
+        <location filename="dojima/ui/exchange.py" line="250"/>
         <source>@</source>
         <comment>amount @ price</comment>
         <translation>𐑨𐑑</translation>
     </message>
     <message>
-        <location filename="dojima/ui/exchange.py" line="253"/>
+        <location filename="dojima/ui/exchange.py" line="261"/>
         <source>Amount:</source>
         <comment>The offer amount label.</comment>
         <translation>𐑩𐑥𐑬𐑯𐑑</translation>
     </message>
     <message>
-        <location filename="dojima/ui/exchange.py" line="259"/>
+        <location filename="dojima/ui/exchange.py" line="267"/>
         <source>Price:</source>
         <comment>The offer price label.</comment>
         <translation>𐑐𐑮𐑲𐑕</translation>
     </message>
     <message>
-        <location filename="dojima/ui/exchange.py" line="306"/>
+        <location filename="dojima/ui/exchange.py" line="314"/>
         <source>&amp;cancel ask offer</source>
         <translation>𐑒𐑩𐑯𐑕𐑦𐑤 𐑨𐑕𐑒𐑭 𐑭𐑓𐑻</translation>
     </message>
     <message>
-        <location filename="dojima/ui/exchange.py" line="311"/>
+        <location filename="dojima/ui/exchange.py" line="319"/>
         <source>&amp;cancel bid offer</source>
         <translation>𐑒𐑩𐑯𐑕𐑦𐑤 𐑚𐑦𐑛 𐑭𐑓𐑻</translation>
     </message>
@@ -515,49 +510,70 @@ A negative precision is not recommended.</source>
         <location filename="dojima/ui/exchange.py" line="484"/>
         <source>Exchange</source>
         <comment>The title of a drop down menu to edit exchange settings.</comment>
-        <translation>𐑧𐑒𐑕𐑗𐑱𐑙</translation>
+        <translation type="obsolete">𐑧𐑒𐑕𐑗𐑱𐑙</translation>
     </message>
     <message>
-        <location filename="dojima/ui/exchange.py" line="490"/>
+        <location filename="dojima/ui/exchange.py" line="514"/>
         <source>Account</source>
         <comment>The title of a drop down menu to edit account settings.</comment>
         <translation>𐑩𐑒𐑬𐑯𐑑</translation>
     </message>
     <message>
-        <location filename="dojima/ui/exchange.py" line="497"/>
+        <location filename="dojima/ui/exchange.py" line="521"/>
         <source>Depth Chart</source>
         <comment>A menu action to show the current offers depth cart.</comment>
         <translation>𐑛𐑧𐑐𐑞 𐑗𐑸𐑑</translation>
     </message>
     <message>
-        <location filename="dojima/ui/exchange.py" line="505"/>
+        <location filename="dojima/ui/exchange.py" line="529"/>
         <source>Trades Chart</source>
         <comment>A menu action to show the current the recent trades chart.</comment>
         <translation>𐑑𐑮𐑧𐑛𐑟 𐑗𐑸𐑑</translation>
     </message>
     <message>
-        <location filename="dojima/ui/exchange.py" line="539"/>
+        <location filename="dojima/ui/exchange.py" line="563"/>
         <source>Place Offer</source>
         <comment>The label on the button to confirm an offer</comment>
         <translation>𐑐𐑤𐑧𐑕 𐑭𐑓𐑺</translation>
     </message>
     <message>
-        <location filename="dojima/ui/exchange.py" line="561"/>
+        <location filename="dojima/ui/exchange.py" line="585"/>
         <source>Sell {0} at {1}?</source>
         <comment>Text on the AskConfirmationDialog. {0} will be the amount, and {1} will be the price.</comment>
         <translation>𐑕𐑧𐑤 {0} 𐑨𐑑 {1}?</translation>
     </message>
     <message>
-        <location filename="dojima/ui/exchange.py" line="571"/>
+        <location filename="dojima/ui/exchange.py" line="595"/>
         <source>Buy {0} at {1}?</source>
         <comment>Text on the BidConfirmationDialog. {0} will be the amount, and {1} will be the price.</comment>
         <translation>𐑚𐑲 {0} 𐑨𐑑 {1}?</translation>
+    </message>
+    <message>
+        <location filename="dojima/ui/exchange.py" line="189"/>
+        <source>Total balance.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="dojima/ui/exchange.py" line="190"/>
+        <source>Balance available for trade.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="dojima/ui/exchange.py" line="311"/>
+        <source>&amp;refresh offers</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="dojima/exchange.py" line="249"/>
+        <source>Edit Credentials</source>
+        <comment>The title of an option on the &apos;Account&apos; menu</comment>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
     <name>ExchangeDockWidgetMenuBar</name>
     <message>
-        <location filename="dojima/ui/exchange.py" line="478"/>
+        <location filename="dojima/ui/exchange.py" line="500"/>
         <source>Market</source>
         <comment>The title of a drop down menu to edit market settings.</comment>
         <translation>𐑥𐑸𐑒𐑧𐑑</translation>
@@ -566,14 +582,13 @@ A negative precision is not recommended.</source>
 <context>
     <name>GetDepositAddressDialog</name>
     <message>
-        <location filename="dojima/ui/transfer/bitcoin.py" line="75"/>
-        <source>get address</source>
+        <location filename="dojima/ui/transfer/bitcoin.py" line="80"/>
+        <source>Get Address</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="dojima/ui/transfer/bitcoin.py" line="117"/>
-        <source>received invalid address</source>
-        <comment>try and make 34 characters or less in length.</comment>
+        <location filename="dojima/ui/transfer/bitcoin.py" line="87"/>
+        <source>Exchange:</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -892,7 +907,7 @@ A negative precision is not recommended.</source>
 <context>
     <name>OTExchangeProxy</name>
     <message>
-        <location filename="dojima/exchange_modules/opentxs.py" line="87"/>
+        <location filename="dojima/exchange_modules/opentxs.py" line="88"/>
         <source>Scale {}</source>
         <comment>The market scale, there should be a note on this somewhere around here.</comment>
         <translation type="unfinished"></translation>
@@ -930,13 +945,13 @@ A negative precision is not recommended.</source>
 <context>
     <name>OTServerWizardPage</name>
     <message>
-        <location filename="dojima/exchange_modules/opentxs.py" line="202"/>
+        <location filename="dojima/exchange_modules/opentxs.py" line="203"/>
         <source>Select accounts to match a new or existing market. The market list must be refreshed manually, Also, &apos;Refresh Markets&apos; must be hit twice when using an unregistered nym, I&apos;m working on it...</source>
         <comment>This is the the heading underneath the title on the OT page in the markets wizard.</comment>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="dojima/exchange_modules/opentxs.py" line="295"/>
+        <location filename="dojima/exchange_modules/opentxs.py" line="296"/>
         <source>Make a new offer, thereby
 creating a new market.
 Use this if you want
@@ -982,60 +997,60 @@ to trade at a new scale.</source>
 <context>
     <name>Open Transactions</name>
     <message>
-        <location filename="dojima/exchange_modules/opentxs.py" line="259"/>
+        <location filename="dojima/exchange_modules/opentxs.py" line="260"/>
         <source>Server Nym:</source>
         <comment>The label next to the nym combo box.</comment>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="dojima/exchange_modules/opentxs.py" line="265"/>
+        <location filename="dojima/exchange_modules/opentxs.py" line="266"/>
         <source>New Nym</source>
         <comment>The button next to the nymcombo box.</comment>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="dojima/exchange_modules/opentxs.py" line="270"/>
+        <location filename="dojima/exchange_modules/opentxs.py" line="271"/>
         <source>Base account:</source>
         <comment>The account of the base asset to use with this market.</comment>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="dojima/exchange_modules/opentxs.py" line="276"/>
+        <location filename="dojima/exchange_modules/opentxs.py" line="277"/>
         <source>Counter account:</source>
         <comment>The account of the counter currency to use with this market.</comment>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="dojima/exchange_modules/opentxs.py" line="284"/>
+        <location filename="dojima/exchange_modules/opentxs.py" line="285"/>
         <source>Local base:</source>
         <comment>Label for the locally defined comodity.</comment>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="dojima/exchange_modules/opentxs.py" line="289"/>
+        <location filename="dojima/exchange_modules/opentxs.py" line="290"/>
         <source>Local counter:</source>
         <comment>Label for the locally defined comodity.</comment>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="dojima/exchange_modules/opentxs.py" line="295"/>
+        <location filename="dojima/exchange_modules/opentxs.py" line="296"/>
         <source>New Offer</source>
         <comment>Button to pop up the new offer dialog.</comment>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="dojima/exchange_modules/opentxs.py" line="308"/>
+        <location filename="dojima/exchange_modules/opentxs.py" line="309"/>
         <source>New Account</source>
         <comment>Button to pop up the new account dialog.</comment>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="dojima/exchange_modules/opentxs.py" line="314"/>
+        <location filename="dojima/exchange_modules/opentxs.py" line="315"/>
         <source>New Commodity</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="dojima/exchange_modules/opentxs.py" line="318"/>
+        <location filename="dojima/exchange_modules/opentxs.py" line="319"/>
         <source>Refresh Markets</source>
         <comment>Button to refresh the listed markets on the server.</comment>
         <translation type="unfinished"></translation>
@@ -1133,55 +1148,58 @@ to trade at a new scale.</source>
 <context>
     <name>WithdrawDialog</name>
     <message>
-        <location filename="dojima/ui/transfer/bitcoin.py" line="245"/>
-        <source>withdraw</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="dojima/ui/transfer/bitcoin.py" line="257"/>
-        <source>destination address</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="dojima/ui/transfer/bitcoin.py" line="260"/>
-        <source>amount</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="dojima/ui/transfer/bitcoin.py" line="295"/>
-        <source>address validated</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="dojima/ui/transfer/bitcoin.py" line="297"/>
-        <source>requesting withdraw from %1...</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="dojima/ui/transfer/bitcoin.py" line="301"/>
+        <location filename="dojima/ui/transfer/bitcoin.py" line="307"/>
         <source>address failed verification</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="dojima/ui/transfer/bitcoin.py" line="252"/>
+        <source>Withdraw</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="dojima/ui/transfer/bitcoin.py" line="262"/>
+        <source>Exchange:</source>
+        <comment>Label next to the comboBox to determine which exchange towithraw from.</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="dojima/ui/transfer/bitcoin.py" line="265"/>
+        <source>Destination:</source>
+        <comment>Placeholder text for the text entry box whereusers enter an address to send money to from an exchange to</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="dojima/ui/transfer/bitcoin.py" line="270"/>
+        <source>Amount:</source>
+        <comment>The label next to the widget specifying the withdrawlamount.</comment>
+        <translation type="unfinished">𐑩𐑥𐑬𐑯𐑑</translation>
+    </message>
+    <message>
+        <location filename="dojima/ui/transfer/bitcoin.py" line="303"/>
+        <source>requesting withdraw from {0}...</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
     <name>bitcoin transfer dialog</name>
     <message>
-        <location filename="dojima/ui/transfer/bitcoin.py" line="138"/>
+        <location filename="dojima/ui/transfer/bitcoin.py" line="145"/>
         <source>transfer</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="dojima/ui/transfer/bitcoin.py" line="148"/>
+        <location filename="dojima/ui/transfer/bitcoin.py" line="155"/>
         <source>withdraw:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="dojima/ui/transfer/bitcoin.py" line="150"/>
+        <location filename="dojima/ui/transfer/bitcoin.py" line="157"/>
         <source>deposit:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="dojima/ui/transfer/bitcoin.py" line="152"/>
+        <location filename="dojima/ui/transfer/bitcoin.py" line="159"/>
         <source>amount:</source>
         <translation type="unfinished"></translation>
     </message>

@@ -162,6 +162,8 @@ class BitstampExchange(QtCore.QObject, dojima.exchange.ExchangeSingleMarket):
     valueType = Decimal
     
     accountChanged = QtCore.pyqtSignal(str)
+    bitcoinDepositAddress = QtCore.pyqtSignal(str)
+    bitcoinWithdrawalReply = QtCore.pyqtSignal(str)
     exchange_error_signal = QtCore.pyqtSignal(str)
 
     def __init__(self, network_manager=None, parent=None):
@@ -176,6 +178,7 @@ class BitstampExchange(QtCore.QObject, dojima.exchange.ExchangeSingleMarket):
 
         self._username = None
         self._password = None
+        self._bitcoin_deposit_address = None
         
         self._ticker_refresh_rate = 16
         self.balance_proxies = dict()
@@ -201,6 +204,13 @@ class BitstampExchange(QtCore.QObject, dojima.exchange.ExchangeSingleMarket):
     cancelAskOffer = cancelOffer
     cancelBidOffer = cancelOffer
 
+    def getBitcoinDepositAddress(self):
+        if self._bitcoin_deposit_address:
+            self.bitcoinDepositAddress.emit(self._bitcoin_deposit_address)
+            return
+        
+        BitstampBitcoinDepositAddressRequest(None, self)
+    
     def hasAccount(self, market=None):
         return bool(self._username and self._password)
         
@@ -240,6 +250,11 @@ class BitstampExchange(QtCore.QObject, dojima.exchange.ExchangeSingleMarket):
 
     def refreshOffers(self, market=None):
         BitstampOpenOrdersRequest(None, self)
+
+    def withdrawBitcoin(self, address, amount):
+        params = {'address': address,
+                  'amount': str(amount)}
+        BitstampBitcoinWithdrawalRequest(params, self)        
 
         
 class _BitstampRequest(dojima.network.ExchangeGETRequest):
@@ -312,6 +327,25 @@ class BitstampBalanceRequest(_BitstampPrivateRequest):
         fee = data['fee'].rstrip('0')
         self.parent.commission = Decimal(fee) / 100
 
+
+class BitstampBitcoinDepositAddressRequest(_BitstampPrivateRequest):
+    url = QtCore.QUrl(URL_BASE + 'bitcoin_deposit_address/')
+    priority = 2
+
+    def _handle_reply(self, raw):
+        logger.debug(raw)
+        data = json.loads(raw)
+        self.parent.bitcoinDepositAddress.emit(data)
+
+
+class BitstampBitcoinWithdrawalRequest(_BitstampPrivateRequest):
+    url = QtCore.QUrl(URL_BASE + 'bitcoin_withdrawal/')
+    priority = 2
+
+    def _handle_reply(self, raw):
+        logger.debug(raw)
+        self.parent.bitcoinWithdrawalReply.emit(raw)
+        
         
 class BitstampCancelOrderRequest(_BitstampPrivateRequest):
     url = QtCore.QUrl(URL_BASE + 'cancel_order/')
@@ -400,112 +434,6 @@ class BitstampOpenOrdersRequest(_BitstampPrivateRequest):
         item = QtGui.QStandardItem(order_type)           
         self.parent.offers_model.setItem(row, dojima.data.offers.TYPE, item)
         
-"""
-class BitstampTransactionsRequest(dojima.network.ExchangeGETRequest):
-
-    def _handle_reply(self, raw):
-        logger.debug(raw)
-        trade_list = json.loads(raw,
-                                parse_float=Decimal,
-                                object_hook=self._object_hook)
-        dates = list()
-        prices = list()
-        amounts = list()
-        for date, price, amount in trade_list:
-            dates.append(date)
-            prices.append(price)
-            amounts.append(amount)
-
-        # The trades are FIFO
-        for l in dates, prices, amounts:
-            l.reverse()
-        self.parent.trades_signal.emit( (dates, prices, amounts) )
-
-    def _object_hook(self, dict_):
-        date = int(dict_['date'])
-        price = float(dict_['price'])
-        amount = float(dict_['amount'])
-        return (date, price, amount)
-
-
-class BitstampAccount(_Bitstamp, dojima.exchange.ExchangeAccount):
-    _balance_url = QtCore.QUrl(_BASE_URL + 'balance/')
-    _open_orders_url = QtCore.QUrl(_BASE_URL + 'open_orders/')
-    _cancel_order_url = QtCore.QUrl(_BASE_URL + 'cancel_order/')
-    _buy_limit_url = QtCore.QUrl(_BASE_URL + 'buy/')
-    _sell_limit_url = QtCore.QUrl(_BASE_URL + 'sell/')
-    _bitcoin_deposit_address_url = QtCore.QUrl(
-        _BASE_URL + "bitcoin_deposit_address/")
-    _bitcoin_withdrawal_url = QtCore.QUrl(_BASE_URL + "bitcoin_withdrawal/")
-
-    BTC_USD_ready_signal = QtCore.pyqtSignal(bool)
-    exchange_error_signal = QtCore.pyqtSignal(str)
-    bitcoin_deposit_address_signal = QtCore.pyqtSignal(str)
-    withdraw_bitcoin_reply_signal = QtCore.pyqtSignal(str)
-
-    def __init__(self, credentials, network_manager=None, parent=None):
-        if network_manager is None:
-            network_manager = dojima.network.get_network_manager()
-        super(BitstampAccount, self).__init__(parent)
-        self.base_query = QtCore.QUrl()
-        self.set_credentials(credentials)
-        self.network_manager = network_manager
-        self.host_queue = self.network_manager.get_host_request_queue(
-            HOSTNAME, 500)
-        self.requests = list()
-        self.replies = set()
-        self._bitcoin_deposit_address = None
-        self.orders_proxy = dojima.data.orders.OrdersProxy(self)
-        self.commission = None
-
-    def get_bitcoin_deposit_address(self):
-        if self._bitcoin_deposit_address:
-            self.bitcoin_deposit_address_signal.emit(
-                self._bitcoin_deposit_address)
-            return self._bitcoin_deposit_address
-        else:
-            BitstampBitcoinDepositAddressRequest(
-                self._bitcoin_deposit_address_url, self)
-
-    def withdraw_bitcoin(self, address, amount):
-        data = {'query':
-                {'address': address,
-                 'amount': amount}}
-
-        request = BitstampBitcoinWithdrawalRequest(
-            self._bitcoin_withdrawal_url, self, data)
-
-    def get_commission(self, amount, remote_market=None):
-        if self.commission is None:
-            return None
-        return amount * self.commission
-
-
-
-class BitstampBitcoinDepositAddressRequest(BitstampPrivateRequest):
-    priority = 2
-
-    def _handle_reply(self, raw):
-        logger.debug(raw)
-        address = json.loads(raw)
-        self.parent.bitcoin_deposit_address_signal.emit(address)
-
-
-class BitstampBitcoinWithdrawalRequest(BitstampPrivateRequest):
-    priority = 2
-
-    def _handle_reply(self, raw):
-        logger.debug(raw)
-        result = json.loads(raw)
-        reply = QtCore.QCoreApplication.translate(
-        self.parent.withdraw_bitcoin_reply_signal.emit(reply.format(result))
-
-
-
-
-        """
-
-
 
 class BitstampEditCredentialsAction(dojima.exchange.EditCredentialsAction):
 
