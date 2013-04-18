@@ -62,7 +62,7 @@ class DepthDialog(_ChartDialog):
                 QtCore.QCoreApplication.translate("DepthChartDialog",
                                                   "Not enough offer data to chart."))
             return
-        self.chart_canvas.axes.plot(data)
+        self.chart_canvas.axes.plot(data[0], data[1])
         self.chart_canvas.draw()
 
 

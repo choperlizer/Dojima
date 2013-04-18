@@ -24,6 +24,7 @@ import urllib.parse
 
 from decimal import Decimal
 
+import numpy as np
 from PyQt4 import QtCore, QtGui, QtNetwork
 
 import dojima.exchanges
@@ -344,6 +345,14 @@ class BtceExchange(QtCore.QObject, dojima.exchange.Exchange):
 
         return self.balance_proxies[symbol]
 
+    def getDepthProxy(self, pair):
+        if pair not in self.depth_proxies:
+            proxy = dojima.data.market.DepthProxy(pair, self)
+            self.depth_proxies[pair] = proxy
+            return proxy
+
+        return self.depth_proxies[pair]    
+
     def getMarketSymbols(self, pair):
         return pair.split('_')
     
@@ -427,9 +436,25 @@ class BtceDepthRequest(_BtcePublicRequest):
         logger.debug(raw)
         data = json.loads(raw)
 
-        proxy = self.parent.getDepthProxy(self.pair)
-        proxy.processDepth(data['asks'], data['bids'])
+        bids = data['bids']
+        asks = data['asks']
+        bids.reverse()
 
+        bids = np.array(bids).transpose()
+        asks = np.array(asks).transpose()
+
+        import pickle
+        f = open('/tmp/btc-e_bids', 'wb')
+        pickle.dump(bids, f)
+        f.close()
+        f = open('/tmp/btc-e_asks', 'wb')
+        pickle.dump(asks, f)
+        f.close()
+        
+        proxy = self.parent.getDepthProxy(self.pair)
+        proxy.processBidsAsks(bids, asks)
+
+        
 class BtceTickerRequest(_BtcePublicRequest):
     _url = _PUBLIC_BASE_URL + "{}/ticker"
     
@@ -453,7 +478,7 @@ class BtceTradesRequest(_BtcePublicRequest):
         proxy = self.parent.getTradesProxy(self.pair)
         # TODO finish me
 
-            
+
 class _BtcePrivateRequest(dojima.network.ExchangePOSTRequest):
     priority = 1
     host_priority = 0

@@ -19,7 +19,7 @@ The internal structure of Dōjima was rebuilt for the
 purposes of Open Transactions, and support was about half done but
 that is on hold for now until I can put together a general purpose 
 Qt API wrapper for OT, rather than hack around some issues with the
-Python GIL and interactivity placing orders.
+Python GIL and interactivity.
 
 ## Supported Exchanges
 
@@ -37,9 +37,6 @@ Python GIL and interactivity placing orders.
  - Requests and responses are not logged graphically which may be
    confusing, but are printed to Standard Error. Run **dojima -v**
    in a terminal to see them.
- - The depth chart locks the window and is slow to draw because 
-   tabulating the orders for the depth chart is currently very
-   inefficient.
 
 ## Install
 I have not figured out how to get this thing to run from

@@ -35,7 +35,6 @@ class TickerProxy(QtCore.QObject):
     ask_signal = QtCore.pyqtSignal(int)
     bid_signal = QtCore.pyqtSignal(int)
 
-
     last_signal = QtCore.pyqtSignal(Decimal)
     ask_signal = QtCore.pyqtSignal(Decimal)
     bid_signal = QtCore.pyqtSignal(Decimal)
@@ -45,9 +44,9 @@ class _StatsProxy(QtCore.QObject):
 
     refreshed = QtCore.pyqtSignal(np.ndarray)
 
-    def __init__(self, exchangeObj, marketId, parent=None):
+    def __init__(self, marketId, parent=None):
         super(_StatsProxy, self).__init__(parent)
-        self.exchange_obj = exchangeObj
+        self.exchange_obj = parent
         self.market_id = marketId
 
 
@@ -56,80 +55,39 @@ class DepthProxy(_StatsProxy):
     def refresh(self):
         self.exchange_obj.refreshDepth(self.market_id)
 
-    def processDepth(self, asks, bids):
-        """depth data should be asks(prices, amounts), bids(prices, amounts)"""
-        time_start = time.time()
-        price_steps = list()
-        volume_sums = list()
-        step_size = 0.001
 
-        if not (bids.any() and asks.any()):
-            return
+    def processBidsAsks(self, bids, asks):
+        mask = bids[0] > (bids[0,-1] * 0.75)
+        bid_prices = bids[0][mask]
+        bid_volumes = bids[1][mask]
 
-        ask_prices = asks[0]
-        ask_volumes = asks[1]
-        bid_prices = bids[0]
-        bid_volumes = bids[1]
+        mask = asks[0] < (asks[0,0] * 1.25)
+        ask_prices = asks[0][mask]
+        ask_volumes = asks[1][mask]
+       
+        depth_length = len(bid_prices) + len(ask_prices)
+        depth = np.empty((2, depth_length))
+
+        i = len(bid_prices)
+        vsum = 0
+        while i:
+            i -= 1
+            depth[0][i] = bid_prices[i]
+            vsum += bid_volumes[i]
+            depth[1][i] = vsum
+
+        i = len(bid_prices)
+        j = 0
+        vsum = 0
+        while i < depth_length:
+            depth[0][i] = ask_prices[j]
+            vsum += ask_volumes[j]
+            depth[1][i] = vsum 
+            i += 1
+            j += 1
         
-        bid_vol_sum = bids[1].sum()
-        ask_vol_sum = asks[1].sum()
-        if bid_vol_sum < ask_vol_sum:
-            max_vol_sum = bid_vol_sum
-        else:
-            max_vol_sum = ask_vol_sum
+        self.refreshed.emit(depth)
         
-        #bids
-        if bid_prices.any():
-            floor = bid_prices.max()
-            bottom = bid_prices.min()
-
-            while floor > bottom:
-                floor -= step_size
-                array_mask = bid_prices > floor
-
-
-                vol_sum = bid_volumes[array_mask].sum()
-                if vol_sum > max_vol_sum:
-                    continue
-                    
-                price_steps.append(floor)
-                volume_sums.append(vol_sum)
-
-        price_steps.reverse()
-        volume_sums.reverse()
-
-        # asks
-        if asks.any():
-            ceiling = ask_prices.min()
-            top = ask_prices.max()
-
-            while ceiling < top:
-                ceiling += step_size
-                array_mask = ask_prices < ceiling
-
-                vol_sum = ask_volumes[array_mask].sum()
-                if vol_sum > max_vol_sum:
-                    break
-                
-                price_steps.append(ceiling)
-                volume_sums.append(vol_sum)
-
-        #Trim the table
-        if bids.any() and asks.any():
-            bid_max_vol = bids[1].max()
-            ask_max_vol = asks[1].max()
-        if bid_max_vol < ask_max_vol:
-            max_vol = bid_max_vol
-        else:
-            max_vol = ask_max_vol
-
-        self.depth = np.array((price_steps, volume_sums)).transpose()
-        
-        time_stop = time.time()
-        logger.info("Depth table processed in %f seconds.", time_stop - time_start)
-        self.refreshed.emit(self.depth)
-        
-
 
 """
 class QuotesProxy(QtCore.QObject):

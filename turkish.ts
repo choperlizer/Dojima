@@ -82,9 +82,6 @@
     </message>
 </context>
 <context>
-    <name>BitcoinTransferAction</name>
-</context>
-<context>
     <name>BitcoinWithdrawAction</name>
     <message>
         <location filename="dojima/ui/transfer/bitcoin.py" line="55"/>
@@ -103,7 +100,7 @@
 <context>
     <name>CampbxWithdrawBitcoinRequest</name>
     <message>
-        <location filename="dojima/exchange_modules/campbx.py" line="452"/>
+        <location filename="dojima/exchange_modules/campbx.py" line="458"/>
         <source>transaction id: {}</source>
         <translation type="unfinished"></translation>
     </message>

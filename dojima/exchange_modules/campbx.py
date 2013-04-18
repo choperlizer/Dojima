@@ -170,7 +170,7 @@ class CampbxExchange(QtCore.QObject, dojima.exchange.ExchangeSingleMarket):
         self.account_validity_proxies = dict()
         self.balance_proxies = dict()
         self.ticker_proxy = dojima.data.market.TickerProxy(self)
-        self.depth_proxy = dojima.data.market.DepthProxy(self, 'BTCUSD')
+        self.depth_proxy = dojima.data.market.DepthProxy('BTCUSD', self)
         self.ticker_clients = 0
         self.ticker_timer = QtCore.QTimer(self)
         self.ticker_timer.timeout.connect(self.refreshTicker)
@@ -285,10 +285,16 @@ class CampbxDepthRequest(_CampbxRequest):
     def _handle_reply(self, raw):
         logger.debug(raw)
         data = json.loads(raw)
-        asks = np.array(data['Asks']).transpose()
-        bids = np.array(data['Bids']).transpose()
-        
-        self.parent.depth_proxy.processDepth(asks, bids)
+
+        bids = data['Bids']
+        bids.reverse()
+        bids = np.array(bids).transpose()
+
+        asks = data['Asks']
+        asks.reverse()
+        asks = np.array(asks).transpose()
+
+        self.parent.depth_proxy.processBidsAsks(bids, asks)
 
 
 class CampbxTickerRequest(_CampbxRequest):

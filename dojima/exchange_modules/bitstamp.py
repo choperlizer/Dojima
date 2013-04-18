@@ -183,7 +183,7 @@ class BitstampExchange(QtCore.QObject, dojima.exchange.ExchangeSingleMarket):
         self._ticker_refresh_rate = 16
         self.balance_proxies = dict()
         self.ticker_proxy = dojima.data.market.TickerProxy(self)
-        self.depth_proxy = dojima.data.market.DepthProxy(self, 'BTCUSD')
+        self.depth_proxy = dojima.data.market.DepthProxy('BTCUSD', self)
         self.ticker_clients = 0
         self.ticker_timer = QtCore.QTimer(self)
         self.ticker_timer.timeout.connect(self.refreshTicker)
@@ -284,10 +284,15 @@ class BitstampOrderBookRequest(_BitstampRequest):
     def _handle_reply(self, raw):
         logger.debug(raw)
         data = json.loads(raw)
-        asks = np.array(data['asks'], dtype=np.float).transpose()
-        bids = np.array(data['bids'], dtype=np.float).transpose()
-        
-        self.parent.depth_proxy.processDepth(asks, bids)
+
+        bids = data['bids']
+        bids.reverse()
+        bids = np.array(bids, dtype=np.float).transpose()
+
+        asks = data['asks']
+        asks = np.array(asks, dtype=np.float).transpose()
+
+        self.parent.depth_proxy.processBidsAsks(bids, asks)
 
 
 class BitstampTickerRequest(_BitstampRequest):
