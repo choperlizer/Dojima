@@ -3,13 +3,13 @@
 <context>
     <name>AddMarketsWizard</name>
     <message>
-        <location filename="dojima/ui/wizard.py" line="52"/>
+        <location filename="dojima/ui/wizard.py" line="53"/>
         <source>Exchanges</source>
         <comment>Title of the select exchange page of the add markets wizard.</comment>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="dojima/ui/wizard.py" line="58"/>
+        <location filename="dojima/ui/wizard.py" line="59"/>
         <source>Add Server Contract</source>
         <comment>Title to a button to import an open transactions server contract.</comment>
         <translation type="unfinished"></translation>
@@ -100,7 +100,7 @@
 <context>
     <name>CampbxWithdrawBitcoinRequest</name>
     <message>
-        <location filename="dojima/exchange_modules/campbx.py" line="458"/>
+        <location filename="dojima/exchange_modules/campbx.py" line="461"/>
         <source>transaction id: {}</source>
         <translation type="unfinished"></translation>
     </message>
@@ -141,7 +141,7 @@
 <context>
     <name>ChartDialog</name>
     <message>
-        <location filename="dojima/ui/chart.py" line="33"/>
+        <location filename="dojima/ui/chart.py" line="43"/>
         <source>Refresh</source>
         <translation type="unfinished"></translation>
     </message>
@@ -302,23 +302,28 @@ used to create this nym keypair.</source>
 <context>
     <name>DepthChartDialog</name>
     <message>
-        <location filename="dojima/ui/chart.py" line="59"/>
+        <location filename="dojima/ui/chart.py" line="64"/>
         <source>Depth Chart</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="dojima/ui/chart.py" line="59"/>
+        <location filename="dojima/ui/chart.py" line="64"/>
         <source>Not enough offer data to chart.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="dojima/ui/chart.py" line="103"/>
+        <source>Price</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="dojima/ui/chart.py" line="108"/>
+        <source>Volume</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
     <name>EditDefinitionsDialog</name>
-    <message>
-        <location filename="dojima/ui/edit/__init__.py" line="31"/>
-        <source>&amp;commodities</source>
-        <translation type="unfinished"></translation>
-    </message>
 </context>
 <context>
     <name>EditWidget</name>
@@ -385,172 +390,166 @@ used to create this nym keypair.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="dojima/ui/edit/commodity.py" line="39"/>
+        <location filename="dojima/ui/edit/commodities.py" line="38"/>
         <source>Decimal precision used to display quantities and prices.
 A negative precision is not recommended.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="dojima/ui/edit/commodity.py" line="44"/>
-        <source>&amp;new</source>
+        <location filename="dojima/ui/edit/commodities.py" line="44"/>
+        <source>&amp;New</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="dojima/ui/edit/commodity.py" line="46"/>
-        <source>&amp;delete</source>
+        <location filename="dojima/ui/edit/commodities.py" line="45"/>
+        <source>&amp;Delete</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="dojima/ui/edit/commodity.py" line="50"/>
-        <source>prefix:</source>
+        <location filename="dojima/ui/edit/commodities.py" line="50"/>
+        <source>Prefix:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="dojima/ui/edit/commodity.py" line="53"/>
-        <source>suffix:</source>
+        <location filename="dojima/ui/edit/commodities.py" line="51"/>
+        <source>Suffix:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="dojima/ui/edit/commodity.py" line="56"/>
-        <source>display precision:</source>
+        <location filename="dojima/ui/edit/commodities.py" line="52"/>
+        <source>Display precision:</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
     <name>ExchangeDockWidget</name>
     <message>
-        <location filename="dojima/ui/exchange.py" line="55"/>
-        <source>{0} - {1} / {2}</source>
-        <comment>exchange name, base, counter</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="dojima/ui/exchange.py" line="91"/>
+        <location filename="dojima/ui/exchange.py" line="69"/>
         <source>ask</source>
         <comment>best ask price</comment>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="dojima/ui/exchange.py" line="91"/>
+        <location filename="dojima/ui/exchange.py" line="69"/>
         <source>last</source>
         <comment>price of last trade</comment>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="dojima/ui/exchange.py" line="91"/>
+        <location filename="dojima/ui/exchange.py" line="69"/>
         <source>bid</source>
         <comment>best bid price</comment>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="dojima/ui/exchange.py" line="114"/>
+        <location filename="dojima/ui/exchange.py" line="92"/>
         <source>refresh rate:</source>
         <comment>ticker refresh rate</comment>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="dojima/ui/exchange.py" line="117"/>
+        <location filename="dojima/ui/exchange.py" line="95"/>
         <source>s</source>
         <comment>The suffix after the number in the refresh rate spin box</comment>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="dojima/ui/exchange.py" line="199"/>
+        <location filename="dojima/ui/exchange.py" line="170"/>
         <source>&amp;refresh balance</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="dojima/ui/exchange.py" line="235"/>
+        <location filename="dojima/ui/exchange.py" line="206"/>
         <source>offer</source>
         <comment>as in place offer</comment>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="dojima/ui/exchange.py" line="239"/>
+        <location filename="dojima/ui/exchange.py" line="210"/>
         <source>Ask</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="dojima/ui/exchange.py" line="242"/>
+        <location filename="dojima/ui/exchange.py" line="213"/>
         <source>Bid</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="dojima/ui/exchange.py" line="250"/>
+        <location filename="dojima/ui/exchange.py" line="221"/>
         <source>@</source>
         <comment>amount @ price</comment>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="dojima/ui/exchange.py" line="261"/>
+        <location filename="dojima/ui/exchange.py" line="232"/>
         <source>Amount:</source>
         <comment>The offer amount label.</comment>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="dojima/ui/exchange.py" line="267"/>
+        <location filename="dojima/ui/exchange.py" line="238"/>
         <source>Price:</source>
         <comment>The offer price label.</comment>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="dojima/ui/exchange.py" line="314"/>
+        <location filename="dojima/ui/exchange.py" line="285"/>
         <source>&amp;cancel ask offer</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="dojima/ui/exchange.py" line="319"/>
+        <location filename="dojima/ui/exchange.py" line="290"/>
         <source>&amp;cancel bid offer</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="dojima/ui/exchange.py" line="514"/>
+        <location filename="dojima/ui/exchange.py" line="485"/>
         <source>Account</source>
         <comment>The title of a drop down menu to edit account settings.</comment>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="dojima/ui/exchange.py" line="521"/>
+        <location filename="dojima/ui/exchange.py" line="492"/>
         <source>Depth Chart</source>
         <comment>A menu action to show the current offers depth cart.</comment>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="dojima/ui/exchange.py" line="529"/>
+        <location filename="dojima/ui/exchange.py" line="500"/>
         <source>Trades Chart</source>
         <comment>A menu action to show the current the recent trades chart.</comment>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="dojima/ui/exchange.py" line="563"/>
+        <location filename="dojima/ui/exchange.py" line="534"/>
         <source>Place Offer</source>
         <comment>The label on the button to confirm an offer</comment>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="dojima/ui/exchange.py" line="585"/>
+        <location filename="dojima/ui/exchange.py" line="556"/>
         <source>Sell {0} at {1}?</source>
         <comment>Text on the AskConfirmationDialog. {0} will be the amount, and {1} will be the price.</comment>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="dojima/ui/exchange.py" line="595"/>
+        <location filename="dojima/ui/exchange.py" line="566"/>
         <source>Buy {0} at {1}?</source>
         <comment>Text on the BidConfirmationDialog. {0} will be the amount, and {1} will be the price.</comment>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="dojima/ui/exchange.py" line="189"/>
+        <location filename="dojima/ui/exchange.py" line="160"/>
         <source>Total balance.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="dojima/ui/exchange.py" line="190"/>
+        <location filename="dojima/ui/exchange.py" line="161"/>
         <source>Balance available for trade.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="dojima/ui/exchange.py" line="311"/>
+        <location filename="dojima/ui/exchange.py" line="282"/>
         <source>&amp;refresh offers</source>
         <translation type="unfinished"></translation>
     </message>
@@ -560,11 +559,17 @@ A negative precision is not recommended.</source>
         <comment>The title of an option on the &apos;Account&apos; menu</comment>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <location filename="dojima/ui/exchange.py" line="45"/>
+        <source>{0} - {1}</source>
+        <comment>{exchange name} - {market name}, you just pick the order and the seperator</comment>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>ExchangeDockWidgetMenuBar</name>
     <message>
-        <location filename="dojima/ui/exchange.py" line="500"/>
+        <location filename="dojima/ui/exchange.py" line="471"/>
         <source>Market</source>
         <comment>The title of a drop down menu to edit market settings.</comment>
         <translation type="unfinished"></translation>
@@ -651,35 +656,35 @@ A negative precision is not recommended.</source>
 <context>
     <name>MainWindow</name>
     <message>
-        <location filename="dojima/ui/mainwindow.py" line="42"/>
+        <location filename="dojima/ui/mainwindow.py" line="41"/>
         <source>Add new markets</source>
         <comment>The title of a menu action to show a wizard to make more markets available.</comment>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="dojima/ui/mainwindow.py" line="51"/>
-        <source>&amp;transfer</source>
+        <location filename="dojima/ui/mainwindow.py" line="50"/>
+        <source>&amp;Transfer</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="dojima/ui/mainwindow.py" line="54"/>
-        <source>&amp;bitcoin</source>
+        <location filename="dojima/ui/mainwindow.py" line="53"/>
+        <source>&amp;Bitcoin</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="dojima/ui/mainwindow.py" line="80"/>
-        <source>&amp;options</source>
+        <location filename="dojima/ui/mainwindow.py" line="79"/>
+        <source>&amp;Options</source>
         <comment>Title of the options menu in the main menu bar.</comment>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="dojima/ui/mainwindow.py" line="85"/>
-        <source>&amp;markets and exchanges</source>
+        <location filename="dojima/ui/mainwindow.py" line="83"/>
+        <source>&amp;Commodities</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="dojima/ui/mainwindow.py" line="157"/>
-        <source>&amp;market</source>
+        <location filename="dojima/ui/mainwindow.py" line="152"/>
+        <source>&amp;Market</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -701,6 +706,15 @@ A negative precision is not recommended.</source>
     <message>
         <location filename="dojima/ui/account.py" line="28"/>
         <source>counter</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>MarketProxy</name>
+    <message>
+        <location filename="dojima/markets.py" line="65"/>
+        <source>{0} / {1}</source>
+        <comment>{0} is the user specified name of the base commodity, and {1} is the counter,you just pick the order and the seperator.</comment>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -769,18 +783,23 @@ A negative precision is not recommended.</source>
 <context>
     <name>NewCommodityDialog</name>
     <message>
-        <location filename="dojima/ui/edit/commodity.py" line="130"/>
+        <location filename="dojima/ui/edit/commodities.py" line="126"/>
         <source>name:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="dojima/ui/edit/commodity.py" line="133"/>
+        <location filename="dojima/ui/edit/commodities.py" line="127"/>
         <source>prefix:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="dojima/ui/edit/commodity.py" line="136"/>
+        <location filename="dojima/ui/edit/commodities.py" line="128"/>
         <source>suffix:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="dojima/ui/edit/commodities.py" line="129"/>
+        <source>display precision:</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -1118,12 +1137,12 @@ to trade at a new scale.</source>
 <context>
     <name>TradesChartDialog</name>
     <message>
-        <location filename="dojima/ui/chart.py" line="74"/>
+        <location filename="dojima/ui/chart.py" line="79"/>
         <source>Trades Chart</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="dojima/ui/chart.py" line="74"/>
+        <location filename="dojima/ui/chart.py" line="79"/>
         <source>Not enough trade data to chart.</source>
         <translation type="unfinished"></translation>
     </message>

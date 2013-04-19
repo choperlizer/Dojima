@@ -29,7 +29,7 @@ import dojima.data.account
 import dojima.data.market
 import dojima.data.offers
 import dojima.network
-
+import dojima.ui.wizard
 
 PRETTY_NAME = "Bitstamp"
 PLAIN_NAME = "bitstamp"
@@ -71,12 +71,15 @@ class BitstampExchangeProxy(dojima.exchange.ExchangeProxySingleMarket):
             self.exchange_object = BitstampExchange()
         return self.exchange_object
 
+    def getPrettyMarketName(self, market_id=None):
+        return 'BTCUSD'
+        
     def getWizardPage(self, wizard):
         return BitstampWizardPage(wizard)
 
     
-class BitstampWizardPage(QtGui.QWizardPage):
-
+class BitstampWizardPage(dojima.ui.wizard.ExchangeWizardPage):
+    
     def __init__(self, parent):
         super(BitstampWizardPage, self).__init__(parent)
         self.setTitle(PRETTY_NAME)
@@ -142,10 +145,6 @@ class BitstampWizardPage(QtGui.QWizardPage):
 
     def nextId(self):
         return -1
-
-    def showNewCommodityDialog(self):
-        dialog = dojima.ui.edit.commodity.NewCommodityDialog(self)
-        dialog.exec_()
 
     def validatePage(self):
         saveAccountSettings(self.username_edit.text(), self.password_edit.text())

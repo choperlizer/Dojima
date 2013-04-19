@@ -65,7 +65,7 @@ class ExchangeProxySingleMarket(ExchangeProxy):
     def getRemoteToLocal(self, marketID=None):
         return self.local_market
 
-    def getPrettyMarketName(self, market_id):
+    def getPrettyMarketName(self, market_id=None):
         return market_id
 
     def refreshMarkets(self):

@@ -62,6 +62,22 @@ class LocalCommoditiesModel(QtGui.QStandardItemModel):
 
         return name1, name2
 
+    def getPrecision(self, uuid):
+        for row in range(self.rowCount()):
+            item = self.item(row, self.ID)
+
+            if item.data(QtCore.Qt.UserRole) == uuid:
+                return int(self.item(row, self.PRECISION).text())
+        
+    def getPrefixSuffix(self, uuid):
+        for row in range(self.rowCount()):
+            item = self.item(row, self.ID)
+
+            if item.data(QtCore.Qt.UserRole) == uuid:
+                prefix = self.item(row, self.PREFIX).text()
+                suffix = self.item(row, self.SUFFIX).text()
+                return prefix, suffix
+
     def getRow(self, uuid):
         name = None
         for row in range(self.rowCount()):
@@ -109,6 +125,11 @@ class LocalCommoditiesModel(QtGui.QStandardItemModel):
                 item = QtGui.QStandardItem(settings.value(setting))
                 self.setItem(row, column, item)
             settings.endGroup()
+            # THIS IS ONLY HERE BECAUSE NOT ALL COMMODITIES IN SETTINGS WILL HAVE PRECISION SET
+            item = self.item(row, self.PRECISION)
+            if not len(item.text()):
+                item.setText('4')
+            
         return True
 
     def submit(self):
@@ -181,6 +202,6 @@ class RemoteCommoditiesModel(QtGui.QStandardItemModel):
                               self.item(row, self.LOCAL_ID).text())
         return True
 
-    #TODO can't instantiate until after we have an app
+#TODO can't instantiate until after we have an app
 local_model = LocalCommoditiesModel()
 remote_model = RemoteCommoditiesModel()

@@ -67,6 +67,9 @@ class CampbxExchangeProxy(dojima.exchange.ExchangeProxySingleMarket):
             self.exchange_object = CampbxExchange()
         return self.exchange_object
 
+    def getPrettyMarketName(self, market_id):
+        return 'BTCUSD'
+
     def getWizardPage(self, wizard):
         return CampbxWizardPage(wizard)
 

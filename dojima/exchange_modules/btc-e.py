@@ -34,6 +34,7 @@ import dojima.data.market
 import dojima.data.offers
 import dojima.markets
 import dojima.network
+import dojima.ui.wizard
 
 
 PRETTY_NAME = "BTC-e"
@@ -138,7 +139,7 @@ class BtceExchangeProxy(dojima.exchange.ExchangeProxy):
                                                  local_base_id, local_counter_id)
 
             
-class BtceWizardPage(QtGui.QWizardPage):
+class BtceWizardPage(dojima.ui.wizard.ExchangeWizardPage):
 
     def __init__(self, parent):
         super(BtceWizardPage, self).__init__(parent)
@@ -204,10 +205,6 @@ class BtceWizardPage(QtGui.QWizardPage):
 
     def nextId(self):
         return -1
-
-    def showNewCommodityDialog(self):
-        dialog = dojima.ui.edit.commodity.NewCommodityDialog(self)
-        dialog.exec_()
 
     def validatePage(self):
         saveAccountSettings(self.key_edit.text(), self.secret_edit.text())
@@ -489,7 +486,7 @@ class _BtcePrivateRequest(dojima.network.ExchangePOSTRequest):
         self.parent = parent
         self.reply = None
         parent.requests.append( (self.priority, self,) )
-        parent.host_queue.enqueue(self.parent, self.host_priority)    
+        parent.host_queue.enqueue(self.parent, self.host_priority)
 
     def _prepare_request(self):
         self.request = QtNetwork.QNetworkRequest(self.url)

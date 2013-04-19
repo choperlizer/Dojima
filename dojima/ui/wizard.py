@@ -17,6 +17,7 @@
 from PyQt4 import QtCore, QtGui
 
 import dojima.exchanges
+import dojima.ui.edit.commodities
 
 class AddMarketsWizard(QtGui.QWizard):
 
@@ -41,7 +42,7 @@ class ExchangeWizardPage(QtGui.QWizardPage):
         return -1
 
     def showNewCommodityDialog(self):
-        dialog = dojima.ui.edit.commodity.NewCommodityDialog(self)
+        dialog = dojima.ui.edit.commodities.NewCommodityDialog(self)
         dialog.exec_()
         
 

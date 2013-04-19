@@ -23,8 +23,7 @@ import dojima.markets
 #This next import registers the exchanges into dojima.markets
 from dojima.exchange_modules import *
 import dojima.ui.exchange
-import dojima.ui.edit
-import dojima.ui.market
+import dojima.ui.edit.commodities
 import dojima.ui.wizard
 #import dojima.ui.ot.action
 import dojima.ui.transfer.bitcoin
@@ -49,10 +48,10 @@ class MainWindow(QtGui.QMainWindow):
         self.menuBar().addMenu(self.markets_menu)
 
         transfer_menu = QtGui.QMenu(
-            QtCore.QCoreApplication.translate("MainWindow", "&transfer"), self)
+            QtCore.QCoreApplication.translate("MainWindow", "&Transfer"), self)
 
         bitcoin_menu = QtGui.QMenu(
-            QtCore.QCoreApplication.translate("MainWindow", "&bitcoin"), self)
+            QtCore.QCoreApplication.translate("MainWindow", "&Bitcoin"), self)
         for Action in dojima.ui.transfer.bitcoin.actions:
             action = Action(self)
             bitcoin_menu.addAction(action)
@@ -78,15 +77,15 @@ class MainWindow(QtGui.QMainWindow):
         """
 
         options_menu = QtGui.QMenu(
-            QtCore.QCoreApplication.translate('MainWindow', "&options",
-                                              "Title of the options menu in "
-                                              "the main menu bar."),
+            QtCore.QCoreApplication.translate('MainWindow', "&Options", "Title of the options menu in the main menu bar."),
             self)
-        edit_definitions_action = QtGui.QAction(
-            QtCore.QCoreApplication.translate("MainWindow",
-                                              "&markets and exchanges"),
-            self, triggered=self.showEditDefinitionsDialog)
-        options_menu.addAction(edit_definitions_action)
+        
+        edit_commodities_action = QtGui.QAction(
+            QtCore.QCoreApplication.translate("MainWindow", "&Commodities"),
+            self, triggered=self.showEditCommoditiesDialog,
+            menuRole=QtGui.QAction.PreferencesRole)
+        
+        options_menu.addAction(edit_commodities_action)
         self.menuBar().addMenu(options_menu)
 
         self.setDockNestingEnabled(True)
@@ -95,27 +94,24 @@ class MainWindow(QtGui.QMainWindow):
 
     def refreshMarkets(self, showNew=False):
         dojima.exchanges.refresh()
-        for market_container in dojima.markets.container:
-            if market_container.pair in self.markets_menu:
+        for market_proxy in dojima.markets.container:
+            if market_proxy.pair in self.markets_menu:
                 market_menu = self.markets_menu.getMarketMenu(
-                    market_container.pair)
+                    market_proxy.pair)
             else:
                 market_menu = self.markets_menu.addMarketMenu(
-                    market_container.pair, market_container.prettyName())
+                    market_proxy.pair, market_proxy.getPrettyName())
 
-            for exchange_proxy in market_container:
+            for exchange_proxy in market_proxy:
                 # This exchange proxy has multiple markets, we only want
                 # the ones that mapped to the local pair
                 if exchange_proxy.id in market_menu:
-                    exchange_menu = market_menu.getExchangeMenu(
-                        exchange_proxy.id)
+                    exchange_menu = market_menu.getExchangeMenu(exchange_proxy.id)
                 else:
-                    exchange_menu = market_menu.addExchangeMenu(
-                        exchange_proxy.id, exchange_proxy.name)
-                    for market_id in exchange_proxy.getRemoteMarketIDs(market_container.pair):
-                        if market_id not in exchange_menu:
-                            action = exchange_menu.addMarketAction(
-                                exchange_proxy, market_id)
+                    exchange_menu = market_menu.addExchangeMenu(exchange_proxy.id, exchange_proxy.name)
+                    for remote_market_id in exchange_proxy.getRemoteMarketIDs(market_proxy.pair):
+                        if remote_market_id not in exchange_menu:
+                            action = exchange_menu.addMarketAction(market_proxy, exchange_proxy, remote_market_id)
                             if showNew:
                                 action.trigger()
 
@@ -124,10 +120,9 @@ class MainWindow(QtGui.QMainWindow):
         wizard.exec_()
         self.refreshMarkets(True)
 
-    def showEditDefinitionsDialog(self):
-        dialog = dojima.ui.edit.EditDefinitionsDialog(self)
+    def showEditCommoditiesDialog(self):
+        dialog = dojima.ui.edit.commodities.EditDialog(self)
         dialog.exec_()
-
 
 
 class ExchangeMarketsMenu(QtGui.QMenu):
@@ -139,8 +134,8 @@ class ExchangeMarketsMenu(QtGui.QMenu):
     def __contains__(self, market_id):
         return (market_id in self.actions)
 
-    def addMarketAction(self, exchangeProxy, marketID):
-        action = ShowTradeDockAction(exchangeProxy, marketID, self)
+    def addMarketAction(self, marketProxy, exchangeProxy, marketID):
+        action = ShowTradeDockAction(marketProxy, exchangeProxy, marketID, self)
         self.addAction(action)
         return action
 
@@ -155,7 +150,7 @@ class MarketsMenu(QtGui.QMenu):
 
     def __init__(self, parent):
         super(MarketsMenu, self).__init__(
-            QtCore.QCoreApplication.translate("MainWindow", "&market"),
+            QtCore.QCoreApplication.translate("MainWindow", "&Market"),
             parent)
         self.submenus = dict()
 
@@ -199,14 +194,15 @@ class MarketMenu(QtGui.QMenu):
 
 class ShowTradeDockAction(QtGui.QAction):
 
-    def __init__(self, exchangeProxy, marketID, parent):
+    def __init__(self, marketProxy, exchangeProxy, remoteMarketID, parent):
         super(ShowTradeDockAction, self).__init__(parent)
         self.setCheckable(True)
+        self.market_proxy = marketProxy
         self.exchange_proxy = exchangeProxy
-        self.marketID = marketID
+        self.remote_market_id = remoteMarketID
         self.dock = None
 
-        self.setText(self.exchange_proxy.getPrettyMarketName(marketID))
+        self.setText(self.exchange_proxy.getPrettyMarketName(remoteMarketID))
 
         self.triggered.connect(self.enableExchange)
 
@@ -220,8 +216,5 @@ class ShowTradeDockAction(QtGui.QAction):
         self.dock.enableExchange(state)
 
     def createDock(self):
-        marketPair = self.exchange_proxy.getRemoteToLocal(self.marketID) ##
-        self.dock = dojima.ui.exchange.ExchangeDockWidget(
-                self.exchange_proxy, marketPair, self.marketID, self)
-        self.parent().getMainWindow().addDockWidget(
-            QtCore.Qt.TopDockWidgetArea, self.dock)
+        self.dock = dojima.ui.exchange.ExchangeDockWidget(self.market_proxy, self.exchange_proxy, self.remote_market_id, self)
+        self.parent().getMainWindow().addDockWidget(QtCore.Qt.TopDockWidgetArea, self.dock)

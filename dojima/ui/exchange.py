@@ -39,28 +39,18 @@ class ErrorHandling(object):
 
 class ExchangeDockWidget(QtGui.QDockWidget, ErrorHandling):
 
-    def __init__(self, exchangeProxy, marketPair, marketID, action, parent=None):
-        exchange_name = exchangeProxy.name
-        self.base_id, self.counter_id = marketPair.split('_')
-
-        # Building the pretty name again
-        # there will probably be problems when commodities are deleted
-        self.base_row, self.counter_row = dojima.model.commodities.local_model.getRows(self.base_id, self.counter_id)
-
-        base_name = dojima.model.commodities.local_model.item(
-            self.base_row, 0).text()
-        counter_name = dojima.model.commodities.local_model.item(
-            self.counter_row, 0).text()
-
+    def __init__(self, marketProxy, exchangeProxy, remoteMarketID, action, parent=None):
+        base_name, counter_name = marketProxy.getPrettyCommodityNames()
+        
         title = QtCore.QCoreApplication.translate(
-            'ExchangeDockWidget', "{0} - {1} / {2}", "exchange name, base, counter"
-            ).format(exchange_name, base_name, counter_name)
+            'ExchangeDockWidget', "{0} - {1}", "{exchange name} - {market name}, you just pick the order and the seperator"
+            ).format(exchangeProxy.name, marketProxy.getPrettyName())
 
         super(ExchangeDockWidget, self).__init__(title, parent)
 
-        self.remote_market = marketID
-
+        self.market_proxy = marketProxy
         self.exchange = exchangeProxy.getExchangeObject()
+        self.remote_market = remoteMarketID
         self.enable_exchange_action = action
 
         # get our display parameters
@@ -69,19 +59,7 @@ class ExchangeDockWidget(QtGui.QDockWidget, ErrorHandling):
             self.base_power, self.counter_power = self.exchange.getPowers(self.remote_market)
             self.scale = self.exchange.getScale(self.remote_market)
 
-        self.base_precision = dojima.model.commodities.local_model.item(
-            self.base_row, dojima.model.commodities.local_model.PRECISION).text()
-        if not len(self.base_precision):
-            self.base_precision = 0
-        else:
-            self.base_precision = int(self.base_precision)
-
-        self.counter_precision = dojima.model.commodities.local_model.item(
-            self.counter_row, dojima.model.commodities.local_model.PRECISION).text()
-        if not len(self.counter_precision):
-            self.counter_precision = 0
-        else:
-            self.counter_precision = int(self.counter_precision)
+        self.base_precision, self.counter_precision = self.market_proxy.getPrecisions()
 
         side_layout = QtGui.QGridLayout()
         label_font = QtGui.QFont()
@@ -134,15 +112,8 @@ class ExchangeDockWidget(QtGui.QDockWidget, ErrorHandling):
         account_layout = QtGui.QGridLayout()
 
         # get the prefixi and suffixi
-        base_prefix = dojima.model.commodities.local_model.item(
-            self.base_row, dojima.model.commodities.local_model.PREFIX).text()
-        counter_prefix = dojima.model.commodities.local_model.item(
-            self.counter_row, dojima.model.commodities.local_model.PREFIX).text()
-
-        base_suffix = dojima.model.commodities.local_model.item(
-            self.base_row, dojima.model.commodities.local_model.SUFFIX).text()
-        counter_suffix = dojima.model.commodities.local_model.item(
-            self.counter_row, dojima.model.commodities.local_model.SUFFIX).text()
+        base_prefix,    base_suffix    = self.market_proxy.getPrefixSuffixBase()
+        counter_prefix, counter_suffix = self.market_proxy.getPrefixSuffixCounter()
 
         if self.exchange.valueType is int:
             self.base_balance_total_label    = dojima.ui.widget.AssetAmountIntView(factor=self.base_factor)
@@ -543,14 +514,12 @@ class ExchangeDockWidgetMenuBar(QtGui.QMenuBar):
         return self.account_menu
 
     def showDepthChart(self):
-        proxy = self.dock.exchange.getDepthProxy(self.dock.remote_market)
-        dialog = dojima.ui.chart.DepthDialog(proxy, self)
+        dialog = dojima.ui.chart.DepthDialog(self.dock.market_proxy, self.dock.exchange, self.dock.remote_market, self)
         dialog.pricePicked.connect(self.dock.price_spin.setValue)
         dialog.show()
 
     def showTradesChart(self):
-        proxy = self.dock.exchange.getTradesProxy(self.dock.remote_market)
-        dialog = dojima.ui.chart.TradesDialog(proxy, self)
+        dialog = dojima.ui.chart.TradesDialog(self.dock.market_proxy, self.dock.exchange, self.dock.remote_market, self)
         dialog.pricePicked.connect(self.dock.price_spin.setValue)
         dialog.show()
 

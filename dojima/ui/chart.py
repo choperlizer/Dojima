@@ -23,18 +23,24 @@ import matplotlib.finance
 
 
 class _ChartDialog(QtGui.QDialog):
+    pass
+
+class DepthDialog(_ChartDialog):
 
     pricePicked = QtCore.pyqtSignal(float)
 
-    def __init__(self, proxy, parent=None):
+    def __init__(self, marketProxy, exchange, remoteMarketID, parent=None):
         super(_ChartDialog, self).__init__(parent)
-        self.proxy = proxy
+        self.market_proxy = marketProxy
+        self.exchange = exchange
+        self.remote_market_id = remoteMarketID
+
+        # TODO a chart should be able to support more than one exchange market
+        self.proxy = self.exchange.getDepthProxy(self.remote_market_id)
 
         self.chart_canvas = ChartCanvas(self)
 
-        self.refresh_button = QtGui.QPushButton(
-            QtCore.QCoreApplication.translate('ChartDialog',
-                                              "Refresh"))
+        self.refresh_button = QtGui.QPushButton(QtCore.QCoreApplication.translate('ChartDialog', "Refresh"))
 
         button_box = QtGui.QDialogButtonBox()
         button_box.addButton(self.refresh_button, button_box.ActionRole)
@@ -51,9 +57,6 @@ class _ChartDialog(QtGui.QDialog):
     def requestRefresh(self):
         self.refresh_button.setDisabled(True)
         self.proxy.refresh()
-
-
-class DepthDialog(_ChartDialog):
         
     def plot(self, data):
         self.refresh_button.setEnabled(True)
@@ -93,49 +96,25 @@ class ChartCanvas(FigureCanvas):
         self.parent = parent        
         self.setParent(parent)
 
-        #x_format_str = "{}1.2f{}".format(parent.counter_prefix, parent.counter_suffix)
-        #y_format_str = "{}1.2f{}".format(parent.base_prefix,    parent.base_suffix)
+        base_prefix,    base_suffix    = self.parent.market_proxy.getPrefixSuffixBase()
+        counter_prefix, counter_suffix = self.parent.market_proxy.getPrefixSuffixCounter()
+        base_precision, counter_precision = self.parent.market_proxy.getPrecisions()
 
-        #formatter = matplotlib.ticker.FormatStrFormatter(x_format_str)
-        #self.axes.xaxis.set_major_formatter(formatter)        
-        #formatter = matplotlib.ticker.FormatStrFormatter(y_format_str)
-        #self.axes.yaxis.set_major_formatter(formatter)
+        self.axes.set_xlabel(QtCore.QCoreApplication.translate("DepthChartDialog", "Price"))
+        format_str = "{}%1.{}f{}".format(counter_prefix, counter_precision, counter_suffix)
+        formatter = matplotlib.ticker.FormatStrFormatter(format_str)
+        self.axes.xaxis.set_major_formatter(formatter)
+
+        self.axes.set_ylabel(QtCore.QCoreApplication.translate("DepthChartDialog", "Volume"))
+        format_str = "{}%1.{}f{}".format(base_prefix, base_precision, base_suffix)
+        formatter = matplotlib.ticker.FormatStrFormatter(format_str)
+        self.axes.yaxis.set_major_formatter(formatter)
 
         FigureCanvas.setSizePolicy(self,
                                    QtGui.QSizePolicy.Expanding,
                                    QtGui.QSizePolicy.Expanding)
         FigureCanvas.updateGeometry(self)
 
-        """
-        # Set Y tick format
-        model =  tulpenmanie.market.model
-        search = model.findItems(parent.market_uuid,
-                                 QtCore.Qt.MatchExactly,
-                                 model.UUID)
-        row = search[0].row()
-        commodity_uuid = model.item(row, model.COUNTER).text()
-n
-        model =  tulpenmanie.commodity.model
-        search = model.findItems(commodity_uuid,
-                                 QtCore.Qt.MatchExactly,
-                                 model.UUID)
-        row = search[0].row()
-        prefix = model.item(row, model.PREFIX).text()
-        suffix = model.item(row, model.SUFFIX).text()
-        precision = model.item(row, model.PRECISION).text()
-
-        format_string = QtCore.QString()
-        if prefix:
-            format_string.append(prefix)
-        format_string.append('%1')
-        if precision:
-            format_string.append("." + precision + 'f')
-        if suffix:
-            format_string.append(suffix)
-
-        formatter = matplotlib.ticker.FormatStrFormatter(format_string)
-        self.axes.yaxis.set_major_formatter(formatter)
-        """
         #self.axes.xaxis_date()
 
         self.cid = self.mpl_connect('button_press_event', self.onclick)

@@ -18,6 +18,7 @@ from PyQt4 import QtCore
 
 import dojima.model.commodities
 
+
 class MarketsContainer(object):
 
     """ A container for containers that hold ExchangeProxys.
@@ -44,27 +45,41 @@ class MarketsContainer(object):
         if local_pair in self.markets:
             container = self.markets[local_pair]
         else:
-            container = ExchangesContainer(local_pair)
+            container = MarketProxy(local_pair)
             self.markets[local_pair] = container
         container.append(exchange_proxy)
 
 
-class ExchangesContainer(object):
+class MarketProxy(object):
 
     def __init__(self, marketPair):
         self.exchanges = list()
         self.pair = marketPair
-        self.base, self.counter = marketPair.split('_')
+        self.base_id, self.counter_id = marketPair.split('_')
 
     def append(self, exchangeProxy):
         self.exchanges.append(exchangeProxy)
 
-    def prettyName(self):
-        base_name, counter_name = dojima.model.commodities.local_model.getNames(
-            self.base, self.counter)
+    def getPrettyName(self):
+        base, counter = dojima.model.commodities.local_model.getNames(self.base_id, self.counter_id)
+        return QtCore.QCoreApplication.translate('MarketProxy', "{0} / {1}", 
+                                                 "{0} is the user specified name of the base commodity, and {1} is the counter,"
+                                                 "you just pick the order and the seperator.").format(base, counter)
+    
+    def getPrecisions(self):
+        base_precision = dojima.model.commodities.local_model.getPrecision(self.base_id)
+        counter_precision = dojima.model.commodities.local_model.getPrecision(self.counter_id)
+        return base_precision, counter_precision
 
-        return (base_name + ' / ' + counter_name)
+    def getPrefixSuffixBase(self):
+        return dojima.model.commodities.local_model.getPrefixSuffix(self.base_id)
+            
+    def getPrefixSuffixCounter(self):
+        return dojima.model.commodities.local_model.getPrefixSuffix(self.counter_id)
 
+    def getPrettyCommodityNames(self):
+        return dojima.model.commodities.local_model.getNames(self.base_id, self.counter_id)
+        
     def __iter__(self):
         return self.exchanges.__iter__()
 

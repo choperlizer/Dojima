@@ -34,7 +34,7 @@ SOURCES	=	dojima/data/__init__.py \
 		dojima/ui/edit/ot_assets.py \
 		dojima/ui/edit/ot_markets.py \
 		dojima/ui/edit/__init__.py \
-		dojima/ui/edit/commodity.py \
+		dojima/ui/edit/commodities.py \
 		dojima/ui/ot/__init__.py \
 		dojima/ui/ot/manager.py \
 		dojima/ui/ot/servers.py \
