@@ -65,11 +65,15 @@ class MarketProxy(object):
         return QtCore.QCoreApplication.translate('MarketProxy', "{0} / {1}", 
                                                  "{0} is the user specified name of the base commodity, and {1} is the counter,"
                                                  "you just pick the order and the seperator.").format(base, counter)
+
+    def getPrecisionCounter(self):
+        return dojima.model.commodities.local_model.getPrecision(self.counter_id)
     
-    def getPrecisions(self):
-        base_precision = dojima.model.commodities.local_model.getPrecision(self.base_id)
-        counter_precision = dojima.model.commodities.local_model.getPrecision(self.counter_id)
-        return base_precision, counter_precision
+    def getPrecisionBase(self):
+       return dojima.model.commodities.local_model.getPrecision(self.base_id)
+
+    def getPrecisionCounter(self):
+        return dojima.model.commodities.local_model.getPrecision(self.counter_id)
 
     def getPrefixSuffixBase(self):
         return dojima.model.commodities.local_model.getPrefixSuffix(self.base_id)

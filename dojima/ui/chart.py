@@ -23,14 +23,18 @@ import matplotlib.finance
 
 
 class _ChartDialog(QtGui.QDialog):
-    pass
-
-class DepthDialog(_ChartDialog):
 
     pricePicked = QtCore.pyqtSignal(float)
 
+    def requestRefresh(self):
+        self.refresh_button.setDisabled(True)
+        self.proxy.refresh()
+
+        
+class DepthDialog(_ChartDialog):
+
     def __init__(self, marketProxy, exchange, remoteMarketID, parent=None):
-        super(_ChartDialog, self).__init__(parent)
+        super(DepthDialog, self).__init__(parent)
         self.market_proxy = marketProxy
         self.exchange = exchange
         self.remote_market_id = remoteMarketID
@@ -38,7 +42,7 @@ class DepthDialog(_ChartDialog):
         # TODO a chart should be able to support more than one exchange market
         self.proxy = self.exchange.getDepthProxy(self.remote_market_id)
 
-        self.chart_canvas = ChartCanvas(self)
+        self.chart_canvas = ChartCanvasDepth(self)
 
         self.refresh_button = QtGui.QPushButton(QtCore.QCoreApplication.translate('ChartDialog', "Refresh"))
 
@@ -53,10 +57,6 @@ class DepthDialog(_ChartDialog):
         self.refresh_button.clicked.connect(self.requestRefresh)
         self.proxy.refreshed.connect(self.plot)
         self.requestRefresh()
-
-    def requestRefresh(self):
-        self.refresh_button.setDisabled(True)
-        self.proxy.refresh()
         
     def plot(self, data):
         self.refresh_button.setEnabled(True)
@@ -73,6 +73,31 @@ class DepthDialog(_ChartDialog):
 
 class TradesDialog(_ChartDialog):
 
+    def __init__(self, marketProxy, exchange, remoteMarketID, parent=None):
+        super(TradesDialog, self).__init__(parent)
+        self.market_proxy = marketProxy
+        self.exchange = exchange
+        self.remote_market_id = remoteMarketID
+
+        # TODO a chart should be able to support more than one exchange market
+        self.proxy = self.exchange.getTradesProxy(self.remote_market_id)
+
+        self.chart_canvas = ChartCanvasTrades(self)
+
+        self.refresh_button = QtGui.QPushButton(QtCore.QCoreApplication.translate('ChartDialog', "Refresh"))
+
+        button_box = QtGui.QDialogButtonBox()
+        button_box.addButton(self.refresh_button, button_box.ActionRole)
+
+        layout = QtGui.QVBoxLayout()
+        layout.addWidget(self.chart_canvas)
+        layout.addWidget(button_box)
+        self.setLayout(layout)
+
+        self.refresh_button.clicked.connect(self.requestRefresh)
+        self.proxy.refreshed.connect(self.plot)
+        self.requestRefresh()
+    
     def plot(self, data):
         self.refresh_button.setEnabled(True)
         if data is None:
@@ -82,12 +107,19 @@ class TradesDialog(_ChartDialog):
                 QtCore.QCoreApplication.translate("TradesChartDialog",
                                                   "Not enough trade data to chart."))
             return
-        self.chart_canvas.axes.plot(data)
+        self.chart_canvas.axes.plot(data[0], data[1])
         self.chart_canvas.draw()
 
 
-class ChartCanvas(FigureCanvas):
+class _ChartCanvas(FigureCanvas):
 
+
+    def onclick(self, event):
+        self.parent.pricePicked.emit(event.xdata)
+
+        
+class ChartCanvasDepth(_ChartCanvas):
+    
     def __init__(self, parent):
         figure = matplotlib.figure.Figure()
         self.axes = figure.add_subplot(111)
@@ -95,18 +127,18 @@ class ChartCanvas(FigureCanvas):
         FigureCanvas.__init__(self, figure)
         self.parent = parent        
         self.setParent(parent)
-
-        base_prefix,    base_suffix    = self.parent.market_proxy.getPrefixSuffixBase()
-        counter_prefix, counter_suffix = self.parent.market_proxy.getPrefixSuffixCounter()
-        base_precision, counter_precision = self.parent.market_proxy.getPrecisions()
-
+        
+        prefix, suffix = self.parent.market_proxy.getPrefixSuffixCounter()
+        precision = self.parent.market_proxy.getPrecisionCounter()
         self.axes.set_xlabel(QtCore.QCoreApplication.translate("DepthChartDialog", "Price"))
-        format_str = "{}%1.{}f{}".format(counter_prefix, counter_precision, counter_suffix)
+        format_str = "{}%1.{}f{}".format(prefix, precision, suffix)
         formatter = matplotlib.ticker.FormatStrFormatter(format_str)
         self.axes.xaxis.set_major_formatter(formatter)
 
+        prefix, suffix = self.parent.market_proxy.getPrefixSuffixBase()
+        precision = self.parent.market_proxy.getPrecisionBase()
         self.axes.set_ylabel(QtCore.QCoreApplication.translate("DepthChartDialog", "Volume"))
-        format_str = "{}%1.{}f{}".format(base_prefix, base_precision, base_suffix)
+        format_str = "{}%1.{}f{}".format(prefix, precision, suffix)
         formatter = matplotlib.ticker.FormatStrFormatter(format_str)
         self.axes.yaxis.set_major_formatter(formatter)
 
@@ -119,8 +151,33 @@ class ChartCanvas(FigureCanvas):
 
         self.cid = self.mpl_connect('button_press_event', self.onclick)
 
-    def onclick(self, event):
-        self.parent.pricePicked.emit(event.xdata)
+
+class ChartCanvasTrades(_ChartCanvas):
+    
+    def __init__(self, parent):
+        figure = matplotlib.figure.Figure()
+        self.axes = figure.add_subplot(111)
+
+        FigureCanvas.__init__(self, figure)
+        self.parent = parent        
+        self.setParent(parent)
+
+        prefix, suffix = self.parent.market_proxy.getPrefixSuffixCounter()
+        precision = self.parent.market_proxy.getPrecisionCounter()
+
+        self.axes.set_ylabel(QtCore.QCoreApplication.translate("TradesChartDialog", "Price"))
+        format_str = "{}%1.{}f{}".format(prefix, precision, suffix)
+        formatter = matplotlib.ticker.FormatStrFormatter(format_str)
+        self.axes.yaxis.set_major_formatter(formatter)
+
+        FigureCanvas.setSizePolicy(self,
+                                   QtGui.QSizePolicy.Expanding,
+                                   QtGui.QSizePolicy.Expanding)
+        FigureCanvas.updateGeometry(self)
+
+        self.axes.xaxis_date()
+
+        self.cid = self.mpl_connect('button_press_event', self.onclick)
 
 
 

@@ -24,6 +24,7 @@ import urllib.parse
 
 from decimal import Decimal
 
+import matplotlib.dates
 import numpy as np
 from PyQt4 import QtCore, QtGui, QtNetwork
 
@@ -352,6 +353,14 @@ class BtceExchange(QtCore.QObject, dojima.exchange.Exchange):
 
     def getMarketSymbols(self, pair):
         return pair.split('_')
+
+    def getTradesProxy(self, pair):
+        if pair not in self.trades_proxies:
+            proxy = dojima.data.market.TradesProxy(pair, self)
+            self.trades_proxies[pair] = proxy
+            return proxy
+
+        return self.trades_proxies[pair]
     
     def hasAccount(self, market_id=None):
         return bool(self._key and self._secret)
@@ -440,14 +449,6 @@ class BtceDepthRequest(_BtcePublicRequest):
         bids = np.array(bids).transpose()
         asks = np.array(asks).transpose()
 
-        import pickle
-        f = open('/tmp/btc-e_bids', 'wb')
-        pickle.dump(bids, f)
-        f.close()
-        f = open('/tmp/btc-e_asks', 'wb')
-        pickle.dump(asks, f)
-        f.close()
-        
         proxy = self.parent.getDepthProxy(self.pair)
         proxy.processBidsAsks(bids, asks)
 
@@ -472,9 +473,18 @@ class BtceTradesRequest(_BtcePublicRequest):
         logger.debug(raw)
         data = json.loads(raw)
 
-        proxy = self.parent.getTradesProxy(self.pair)
-        # TODO finish me
+        trades = np.empty( (3, len(data)) )
 
+        for i, trade in enumerate(data):
+            trades[0,i] = trade['date']
+            trades[1,i] = trade['price']
+            trades[2,i] = trade['amount']
+
+        trades[0] = matplotlib.dates.epoch2num(trades[0])
+        
+        proxy = self.parent.getTradesProxy(self.pair)
+        proxy.refreshed.emit(trades)
+        
 
 class _BtcePrivateRequest(dojima.network.ExchangePOSTRequest):
     priority = 1

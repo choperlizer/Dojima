@@ -20,6 +20,7 @@ import json
 import logging
 from decimal import Decimal
 
+import matplotlib.dates
 import numpy as np
 from PyQt4 import QtCore, QtGui, QtNetwork
 
@@ -181,8 +182,9 @@ class BitstampExchange(QtCore.QObject, dojima.exchange.ExchangeSingleMarket):
         
         self._ticker_refresh_rate = 16
         self.balance_proxies = dict()
-        self.ticker_proxy = dojima.data.market.TickerProxy(self)
         self.depth_proxy = dojima.data.market.DepthProxy('BTCUSD', self)
+        self.ticker_proxy = dojima.data.market.TickerProxy(self)
+        self.trades_proxy = dojima.data.market.TradesProxy('BTCUSD', self)
         self.ticker_clients = 0
         self.ticker_timer = QtCore.QTimer(self)
         self.ticker_timer.timeout.connect(self.refreshTicker)
@@ -209,7 +211,10 @@ class BitstampExchange(QtCore.QObject, dojima.exchange.ExchangeSingleMarket):
             return
         
         BitstampBitcoinDepositAddressRequest(None, self)
-    
+
+    def getTradesProxy(self, market=None):
+        return self.trades_proxy
+        
     def hasAccount(self, market=None):
         return bool(self._username and self._password)
         
@@ -247,6 +252,9 @@ class BitstampExchange(QtCore.QObject, dojima.exchange.ExchangeSingleMarket):
     def refreshTicker(self, market=None):
         BitstampTickerRequest(self)
 
+    def refreshTrades(self, market=None):
+        BitstampTransactionsRequest(self)
+
     def refreshOffers(self, market=None):
         BitstampOpenOrdersRequest(None, self)
 
@@ -260,23 +268,7 @@ class _BitstampRequest(dojima.network.ExchangeGETRequest):
     priority = 3
     host_priority = None
 
-    
-class _BitstampPrivateRequest(dojima.network.ExchangePOSTRequest):
 
-    def _prepare_request(self):
-        self.request = QtNetwork.QNetworkRequest(self.url)
-        self.request.setHeader(QtNetwork.QNetworkRequest.ContentTypeHeader,
-                               "application/x-www-form-urlencoded")
-        query = QtCore.QUrl()
-        query.addQueryItem('user',     self.parent._username)
-        query.addQueryItem('password', self.parent._password)
-        
-        if self.params:
-            for key, value in list(self.params.items()):
-                query.addQueryItem(key, value)
-        self.query = query.encodedQuery()
-
-    
 class BitstampOrderBookRequest(_BitstampRequest):
     url = QtCore.QUrl(URL_BASE + 'order_book/')
 
@@ -305,6 +297,41 @@ class BitstampTickerRequest(_BitstampRequest):
         self.parent.ticker_proxy.ask_signal.emit(Decimal(data['ask']))
 
 
+class BitstampTransactionsRequest(_BitstampRequest):
+    url = QtCore.QUrl(URL_BASE + 'transactions/')
+
+    def _handle_reply(self, raw):
+        logger.debug(raw)
+        data = json.loads(raw)
+
+        trades = np.empty( (3, len(data)) )
+
+        for i, trade in enumerate(data):
+            trades[0,i] = trade['date']
+            trades[1,i] = trade['price']
+            trades[2,i] = trade['amount']
+
+        trades[0] = matplotlib.dates.epoch2num(trades[0])
+
+        self.parent.trades_proxy.refreshed.emit(trades)
+    
+    
+class _BitstampPrivateRequest(dojima.network.ExchangePOSTRequest):
+
+    def _prepare_request(self):
+        self.request = QtNetwork.QNetworkRequest(self.url)
+        self.request.setHeader(QtNetwork.QNetworkRequest.ContentTypeHeader,
+                               "application/x-www-form-urlencoded")
+        query = QtCore.QUrl()
+        query.addQueryItem('user',     self.parent._username)
+        query.addQueryItem('password', self.parent._password)
+        
+        if self.params:
+            for key, value in list(self.params.items()):
+                query.addQueryItem(key, value)
+        self.query = query.encodedQuery()
+
+    
 class BitstampBalanceRequest(_BitstampPrivateRequest):    
     url = QtCore.QUrl(URL_BASE + 'balance/')
     priority = 2

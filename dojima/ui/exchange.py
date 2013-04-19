@@ -59,7 +59,8 @@ class ExchangeDockWidget(QtGui.QDockWidget, ErrorHandling):
             self.base_power, self.counter_power = self.exchange.getPowers(self.remote_market)
             self.scale = self.exchange.getScale(self.remote_market)
 
-        self.base_precision, self.counter_precision = self.market_proxy.getPrecisions()
+        self.base_precision    = self.market_proxy.getPrecisionBase()
+        self.counter_precision = self.market_proxy.getPrecisionCounter()
 
         side_layout = QtGui.QGridLayout()
         label_font = QtGui.QFont()
