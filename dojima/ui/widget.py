@@ -229,7 +229,7 @@ class AssetDecimalSpinBox(_AssetSpinBox):
         self._value = value
         if self.precision is not None:
             value = round(value, self.precision)
-        super(AssetSpinBox, self).setValue(value)
+        super(AssetDecimalSpinBox, self).setValue(value)
 
     def textFromValue(self, value):
         if self.precision:
@@ -298,12 +298,14 @@ class AssetIntSpinBox(_AssetSpinBox):
             self.scale_round_digits = scale * 10
 
     def setValue(self, value):
+        if type(value) is float:
+            assert(False)
         self._value = value
         if self.factor > 1:
             value /= self.factor
         if self.precision is not None:
             value = round(value, self.precision)
-        super(AssetSpinBox, self).setValue(value)
+        super(AssetSpinIntBox, self).setValue(value)
 
     def textFromValue(self, value):
         if self.factor > 1:

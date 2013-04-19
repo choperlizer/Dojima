@@ -24,6 +24,8 @@ import matplotlib.finance
 
 class _ChartDialog(QtGui.QDialog):
 
+    pricePicked = QtCore.pyqtSignal(float)
+
     def __init__(self, proxy, parent=None):
         super(_ChartDialog, self).__init__(parent)
         self.proxy = proxy
@@ -88,7 +90,16 @@ class ChartCanvas(FigureCanvas):
         self.axes = figure.add_subplot(111)
 
         FigureCanvas.__init__(self, figure)
+        self.parent = parent        
         self.setParent(parent)
+
+        #x_format_str = "{}1.2f{}".format(parent.counter_prefix, parent.counter_suffix)
+        #y_format_str = "{}1.2f{}".format(parent.base_prefix,    parent.base_suffix)
+
+        #formatter = matplotlib.ticker.FormatStrFormatter(x_format_str)
+        #self.axes.xaxis.set_major_formatter(formatter)        
+        #formatter = matplotlib.ticker.FormatStrFormatter(y_format_str)
+        #self.axes.yaxis.set_major_formatter(formatter)
 
         FigureCanvas.setSizePolicy(self,
                                    QtGui.QSizePolicy.Expanding,
@@ -130,7 +141,7 @@ n
         self.cid = self.mpl_connect('button_press_event', self.onclick)
 
     def onclick(self, event):
-        print(self.parent())
+        self.parent.pricePicked.emit(event.xdata)
 
 
 

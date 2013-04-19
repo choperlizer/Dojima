@@ -545,11 +545,13 @@ class ExchangeDockWidgetMenuBar(QtGui.QMenuBar):
     def showDepthChart(self):
         proxy = self.dock.exchange.getDepthProxy(self.dock.remote_market)
         dialog = dojima.ui.chart.DepthDialog(proxy, self)
+        dialog.pricePicked.connect(self.dock.price_spin.setValue)
         dialog.show()
 
     def showTradesChart(self):
         proxy = self.dock.exchange.getTradesProxy(self.dock.remote_market)
         dialog = dojima.ui.chart.TradesDialog(proxy, self)
+        dialog.pricePicked.connect(self.dock.price_spin.setValue)
         dialog.show()
 
 

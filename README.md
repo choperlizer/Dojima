@@ -68,3 +68,5 @@ installer or standalone EXE but I can't stand using Windows.
 
 ## Donate
 Bitcoin: 1NKKQBSaQ6XMViwC46b4JCxGUiUp6EDZR5
+
+*"This thing is pretty fun if you think of it as a game"* - Emery
