@@ -55,22 +55,21 @@ class DepthDialog(_ChartDialog):
         self.setLayout(layout)
 
         self.refresh_button.clicked.connect(self.requestRefresh)
-        self.proxy.refreshed.connect(self.plot)
+        self.proxy.asks.connect(self.plotAsks)
+        self.proxy.bids.connect(self.plotBids)
         self.requestRefresh()
         
-    def plot(self, data):
+    def plotAsks(self, data):
         self.refresh_button.setEnabled(True)
-        if data is None:
-            QtGui.QMessageBox.warning(self,
-                QtCore.QCoreApplication.translate("DepthChartDialog",
-                                                  "Depth Chart"),
-                QtCore.QCoreApplication.translate("DepthChartDialog",
-                                                  "Not enough offer data to chart."))
-            return
-        self.chart_canvas.axes.plot(data[0], data[1])
+        self.chart_canvas.axes.step(data[0], data[1], color='r')
         self.chart_canvas.draw()
 
+    def plotBids(self, data):
+        self.refresh_button.setEnabled(True)
+        self.chart_canvas.axes.step(data[0], data[1], color='g')
+        self.chart_canvas.draw()
 
+        
 class TradesDialog(_ChartDialog):
 
     def __init__(self, marketProxy, exchange, remoteMarketID, parent=None):

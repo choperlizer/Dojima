@@ -277,13 +277,12 @@ class BitstampOrderBookRequest(_BitstampRequest):
         data = json.loads(raw)
 
         bids = data['bids']
-        bids.reverse()
         bids = np.array(bids, dtype=np.float).transpose()
-
+        self.parent.depth_proxy.processBids(bids)
+        
         asks = data['asks']
         asks = np.array(asks, dtype=np.float).transpose()
-
-        self.parent.depth_proxy.processBidsAsks(bids, asks)
+        self.parent.depth_proxy.processAsks(asks)
 
 
 class BitstampTickerRequest(_BitstampRequest):

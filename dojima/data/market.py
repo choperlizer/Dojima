@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 
 
 class TickerProxy(QtCore.QObject):
-
+    
     last_signal = QtCore.pyqtSignal(int)
     ask_signal = QtCore.pyqtSignal(int)
     bid_signal = QtCore.pyqtSignal(int)
@@ -42,8 +42,6 @@ class TickerProxy(QtCore.QObject):
 
 class _StatsProxy(QtCore.QObject):
 
-    refreshed = QtCore.pyqtSignal(np.ndarray)
-
     def __init__(self, marketId, parent=None):
         super(_StatsProxy, self).__init__(parent)
         self.exchange_obj = parent
@@ -52,43 +50,42 @@ class _StatsProxy(QtCore.QObject):
 
 class DepthProxy(_StatsProxy):
 
+    asks = QtCore.pyqtSignal(np.ndarray)    
+    bids = QtCore.pyqtSignal(np.ndarray)
+    
     def refresh(self):
         self.exchange_obj.refreshDepth(self.market_id)
 
-
-    def processBidsAsks(self, bids, asks):
-        mask = bids[0] > (bids[0,-1] * 0.75)
-        bid_prices = bids[0][mask]
-        bid_volumes = bids[1][mask]
-
+    def processAsks(self, asks):
         mask = asks[0] < (asks[0,0] * 1.25)
-        ask_prices = asks[0][mask]
-        ask_volumes = asks[1][mask]
-       
-        depth_length = len(bid_prices) + len(ask_prices)
-        depth = np.empty((2, depth_length))
-
-        i = len(bid_prices)
-        vsum = 0
-        while i:
-            i -= 1
-            depth[0][i] = bid_prices[i]
-            vsum += bid_volumes[i]
-            depth[1][i] = vsum
-
-        i = len(bid_prices)
-        j = 0
-        vsum = 0
-        while i < depth_length:
-            depth[0][i] = ask_prices[j]
-            vsum += ask_volumes[j]
-            depth[1][i] = vsum 
+        orders = asks[:,mask]
+        
+        i = 0
+        j = 1
+        stop = orders[0].size
+        while j < stop:
+            orders[1,j] += orders[1,i]
             i += 1
             j += 1
-        
-        self.refreshed.emit(depth)
-        
+        orders[1,0] = 0
 
+        self.asks.emit(orders)
+
+    def processBids(self, bids):
+        mask = bids[0] > (bids[0,0] * 0.75)
+        orders = bids[:,mask]
+        
+        i = 0
+        j = 1
+        stop = orders[0].size
+        while j < stop:
+            orders[1,j] += orders[1,i]
+            i += 1
+            j += 1
+        orders[1,0] = 0
+
+        self.bids.emit(orders)
+        
 """
 class QuotesProxy(QtCore.QObject):
 

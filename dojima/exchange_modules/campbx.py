@@ -189,7 +189,6 @@ class CampbxExchange(QtCore.QObject, dojima.exchange.ExchangeSingleMarket):
                 
         self.loadAccountCredentials()
         
-
     def cancelAskOffer(self, order_id, market_id=None):
         self._cancel_offer(order_id, 'Sell')
     
@@ -290,14 +289,13 @@ class CampbxDepthRequest(_CampbxRequest):
         data = json.loads(raw)
 
         bids = data['Bids']
-        bids.reverse()
         bids = np.array(bids).transpose()
-
+        self.parent.depth_proxy.processBids(bids)
+        
         asks = data['Asks']
         asks.reverse()
         asks = np.array(asks).transpose()
-
-        self.parent.depth_proxy.processBidsAsks(bids, asks)
+        self.parent.depth_proxy.processAsks(asks)
 
 
 class CampbxTickerRequest(_CampbxRequest):

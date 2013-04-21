@@ -442,15 +442,15 @@ class BtceDepthRequest(_BtcePublicRequest):
         logger.debug(raw)
         data = json.loads(raw)
 
-        bids = data['bids']
-        asks = data['asks']
-        bids.reverse()
-
-        bids = np.array(bids).transpose()
-        asks = np.array(asks).transpose()
-
         proxy = self.parent.getDepthProxy(self.pair)
-        proxy.processBidsAsks(bids, asks)
+        
+        bids = data['bids']
+        bids = np.array(bids).transpose()
+        proxy.processBids(bids)
+        
+        asks = data['asks']
+        asks = np.array(asks).transpose()
+        proxy.processAsks(asks)       
 
         
 class BtceTickerRequest(_BtcePublicRequest):

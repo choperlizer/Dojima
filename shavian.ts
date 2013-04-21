@@ -100,7 +100,7 @@
 <context>
     <name>CampbxWithdrawBitcoinRequest</name>
     <message>
-        <location filename="dojima/exchange_modules/campbx.py" line="460"/>
+        <location filename="dojima/exchange_modules/campbx.py" line="459"/>
         <source>transaction id: {}</source>
         <translation type="unfinished"></translation>
     </message>
@@ -141,7 +141,7 @@
 <context>
     <name>ChartDialog</name>
     <message>
-        <location filename="dojima/ui/chart.py" line="87"/>
+        <location filename="dojima/ui/chart.py" line="86"/>
         <source>Refresh</source>
         <translation>𐑮𐑰𐑓𐑮𐑧𐑖</translation>
     </message>
@@ -304,20 +304,15 @@ used to create this nym keypair.</source>
     <message>
         <location filename="dojima/ui/chart.py" line="64"/>
         <source>Depth Chart</source>
-        <translation type="unfinished">𐑛𐑧𐑐𐑞 𐑗𐑸𐑑</translation>
+        <translation type="obsolete">𐑛𐑧𐑐𐑞 𐑗𐑸𐑑</translation>
     </message>
     <message>
-        <location filename="dojima/ui/chart.py" line="64"/>
-        <source>Not enough offer data to chart.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="dojima/ui/chart.py" line="133"/>
+        <location filename="dojima/ui/chart.py" line="132"/>
         <source>Price</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="dojima/ui/chart.py" line="140"/>
+        <location filename="dojima/ui/chart.py" line="139"/>
         <source>Volume</source>
         <translation type="unfinished"></translation>
     </message>
@@ -1161,17 +1156,17 @@ to trade at a new scale.</source>
 <context>
     <name>TradesChartDialog</name>
     <message>
-        <location filename="dojima/ui/chart.py" line="104"/>
+        <location filename="dojima/ui/chart.py" line="103"/>
         <source>Trades Chart</source>
         <translation type="unfinished">𐑑𐑮𐑧𐑛𐑟 𐑗𐑸𐑑</translation>
     </message>
     <message>
-        <location filename="dojima/ui/chart.py" line="104"/>
+        <location filename="dojima/ui/chart.py" line="103"/>
         <source>Not enough trade data to chart.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="dojima/ui/chart.py" line="168"/>
+        <location filename="dojima/ui/chart.py" line="167"/>
         <source>Price</source>
         <translation type="unfinished"></translation>
     </message>
