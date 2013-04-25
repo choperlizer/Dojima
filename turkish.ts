@@ -723,7 +723,7 @@ A negative precision is not recommended.</source>
 <context>
     <name>MtGox</name>
     <message>
-        <location filename="dojima/exchange_modules/mtgox.py" line="177"/>
+        <location filename="dojima/exchange_modules/mtgox.py" line="180"/>
         <source>New Commodity</source>
         <comment>The label on the new commodity button in the new market wizard.</comment>
         <translation type="unfinished"></translation>

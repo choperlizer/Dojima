@@ -31,15 +31,11 @@ logger = logging.getLogger(__name__)
 
 class TickerProxy(QtCore.QObject):
     
-    last_signal = QtCore.pyqtSignal(int)
-    ask_signal = QtCore.pyqtSignal(int)
-    bid_signal = QtCore.pyqtSignal(int)
+    last_signal = QtCore.pyqtSignal([int], [Decimal])
+    ask_signal = QtCore.pyqtSignal([int], [Decimal])
+    bid_signal = QtCore.pyqtSignal([int], [Decimal])
 
-    last_signal = QtCore.pyqtSignal(Decimal)
-    ask_signal = QtCore.pyqtSignal(Decimal)
-    bid_signal = QtCore.pyqtSignal(Decimal)
-
-
+    
 class _StatsProxy(QtCore.QObject):
 
     def __init__(self, marketId, parent=None):

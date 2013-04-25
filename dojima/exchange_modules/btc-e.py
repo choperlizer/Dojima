@@ -40,7 +40,7 @@ import dojima.ui.wizard
 
 PRETTY_NAME = "BTC-e"
 HOSTNAME = "btc-e.com"
-_PUBLIC_BASE_URL = "https://" + HOSTNAME + "/api/2/"
+URL_BASE_URL = "https://" + HOSTNAME + "/api/2/"
 PLAIN_NAME = "btce"
 
 logger = logging.getLogger(PLAIN_NAME)
@@ -145,16 +145,11 @@ class BtceWizardPage(dojima.ui.wizard.ExchangeWizardPage):
     def __init__(self, parent):
         super(BtceWizardPage, self).__init__(parent)
         self.setTitle(PRETTY_NAME)
-        self.setSubTitle(QtCore.QCoreApplication.translate(PRETTY_NAME,
-            "TODO: write something here."))
         self._is_complete = False
 
     def checkCompleteState(self):
-        if ( len(self.key_edit.text())    != 44 or
-             len(self.secret_edit.text()) != 64 or
-             self.base_combo.currentIndex() == self.counter_combo.currentIndex() ):
+        if self.base_combo.currentIndex() == self.counter_combo.currentIndex():
             is_complete = False
-            
         else:
             is_complete = True
 
@@ -214,67 +209,14 @@ class BtceWizardPage(dojima.ui.wizard.ExchangeWizardPage):
         base_symbol    = 'btce-' + base_symbol
         counter_symbol = 'btce-' + counter_symbol
         
-        local_base_id    = self.base_combo.itemData(self.base_combo.currentIndex(),
-                                                    QtCore.Qt.UserRole)
-        local_counter_id = self.base_combo.itemData(self.counter_combo.currentIndex(),
-                                                    QtCore.Qt.UserRole)
+        local_base_id    = self.base_combo.itemData(self.base_combo.currentIndex(), QtCore.Qt.UserRole)
+        local_counter_id = self.base_combo.itemData(self.counter_combo.currentIndex(), QtCore.Qt.UserRole)
 
         dojima.model.commodities.remote_model.map(base_symbol,    local_base_id)
         dojima.model.commodities.remote_model.map(counter_symbol, local_counter_id)
         
         return dojima.model.commodities.remote_model.submit()
 
-"""
-class _BtceRequest:
-
-    def __init__(self, url, handler, parent, data=None):
-        self.url = url
-        self.handler = handler
-        self.parent = parent
-        self.data = data
-        self.reply = None
-
-    def _prepare_request(self):
-        self.request = dojima.network.NetworkRequest(self.url)
-        self.request.setHeader(QtNetwork.QNetworkRequest.ContentTypeHeader,
-                               "application/x-www-form-urlencoded")
-        query = QtCore.QUrl()
-        if self.data:
-            for key, value in list(self.data['query'].items()):
-                query.addQueryItem(key, value)
-        self.query = query.encodedQuery()
-
-    def post(self):
-        self._prepare_request()
-        if logger.isEnabledFor(logging.DEBUG):
-            logger.debug("POST to %s", self.url.toString())
-        self.reply = self.parent.network_manager.post(self.request,
-                                                      self.query)
-        self.reply.finished.connect(self._process_reply)
-
-    def _object_pairs_hook(self, pairs):
-        dct = dict()
-        for key, value in pairs:
-            if key == 'ticker':
-                return value
-            dct[key] = value
-        return dct
-
-    def _process_reply(self):
-        if self.reply.error():
-            logger.error(self.reply.errorString())
-        else:
-            if logger.isEnabledFor(logging.DEBUG):
-                logger.debug("received reply to %s", self.url.toString())
-            raw = self.reply.readAll()
-            logger.debug(raw)
-            self.data = json.loads(raw,
-                                   object_pairs_hook=self._object_pairs_hook)
-            self.handler(self.data)
-        self.reply.deleteLater()
-        self.parent._replies.remove(self)
-"""
-        
 
 class BtceExchange(QtCore.QObject, dojima.exchange.Exchange):
     valueType = Decimal
@@ -287,9 +229,8 @@ class BtceExchange(QtCore.QObject, dojima.exchange.Exchange):
             network_manager = dojima.network.get_network_manager()
         super(BtceExchange, self).__init__(parent)
 
-        # TODO make this wait time a user option
         self.network_manager = network_manager
-        self.host_queue = self.network_manager.get_host_request_queue(HOSTNAME, 500)
+        self.host_queue = self.network_manager.get_host_request_queue(HOSTNAME, 1000)
         self.requests = list()
         self.replies = set()
 
@@ -313,7 +254,7 @@ class BtceExchange(QtCore.QObject, dojima.exchange.Exchange):
         self._ticker_refresh_rate = 16
         self.ticker_timer = QtCore.QTimer(self)
         self.ticker_timer.timeout.connect(self._refresh_tickers)
-        self._ticker_clients = dict()
+        self.ticker_clients = dict()
         
         self.loadAccountCredentials()
 
@@ -420,7 +361,7 @@ class BtceExchange(QtCore.QObject, dojima.exchange.Exchange):
         BtceTradesRequest(market_id, self)
         
     def _refresh_tickers(self):
-        for pair in list(self._ticker_clients.keys()):
+        for pair in list(self.ticker_clients.keys()):
             BtceTickerRequest(pair, self)
 
 
@@ -429,14 +370,14 @@ class _BtcePublicRequest(dojima.network.ExchangeGETRequest):
     def __init__(self, pair, parent):
         self.pair = pair
         self.parent = parent
-        self.url = QtCore.QUrl(self._url.format(pair))
+        self.url = QtCore.QUrl(URL_BASE + pair + self.path)
         self.reply = None
         parent.requests.append( (self.priority, self,) )
         parent.host_queue.enqueue(self.parent, self.host_priority)
 
 
 class BtceDepthRequest(_BtcePublicRequest):
-    _url = _PUBLIC_BASE_URL + "{}/depth"
+    path = "depth"
 
     def _handle_reply(self, raw):
         logger.debug(raw)
@@ -454,7 +395,7 @@ class BtceDepthRequest(_BtcePublicRequest):
 
         
 class BtceTickerRequest(_BtcePublicRequest):
-    _url = _PUBLIC_BASE_URL + "{}/ticker"
+    path = "/ticker"
     
     def _handle_reply(self, raw):
         logger.debug(raw)
@@ -467,7 +408,7 @@ class BtceTickerRequest(_BtcePublicRequest):
 
         
 class BtceTradesRequest(_BtcePublicRequest):
-    _url = _PUBLIC_BASE_URL + "{}/trades"
+    path = "/trades"
 
     def _handle_reply(self, raw):
         logger.debug(raw)

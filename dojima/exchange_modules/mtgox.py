@@ -1,5 +1,5 @@
 # Dojima, a markets client.
-# Copyright (C) 2012  Emery Hemingway
+# Copyright (C) 2012-2013 Emery Hemingway
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -15,28 +15,33 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import base64
-from decimal import Decimal
 import heapq
 import hashlib
 import hmac
 import json
 import logging
-import random
 import time
 
+from decimal import Decimal
+
+import matplotlib.dates
+import numpy as np
 from PyQt4 import QtCore, QtGui, QtNetwork
 
-import dojima.exchanges
 import dojima.exchange
+import dojima.exchanges
 import dojima.data.offers
 import dojima.data.market
 import dojima.network
+import dojima.ui.wizard
 
 
-logger = logging.getLogger(__name__)
-
+PRETTY_NAME = "MtGox"
+PLAIN_NAME = 'mtgox'
 HOSTNAME = "mtgox.com"
-_BASE_URL = "https://" + HOSTNAME + "/api/1/"
+URL_BASE = "https://data." + HOSTNAME + "/api/2/"
+
+logger = logging.getLogger(PLAIN_NAME)
 
 market_list = ( 'BTCAUD', 'BTCCAD', 'BTCCHF', 'BTCCNY', 'BTCDKK',
                 'BTCEUR', 'BTCGBP', 'BTCHKD', 'BTCJPY', 'BTCNZD',
@@ -85,16 +90,29 @@ def _object_hook(dct):
     else:
         return dct
 
+def get_symbols(pair):
+    return pair[:3], pair[3:]
+    
+def saveAccountSettings(key, secret):
+    settings = QtCore.QSettings()
+    settings.beginGroup(PLAIN_NAME)
+    settings.setValue('API_key', key)
+    settings.setValue('API_secret', secret)
+
+def loadAccountSettings():
+    settings = QtCore.QSettings()
+    settings.beginGroup(PLAIN_NAME)
+    key = settings.value('API_key')
+    secret = settings.value('API_secret')
+    return key, secret
+
 
 class MtgoxExchangeProxy(dojima.exchange.ExchangeProxy):
 
-    id = 'mtgox'
-    name = "MtGox"
+    id = PLAIN_NAME
+    name = PRETTY_NAME
     local_market_map = dict()
     remote_market_map = dict()
-
-    def __init__(self):
-        self.exchange_object = None
 
     def getExchangeObject(self):
         if self.exchange_object is None:
@@ -132,28 +150,29 @@ class MtgoxExchangeProxy(dojima.exchange.ExchangeProxy):
                                                  local_base_id, local_counter_id)
 
 
-class MtgoxWizardPage(QtGui.QWizardPage):
+class MtgoxWizardPage(dojima.ui.wizard.ExchangeWizardPage):
 
     def __init__(self, parent):
         super(MtgoxWizardPage, self).__init__(parent)
-        self.setTitle("MtGox")
-        self.setSubTitle(QtCore.QCoreApplication.translate("MtGox",
-            "Only one API key/secret pair may be used at a time, thus changing "
-            "the key here shall change the key for all MtGox markets."))
-        self._is_complete = True
+        self.setTitle(PRETTY_NAME)
+        self.setSubTitle(QtCore.QCoreApplication.translate(PRETTY_NAME, 
+                                                           "Only one API key/secret pair may be used at a time, thus changing "
+                                                           "the key here shall change the key for all MtGox markets."))
+        self._is_complete = False
 
     def checkCompleteState(self):
-        if ((self.key_edit.text().length() != 36) or
-            (self.secret_edit.text().length() != 88)):
-            self._is_complete = False
+        if self.base_combo.currentIndex() == self.counter_combo.currentIndex():
+            is_complete = False
         else:
-            self._is_complete = True
+            is_complete = True
 
-        self.completeChanged.emit()
-
+        if self._is_complete is not is_complete:
+            self._is_complete = is_complete
+            self.completeChanged.emit()
+        
     def initializePage(self):
         self.key_edit = QtGui.QLineEdit()
-        self.secret_edit = QtGui.QLineEdit() #echoMode=QtGui.QLineEdit.Password)
+        self.secret_edit = QtGui.QLineEdit()
         self.market_combo = QtGui.QComboBox()
         self.base_combo = QtGui.QComboBox()
         self.counter_combo = QtGui.QComboBox()
@@ -168,575 +187,463 @@ class MtgoxWizardPage(QtGui.QWizardPage):
         button_box.addButton(new_local_button, button_box.ActionRole)
 
         layout = QtGui.QFormLayout()
-        layout.addRow(
-            QtCore.QCoreApplication.translate("MtGox", "API Key"),
-            self.key_edit)
-        layout.addRow(
-            QtCore.QCoreApplication.translate("MtGox", "API Secret"),
-            self.secret_edit)
-        layout.addRow(
-            QtCore.QCoreApplication.translate("MtGox", "Market"),
-            self.market_combo)
-        layout.addRow(
-            QtCore.QCoreApplication.translate("MtGox",
-                                              "Local Bitcoin Commodity"),
-            self.base_combo)
-        layout.addRow(
-            QtCore.QCoreApplication.translate("MtGox",
-                                              "Local Counter Commodity"),
-            self.counter_combo)
-
+        layout.addRow(QtCore.QCoreApplication.translate(PRETTY_NAME, "API Key"), self.key_edit)
+        layout.addRow(QtCore.QCoreApplication.translate(PRETTY_NAME, "API Secret"),self.secret_edit)
+        layout.addRow(QtCore.QCoreApplication.translate(PRETTY_NAME, "Market"), self.market_combo)
+        layout.addRow(QtCore.QCoreApplication.translate(PRETTY_NAME, "Local Base Commodity"), self.base_combo)
+        layout.addRow(QtCore.QCoreApplication.translate(PRETTY_NAME, "Local Counter Commodity"), self.counter_combo)
         layout.addRow(button_box)
-
         self.setLayout(layout)
 
         self.market_combo.addItems(market_list)
         self.base_combo.setModel(dojima.model.commodities.local_model)
         self.counter_combo.setModel(dojima.model.commodities.local_model)
+        
+        new_local_button.clicked.connect(self.showNewCommodityDialog)
+        self.key_edit.textChanged.connect(self.checkCompleteState)
+        self.secret_edit.textChanged.connect(self.checkCompleteState)
+        self.base_combo.currentIndexChanged.connect(self.checkCompleteState)
+        self.counter_combo.currentIndexChanged.connect(self.checkCompleteState)
 
-        settings = QtCore.QSettings()
-        settings.beginGroup('MtGox')
-        key = settings.value('API_key')
-        secret = settings.value('API_secret')
-
+        key, secret = loadAccountSettings()
         if key:
             self.key_edit.setText(key)
-        if password:
+        if secret:
             self.secret_edit.setText(secret)
 
-        new_local_button.clicked.connect(self.showNewCommodityDialog)
-
-    def isComplete(self):
-        return self._is_complete
-
-    def nextId(self):
-        return -1
-
-    def saveAccountSettings(self, key, secret):
-        settings = QtCore.QSettings()
-        settings.beginGroup('MtGox')
-        settings.setValue('API_key', key)
-        settings.setValue('API_secret', secret)
-
-    def showNewCommodityDialog(self):
-        dialog = dojima.ui.edit.commodity.NewCommodityDialog(self)
-        dialog.exec_()
+        self.checkCompleteState()
 
     def validatePage(self):
-        self.saveAccountSettings(self.key_edit.text(), self.secret_edit.text())
-
+        saveAccountSettings(self.key_edit.text(), self.secret_edit.text())
         counter_tla = self.market_combo.currentText()[3:]
         counter_tla = 'mtgox-' + counter_tla
 
-        local_base_id = self.base_combo.itemData(
-            self.base_combo.currentIndex(), QtCore.Qt.UserRole)
-        local_counter_id = self.counter_combo.itemData(
-            self.counter_combo.currentIndex(), QtCore.Qt.UserRole)
+        local_base_id = self.base_combo.itemData(self.base_combo.currentIndex(), QtCore.Qt.UserRole)
+        local_counter_id = self.counter_combo.itemData(self.counter_combo.currentIndex(), QtCore.Qt.UserRole)
 
-        dojima.model.commodities.remote_model.map('mtgox-BTC',
-                                                  local_base_id)
-        dojima.model.commodities.remote_model.map(counter_tla,
-                                                  local_counter_id)
+        dojima.model.commodities.remote_model.map('mtgox-BTC', local_base_id)
+        dojima.model.commodities.remote_model.map(counter_tla, local_counter_id)
         return dojima.model.commodities.remote_model.submit()
 
-class _Mtgox():
 
-    def pop_request(self):
-        request = heapq.heappop(self.requests)[1]
-        request.send()
+class MtgoxExchange(QtCore.QObject, dojima.exchange.Exchange):
+    valueType = int
 
-
-class _MtgoxRequest(dojima.network.ExchangePOSTRequest):
-    pass
-
-
-class MtgoxPublicRequest(dojima.network.ExchangePOSTRequest):
-    pass
-
-
-class MtgoxExchange(QtCore.QObject, _Mtgox, dojima.exchange.Exchange):
-
+    accountChanged = QtCore.pyqtSignal(str)
     exchange_error_signal = QtCore.pyqtSignal(str)
 
     def __init__(self, network_manager=None, parent=None):
         if not network_manager:
             network_manager = dojima.network.get_network_manager()
         super(MtgoxExchange, self).__init__(parent)
+        
         self.network_manager = network_manager
-        self.host_queue = self.network_manager.get_host_request_queue(
-            HOSTNAME, 5000)
-        self.account_object = None
+        self.host_queue = self.network_manager.get_host_request_queue(HOSTNAME, 5000)
         self.requests = list()
         self.replies = set()
-        self.factors = dict()
+        #self.factors = dict()
+
+        self._key = None
+        self._secret = None
+        self._nonce = int(time.time() / 2)     
 
         self.account_validity_proxies = dict()
-
+        self.balance_proxies = dict()
+        self.depth_proxies = dict()
         self.ticker_proxies = dict()
         self.ticker_clients = dict()
-        self.ticker_timer = QtCore.QTimer(self)
-        self.ticker_timer.timeout.connect(self._refresh_tickers)
-
-        self.depth_proxies =  dict()
         self.trades_proxies = dict()
 
-        self.balance_proxies = dict()
+        self.ticker_timer = QtCore.QTimer(self)
+        self.ticker_timer.timeout.connect(self._refresh_tickers)
+        self._ticker_refresh_rate = 16
 
-    def getAccountObject(self):
-        if self.account_object is None:
-            self.account_object = MtgoxExchangeAccount(self)
+        self.offers_model = dojima.data.offers.Model()
+        self.base_offers_proxies = dict()
+        self.offers_proxies = dict()
+        self.offers_proxies_asks = dict()
+        self.offers_proxies_bids = dict()
+        
+        self.loadAccountCredentials()
 
-        return self.account_object
+    def cancelOffer(self, order_id, pair=None):
+        params = {"oid": order_id}
+        request = MtgoxCancelOrderRequest(params, self)
+        request.order_id = order_id
+        
+    cancelAskOffer = cancelOffer
+    cancelBidOffer = cancelOffer
 
-    def getBaseBalanceProxy(self, market):
-        if 'BTC' not in self.balance_proxies:
+    def getBalanceBaseProxy(self, pair):
+        symbol = pair[:3]
+        if symbol not in self.balance_proxies:
             proxy = dojima.data.balance.BalanceProxy(self)
-            self.balance_proxies['BTC'] = proxy
+            self.balance_proxies[symbol] = proxy
             return proxy
 
-        return self.balance_proxies['BTC']
+        return self.balance_proxies[symbol]
 
-    def getCounterBalanceProxy(self, market):
-        counter_id = market[3:]
-        if counter_id not in self.balance_proxies:
+    def getBalanceCounterProxy(self, pair):
+        symbol = pair[3:]
+        if symbol not in self.balance_proxies:
             proxy = dojima.data.balance.BalanceProxy(self)
-            self.balance_proxies[counter_id] = proxy
+            self.balance_proxies[symbol] = proxy
             return proxy
 
-        return self.balance_proxies[counter_id]
+        return self.balance_proxies[symbol]
 
-    def getDepthProxy(self, market_id):
-        if market_id not in self.depth_proxies:
-            depth_proxy = dojima.data.market.DepthProxy(self, market_id)
-            self.depth_proxies[market_id] = depth_proxy
-            return depth_proxy
-        return self.depth_proxies[market_id]
+    def getBitcoinDepositAddress(self):
+        if self._bitcoin_deposit_address:
+            self.bitcoinDepositAddress.emit(self._bitcoin_deposit_address)
+            return
 
-    def getFactors(self, market):
-        #base = market[:3]
-        counter = market[3:]
-        return 100000000, factors[counter]
+        MtgoxBitcoinAddressRequest(None, self)        
 
-    def getPowers(self, market):
-        counter = market[3:]
-        return 8, powers[counter]
+    def getDepthProxy(self, pair):
+        if pair not in self.depth_proxies:
+            proxy = dojima.data.market.DepthProxy(pair, self)
+            self.depth_proxies[pair] = proxy
+            return proxy
 
-    def setTickerStreamState(self, state, remote_market):
-        if state is True:
-            if not remote_market in self.ticker_clients:
-                self.ticker_clients[remote_market] = 1
-            else:
-                self.ticker_clients[remote_market] += 1
+        return self.depth_proxies[pair]        
 
-            # BAD Hardcoding
-            refresh_rate = 10000
+    def getFactors(self, pair):
+        base, counter = get_symbols(pair)
+        return factors[base], factors[counter]
 
-            if self.ticker_timer.isActive():
-                self.ticker_timer.setInterval(refresh_rate)
-                return
-            logger.info(QtCore.QCoreApplication.translate(
-                'MtgoxExchangeMarketMarket', "starting ticker stream"))
-            self.ticker_timer.start(refresh_rate)
-        else:
-            if remote_market in self.ticker_clients:
-                market_clients = self.ticker_clients[remote_market]
-                if market_clients > 1:
-                    self.ticker_clients[remote_market] -= 1
-                    return
-                if market_clients == 1:
-                    self.ticker_clients.pop(remote_market)
+    def getMarketSymbols(self, pair):
+        return pair[:3], pair[3:]
+    
+    def getPowers(self, pair):
+        base, counter = get_symbols(pair)
+        return powers[base], powers[counter]
 
-            if sum(self.ticker_clients.values()) == 0:
-                logger.info(QtCore.QCoreApplication.translate(
-                    'MtgoxExchangeMarketMarket', "stopping ticker stream"))
-                self.ticker_timer.stop()
+    def getTradesProxy(self, pair):
+        if pair not in self.trades_proxies:
+            proxy = dojima.data.market.TradesProxy(pair, self)
+            self.trades_proxies[pair] = proxy
+            return proxy
 
-    def refreshTrades(self, remote_market):
-        trades_url = QtCore.QUrl(_BASE_URL + remote_market + '/trades')
-        MtgoxTradesRequest(trades_url, self)
+        return self.trades_proxies[pair]    
 
-    def refreshDepth(self, remote_market):
-        depth_url = QtCore.QUrl(_BASE_URL + remote_market + '/depth')
-        MtgoxDepthRequest(depth_url, self, {'market_id':remote_market})
+    def hasAccount(self, pair=None):
+        return bool(self._key and self._secret)
 
+    def loadAccountCredentials(self):
+        key, secret = loadAccountSettings()
+        if len(key) + len(secret) != 124:
+             self._key, self._secret = None, None
+             return
 
-    def refresh_ticker(self, remote_market):
-        ticker_url = QtCore.QUrl(_BASE_URL + remote_market + '/ticker')
-        MtgoxTickerRequest(ticker_url, self)
+        secret = base64.b64decode(bytes(secret, 'utf'))
+        if self._key != key or self._secret != secret:
+            self._key = key
+            self._secret = secret
+
+            for pair in market_list:
+                self.accountChanged.emit(pair)       
+
+    def placeAskLimitOffer(self, amount, price, pair):
+        params = {'type':   "ask",
+                  'amount': amount,
+                  'price':  price }
+        request = MtgoxOrderRequest(params, self)
+        request.pair = pair
+        rquest.pricy = price
+        request.amount = amount
+        request.type_ = dojima.data.offers.ASK
+
+    def placeBidLimitOffer(self, amount, price, pair):
+        params = {'type':   "bid",
+                  'amount': amount,
+                  'price':  price }
+        request = MtgoxOrderRequest(params, self)
+        request.pair = pair
+        rquest.pricy = price
+        request.amount = amount
+        request.type_ = dojima.data.offers.BID
+        
+    def populateMenuBar(self, menu_bar, market_id):
+        account_menu = menu_bar.getAccountMenu()
+        edit_credentials_action = MtgoxEditCredentialsAction(account_menu)
+        account_menu.addAction(edit_credentials_action)
+        edit_credentials_action.accountSettingsChanged.connect(self.loadAccountCredentials)
+        
+    def refreshBalance(self, pair):
+        MtgoxInfoRequest(pair, None, self)
+
+    def refreshDepth(self, pair):
+        MtgoxDepthRequest(pair, self)
+
+    def refreshOffers(self, pair):
+        MtgoxOrdersRequest(pair, None, self)
+
+    def refreshTrades(self, pair):
+        MtgoxTradesRequest(pair, self)
 
     def _refresh_tickers(self):
-        for remote_market in list(self._ticker_clients.keys()):
-            ticker_url = QtCore.QUrl(_BASE_URL + remote_market + "/ticker")
-            MtgoxTickerRequest(ticker_url, self)
+        for pair in list(self.ticker_clients.keys()):
+            MtgoxTickerRequest(pair, self)
 
 
-class MtgoxTickerRequest(dojima.network.ExchangePOSTRequest):
+class _MtgoxPublicRequest(dojima.network.ExchangeGETRequest):
+
+    def __init__(self, pair, parent):
+        self.pair = pair
+        self.parent = parent
+        self.url = QtCore.QUrl(URL_BASE + pair + self.path)
+        self.reply = None
+        parent.requests.append( (self.priority, self,) )
+        parent.host_queue.enqueue(self.parent, self.host_priority)
+
+        
+class MtgoxDepthRequest(_MtgoxPublicRequest):
+    path = "/money/depth/fetch"
+
+    def _handle_reply(self, raw):
+        logger.debug(raw)
+        data = json.loads(raw)
+        proxy = self.parent.getDepthProxy(self.pair)
+
+        offers = data['data']['asks']
+        a = np.empty((2, len(offers)))
+        for i, offer in enumerate(offers):
+            a[0,i] = offer["price"]
+            a[1,i] = offer["amount"]
+        
+        proxy.processAsks(a)
+        
+        offers = data['data']['bids']
+        offers.reverse()
+        a = np.empty((2, len(offers)))
+        for i, offer in enumerate(offers):
+            a[0,i] = offer["price"]
+            a[1,i] = offer["amount"]
+
+        
+        proxy.processBids(a)
+
+
+class MtgoxTickerRequest(_MtgoxPublicRequest):
+    path = "/money/ticker_fast"
 
     def _handle_reply(self, raw):
         logger.debug(raw)
         data = json.loads(raw, object_hook=_object_hook)
-        if data['result'] != 'success':
-            self._handle_error(data['error'])
-            return
-        data = data['return']
-        path = self.url.path().split('/')
-        remote_market = path[3]
-        proxy = self.parent.ticker_proxies[remote_market]
-        proxy.ask_signal.emit(data['buy'])
-        proxy.last_signal.emit(data['last'])
-        proxy.bid_signal.emit(data['sell'])
+        data = data['data']
+        proxy = self.parent.ticker_proxies[self.pair]
+        proxy.last_signal.emit(data['last_local'])
+        proxy.bid_signal.emit(data['buy'])
+        proxy.ask_signal.emit(data['sell'])
 
-
-class MtgoxTradesRequest(MtgoxPublicRequest):
-
-    # TODO it may be faster to return (order, order, ...)
-    # and transpose rather than (date, price, amount)
-
-    def _handle_reply(self, raw):
-        self.dates = list()
-        self.prices = list()
-        self.amounts = list()
-
-        json.loads(raw, object_hook=self._object_hook)
-        self.parent.trades_signal.emit( (self.dates, self.prices, self.amounts) )
-
-    def _object_hook(self, dict_):
-        try:
-            self.dates.append(int(dict_['date']))
-            self.prices.append(float(dict_['price']))
-            self.amounts.append(float(dict_['amount']))
-        except KeyError:
-            return
-
-
-class MtgoxDepthRequest(MtgoxPublicRequest):
+        
+class MtgoxTradesRequest(_MtgoxPublicRequest):
+    path = "/money/trades/fetch"
 
     def _handle_reply(self, raw):
         logger.debug(raw)
-        data = json.loads(raw, object_hook=self._object_hook)
-        data = data['return']
+        data = json.loads(raw)["data"]
+        
+        trades = np.empty((3, len(data),))
 
-        proxy = self.parent.getDepthProxy(self.data['market_id'])
-        proxy.processDepth(data['asks'], data['bids'])
+        for i, trade in enumerate(data):
+            trades[0,i] = trade['date']
+            trades[1,i] = trade['price']
+            trades[2,i] = trade['amount']
 
-    def _object_hook(self, dict_):
-        try:
-            return ( float(dict_['price']), float(dict_['amount']))
-        except KeyError:
-            return dict_
+        trades[0] = matplotlib.dates.epoch2num(trades[0])
+                                  
+        proxy = self.parent.getTradesProxy(self.pair)
+        proxy.refreshed.emit(trades)
 
-
-class MtgoxCurrencyRequest(MtgoxPublicRequest):
-    priority = 1
-    host_priority = 1
-
-    def _handle_reply(self, raw):
-        self.data.update(json.loads(raw))
-        pair = self.data['pair']
-        data = self.data['return']
-        symbol = data['currency']
-        places = int(data['decimals'])
-        self.parent.multipliers[symbol] = pow(10, places)
-        self.parent.check_order_status(pair)
-
-
-class MtgoxExchangeAccount(QtCore.QObject, _Mtgox, dojima.exchange.ExchangeAccount):
-    exchange_error_signal = QtCore.pyqtSignal(str)
-
-    accountChanged = QtCore.pyqtSignal(str)
-
-    bitcoin_deposit_address_signal = QtCore.pyqtSignal(str)
-    #withdraw_bitcoin_reply_signal = QtCore.pyqtSignal(str)
-
-    _currency_url = QtCore.QUrl(_BASE_URL + "generic/currency")
-    _info_url = QtCore.QUrl(_BASE_URL + "generic/private/info")
-    _orders_url = QtCore.QUrl(_BASE_URL + "generic/private/orders")
-    _cancel_order_url = QtCore.QUrl("https://" + HOSTNAME +
-                                   "/api/0/cancelOrder.php")
-    _bitcoin_address_url = QtCore.QUrl(_BASE_URL + "generic/bitcoin/address")
-    #_withdraw_bitcoin_url = QtCore.QUrl('https://' + HOSTNAME +
-    #                                   '/api/0/withdraw.php')
-
-    def __init__(self, exchangeObj, network_manager=None):
-        if network_manager is None:
-            network_manager = dojima.network.get_network_manager()
-
-        super(MtgoxExchangeAccount, self).__init__(exchangeObj)
-        self.exchange_obj = exchangeObj
-        self.ask_offers_proxies = dict()
-        self.bid_offers_proxies = dict()
-        self.offers_proxies = dict()
-
-        self.network_manager = network_manager
-        self.host_queue = self.network_manager.get_host_request_queue(
-            HOSTNAME, 5000)
-        self.requests = list()
-        self.replies = set()
-        self._bitcoin_deposit_address = None
-        self.commission = None
-        self.nonce = int(time.time() / 2)
-
-    def set_credentials(self, credentials):
-        self._key = credentials[0]
-        self._secret = base64.b64decode(credentials[1])
-
-    def get_orders_proxy(self, remote_market):
-        if remote_market not in self.orders_proxies:
-            orders_proxy = dojima.data.orders.OrdersProxy(self)
-            self.orders_proxies[remote_market] = orders_proxy
-            return orders_proxy
-        return self.orders_proxies[remote_market]
-
-    def check_order_status(self, remote_pair):
-        # This can probaly call for BTC info twice at
-        # startup but whatever
-        counter = remote_pair[-3:]
-        multipliers = list(self.multipliers.keys())
-
-        if counter not in multipliers:
-            MtgoxCurrencyRequest(self._currency_url, self,
-                                 {'pair': remote_pair,
-                                  'query': {'currency':counter} })
-            return
-
-        settings = QtCore.QSettings()
-        settings.beginGroup('MtGox')
-        self._key = settings.value('API_key')
-        self._secret = base64.b64decode(settings.value('API_secret'))
-
-    def cancelAskOffer(self, order_id, pair):
-        self._cancel_order(pair, order_id, 1)
-    def cancelBidOffer(self, order_id, pair):
-        self._cancel_order(pair, order_id, 2)
-
-    def _cancel_order(self, pair, order_id, order_type):
-        # Mtgox doesn't have a method to cancel orders for API 1.
-        # type: 1 for ask order or 2 for bid order
-        data = {'pair': pair,
-                'query': {'oid': order_id, 'type': order_type} }
-        request = MtgoxCancelOrderRequest(self._cancel_order_url,
-                                          self, data)
-
-    def hasAccount(self, market_id):
-        return (self._key and self._secret)
-
-    def getOffersModel(self, market):
-
-        currency = market[3:]
-
-        if currency in self.offers_proxies:
-            return self.offers_proxies[currency]
-
-        proxy = QtGui.QSortFilterProxyModel()
-        proxy.setSourceModel(self.offers_model)
-        proxy.setFilterKeyColumn(dojima.data.offers.COUNTER)
-        proxy.setFilterFixedString(currency)
-        proxy.setDynamicSortFilter(True)
-        self.offers_proxies[currency] = proxy
-        return proxy
-
-    def placeAskLimitOffer(self, remote_pair, amount, price):
-        self._place_order(remote_pair, 'ask', amount, price)
-
-    def placeBidLimitOffer(self, remote_pair, amount, price):
-        self._place_order(remote_pair, 'bid', amount, price)
-
-    def _place_order(self, remote_pair, order_type, amount, price=None):
-        counter = remote_pair[3:]
-        query_data = {'type': order_type,
-                      'amount_int': amount,
-                      'price_int': price}
-
-        data = {'pair': remote_pair,
-                'query': query_data }
-
-        MtgoxPlaceOrderRequest(QtCore.QUrl(_BASE_URL + remote_pair +
-                                           "/private/order/add"),
-                               self, data)
-
-    def refreshBalance(self):
-        MtgoxInfoRequest(self._info_url, self)
-
-    def refreshOffers(self):
-        MtgoxOrdersRequest(self._orders_url, self)
-
-    def get_bitcoin_deposit_address(self):
-        if self._bitcoin_deposit_address:
-            self.bitcoin_deposit_address_signal.emit(
-                self._bitcoin_deposit_address)
-            return self._bitcoin_deposit_address
-        else:
-            MtgoxBitcoinDepositAddressRequest(self._bitcoin_address_url, self)
-    """
-    def withdraw_bitcoin(self, address, amount):
-        data = {'query':
-                {'btca': address,
-                 'amount': amount}}
-        MtgoxWithdrawBitcoinRequest(self._withdraw_bitcoin_url, self, data)
-    """
-
-    def get_commission(self, amount, remote_market=None):
-        if self.commission is None:
-            return None
-        return amount * self.commission
-
-class MtgoxPrivateRequest(_MtgoxRequest):
+        
+class _MtgoxPrivateRequest(dojima.network.ExchangePOSTRequest):
     priority = 1
     host_priority = 0
 
+    def __init__(self, pair, params, parent):
+        self.pair = pair
+        self.params = params
+        self.parent = parent
+        self.reply = None
+        parent.requests.append( (self.priority, self,) )
+        parent.host_queue.enqueue(self.parent, self.host_priority)
+        
     def _prepare_request(self):
-        self.request = dojima.network.NetworkRequest(self.url)
+        path = self.pair + self.method
+        self.url = QtCore.QUrl(URL_BASE + path)
+        path = bytes(path, 'utf')
+        
+        self.request = QtNetwork.QNetworkRequest(self.url)
         self.request.setHeader(QtNetwork.QNetworkRequest.ContentTypeHeader,
                           "application/x-www-form-urlencoded")
         query = QtCore.QUrl()
-        self.parent.nonce += 1
-        query.addQueryItem('nonce', self.parent.nonce)
-        if self.data:
-            for key, value in list(self.data['query'].items()):
+        query.addQueryItem('nonce', str(self.parent._nonce))
+        self.parent._nonce += 1
+        if self.params:
+            for key, value in list(self.params.items()):
                 query.addQueryItem(key, value)
         self.query = query.encodedQuery()
-
-        h = hmac.new(self.parent._secret, self.query, hashlib.sha512)
+        
+        h = hmac.new(self.parent._secret, path + b'\0' + bytes(self.query), hashlib.sha512)
         signature =  base64.b64encode(h.digest())
 
         self.request.setRawHeader('Rest-Key', self.parent._key)
         self.request.setRawHeader('Rest-Sign', signature)
 
+    def _handle_reply(self, raw):
+        logger.debug(raw)
+        data = json.loads(raw, object_hook=_object_hook)
+        if data['result'] != "success":
+            logger.error("%s: %s", data['result'], self.query)
+            return
 
-class MtgoxInfoRequest(MtgoxPrivateRequest):
+        self.handle_reply(data['data'])
+
+            
+class MtgoxInfoRequest(_MtgoxPrivateRequest):
+    method = "/money/info"
     priority = 2
+        
+    def handle_reply(self, data):
+            for symbol, dict_ in list(data["Wallets"].items()):
+                if symbol in self.parent.balance_proxies:
+                    proxy = self.parent.balance_proxies[symbol]
+                    total_balance = dict_["Balance"]
+                    proxy.balance_total.emit(total_balance)
+                    proxy.balance_liquid.emit(total_balance - dict_['Open_Orders'])
+                else:
+                    logger.info("ignoring %s balance", symbol)
+                
+            #self.parent.commission = Decimal(data['return']['Trade_Fee']) / 100
 
-    def _handle_reply(self, raw):
-        logger.debug(raw)
-        data = json.loads(raw, object_hook=_object_hook)
-        for symbol, dict_ in list(data['return']['Wallets'].items()):
-            if symbol in self.parent.funds_proxies:
-                signal = self.parent.funds_proxies[symbol].balance
-                balance = dict_['Balance'] -  dict_['Open_Orders']
-                proxy.balance.emit(balance)
-            else:
-                logger.info("ignoring %s balance", symbol)
-        self.parent.commission = Decimal(data['return']['Trade_Fee']) / 100
-
-
-class MtgoxOrdersRequest(MtgoxPrivateRequest):
-    priority = 1
-
-    def _handle_reply(self, raw):
-        logger.debug(raw)
-        data = json.loads(raw, object_hook=_object_hook)
-        data = data['return']
-        if not data:
-            return
-
-        self.parent.offers_model.clear()
-        for row, offer in enumerate(data):
-
-            # TODO deduplicate with PlaceOrderRequest
-
-            # offer ID
-            item = QtGui.QStandardItem(offer['oid'])
-            self.parent.offers_model.setItem(row, dojima.data.offers.ID, item)
-
-            # offer price
-            item = QtGui.QStandardItem()
-            item.setData(offer['price'], QtCore.Qt.UserRole)
-            self.parent.offers_model.setItem(row, dojima.data.offers.PRICE, item)
-
-            # offer outstanding
-            item = QtGui.QStandardItem()
-            item.setData(offer['amount'], QtCore.Qt.UserRole)
-            self.parent.offers_model.setItem(row, dojima.data.offers.OUTSTANDING, item)
-
-            # offer type
-            offer_type = offer['type']
-            if offer_type == 'ask':
-                item = QtGui.QStandardItem(dojima.data.offers.ASK)
-            elif offer_type == 'bid':
-                item = QtGui.QStandardItem(dojima.data.offers.BID)
-            else:
-                logger.error("Unrecognized order type: %s", offer_type)
-                continue
-            self.parent.offers_model.setItem(row, dojima.data.offers.TYPE, item)
-
-
-class MtgoxPlaceOrderRequest(MtgoxPrivateRequest):
-    priority = 1
-
-    def _handle_reply(self, raw):
-        logger.debug(raw)
-        self.data.update(json.loads(raw, object_hook=_object_hook))
-        order_id = self.data['return']
-        pair = self.data['pair']
-
-        self.data = data['query']
-        amount = self.data['amount']
-        price = self.data['price']
-
-        # TODO deduplicate with OrdersRequest
-
-        row = self.parent.offers_model.rowCount()
-
-        item = QtGui.QStandardItem(order_id)
-        self.parent.offers_model.setItem(row, dojima.data.offers.ID, item)
-
-        item = QtGui.QStandardItem()
-        item.setData(self.data['price'], QtCore.Qt.UserRole)
-        self.parent.offers_model.setItem(row, dojima.data.offers.PRICE, item)
-
-        item = QtGui.QStandardItem()
-        item.setData(self.data['amount'], QtCore.Qt.UserRole)
-        self.parent.offers_model.setItem(row,
-                                         dojima.data.offers.OUTSTANDING,
-                                         item)
-
-        offer_type = self.data['type']
-        if offer_type == 'ask':
-            item = QtGui.QStandardItem(dojima.data.offers.ASK)
-        elif offer_type == 'bid':
-            item = QtGui.QStandardItem(dojima.data.offers.BID)
-        else:
-            logger.error("Unrecognized order type: %s", offer_type)
-            return
-
-        self.parent.offers_model.setItem(row, dojima.data.offers.TYPE, item)
-
-
-class MtgoxCancelOrderRequest(MtgoxPrivateRequest):
+            
+class MtgoxCancelOrderRequest(_MtgoxPrivateRequest):
+    method = "/money/order/cancel"
     priority = 0
 
-    def _handle_reply(self, raw):
-        logger.debug(raw)
-        self.data.update(json.loads(raw, object_hook=_object_hook))
-        pair = self.data['pair']
-        order_id = self.data['query']['oid']
-
-        search = self.parent.offers_model.findItems(order_id)
-
+    def handle_reply(self, data):
+        search = self.parent.offers_model.findItems(data["oid"])
         for item in search:
             self.parent.offers_model.removeRows(item.row(), 1)
 
+        
+class MtgoxOrdersRequest(_MtgoxPrivateRequest):
+    method = "/money/orders"
 
-class MtgoxBitcoinDepositAddressRequest(MtgoxPrivateRequest):
-    priority = 2
+    def handle_reply(self, data):
+        self.parent.offers_model.clear()
+        if not data:
+            return
 
-    def _handle_reply(self, raw):
-        logger.debug(raw)
-        data = json.loads(raw)
-        address = data['return']['addr']
-        self.parent._bitcoin_deposit_address = address
-        self.parent.bitcoin_deposit_address_signal.emit(address)
-"""
-class MtgoxWithdrawBitcoinRequest(MtgoxPrivateRequest):
-    priority = 2
+        row = 0
+        for order in data:
+            #id
+            item = QtGui.QStandardItem(order["oid"])
+            self.parent.offer_model.setItem(row, dojima.data.offer.ID, item)
+                                       
+            # price
+            item = QtGui.QStandardItem()
+            item.setData(order["price"], QtCore.Qt.UserRole)
+            self.parent.offer_model.setItem(row, dojima.data.PRICE, item)
+            
+            # outstanding
+            item = QtGui.QStandardItem()
+            item.setData(order["amount"], QtCore.Qt.UserRole)
+            self.parent.offer_model.setItem(row, dojima.data.OUTSTANDING, item)
 
-    def _handle_reply(self, raw):
-        logger.debug(raw)
-        data = json.loads(raw)
+            # type
+            order_type = order["type"]
+            if offer_type == "ask":
+                item = QtGui.QStandardItem(dojima.data.offers.ASK)
+                self.parent.offers_model.setItem(row, dojima.data.offers.TYPE, item)
+            elif offer_type == "bid":
+                item = QtGui.QStandardItem(dojima.data.offers.BID)
+                self.parent.offers_model.setItem(row, dojima.data.offers.TYPE, item)
+            else:
+                logger.error("Unrecognized order type: %s", offer_type)
 
-        self.parent.withdraw_bitcoin_reply_signal.emit(data)
-"""
+            # base
+            item = QtGui.QStandardItem(order["item"])
+            self.parent.offers_model.setItem(row, dojima.data.offers.BASE, item)
 
+            item = QtGui.QStandardItem(order["currency"])
+            self.parent.offers_model.setItem(row, dojima.data.offers.COUNTER, item)
+
+            row += 1
+
+
+class MtgoxOrderRequest(_MtgoxPrivateRequest):
+    method = "/money/order/add"
+    priority = 1
+
+    def handle_reply(self, order_id):
+        row = self.parent.offers_model.rowCount()
+        
+        #id
+        item = QtGui.QStandardItem(order_id)
+        self.parent.offer_model.setItem(row, dojima.data.offer.ID, item)
+                                       
+        # price
+        item = QtGui.QStandardItem()
+        item.setData(self.price, QtCore.Qt.UserRole)
+        self.parent.offer_model.setItem(row, dojima.data.PRICE, item)
+            
+        # outstanding
+        item = QtGui.QStandardItem()
+        item.setData(self.amount, QtCore.Qt.UserRole)
+        self.parent.offer_model.setItem(row, dojima.data.OUTSTANDING, item)
+
+        # type
+        item = QtGui.QStandardItem(self.type_)
+        self.parent.offers_model.setItem(row, dojima.data.offers.TYPE, item)
+
+        base, counter = get_symbols(self.pair)
+        # base
+        item = QtGui.QStandardItem(base)
+        self.parent.offers_model.setItem(row, dojima.data.offers.BASE, item)
+
+        # counter
+        item = QtGui.QStandardItem(counter)
+        self.parent.offers_model.setItem(row, dojima.data.offers.COUNTER, item)
+
+        
+class MtgoxEditCredentialsAction(dojima.exchange.EditCredentialsAction):
+
+    def show_dialog(self):
+        dialog = MtgoxEditCredentialsDialog(self.parent())
+        if dialog.exec_():
+            self.accountSettingsChanged.emit()
+
+        
+class MtgoxEditCredentialsDialog(QtGui.QDialog):
+
+    def __init__(self, parent=None):
+        super(MtgoxEditCredentialsDialog, self).__init__(parent)
+
+        self.key_edit = QtGui.QLineEdit()
+        self.secret_edit = QtGui.QLineEdit()
+        button_box = QtGui.QDialogButtonBox(QtGui.QDialogButtonBox.Save)
+        button_box.accepted.connect(self.save)
+        button_box.rejected.connect(self.reject)
+        
+        layout = QtGui.QFormLayout()
+        layout.addRow(QtCore.QCoreApplication.translate(PRETTY_NAME, "API Key"), self.key_edit)
+        layout.addRow(QtCore.QCoreApplication.translate(PRETTY_NAME, "API Secret"), self.secret_edit)
+        layout.addRow(button_box)
+        self.setLayout(layout)
+
+        key, secret = loadAccountSettings()
+        if key:
+            self.key_edit.setText(key)
+        if secret:
+            self.secret_edit.setText(secret)      
+
+    def save(self):
+        saveAccountSettings(self.key_edit.text(), self.secret_edit.text())
+        self.accept()
+
+        
 def parse_markets():
     if 'mtgox' in dojima.exchanges.container: return
     exchange_proxy = MtgoxExchangeProxy()

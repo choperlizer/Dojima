@@ -178,26 +178,26 @@ class Exchange:
 
     def setTickerStreamState(self, state, market_id):
         if state is True:
-            if not market_id in self._ticker_clients:
-                self._ticker_clients[market_id] = 1
+            if not market_id in self.ticker_clients:
+                self.ticker_clients[market_id] = 1
             else:
-                self._ticker_clients[market_id] += 1
+                self.ticker_clients[market_id] += 1
                 
             if self.ticker_timer.isActive(): return
                 
             self.ticker_timer.start(self._ticker_refresh_rate * 1000)
         else:
-            if market_id not in self._ticker_clients: return
+            if market_id not in self.ticker_clients: return
         
-            market_clients = self._ticker_clients[market_id]
+            market_clients = self.ticker_clients[market_id]
             if market_clients > 1:
-                self._ticker_clients[market_id] -= 1
+                self.ticker_clients[market_id] -= 1
                 return
             
             if market_clients == 1:
-                self._ticker_clients.pop(market_id)
+                self.ticker_clients.pop(market_id)
 
-            if sum(self._ticker_clients.values()) == 0:
+            if sum(self.ticker_clients.values()) == 0:
                 self.ticker_timer.stop()
         
 

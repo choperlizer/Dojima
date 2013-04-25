@@ -21,12 +21,12 @@ from PyQt4 import QtCore
 
 class BalanceProxy(QtCore.QObject):
 
-    balance_total = QtCore.pyqtSignal(int)
-    balance_liquid = QtCore.pyqtSignal(int)
-    balance_total_changed = QtCore.pyqtSignal(int)
-    balance_liquid_changed = QtCore.pyqtSignal(int)
+    balance_total = QtCore.pyqtSignal([int], [Decimal])
+    balance_liquid = QtCore.pyqtSignal([int], [Decimal])
+    balance_total_changed = QtCore.pyqtSignal([int], [Decimal])
+    balance_liquid_changed = QtCore.pyqtSignal([int], [Decimal])
 
-    balance_total = QtCore.pyqtSignal(Decimal)
-    balance_liquid = QtCore.pyqtSignal(Decimal)
-    balance_total_changed = QtCore.pyqtSignal(Decimal)
-    balance_liquid_changed = QtCore.pyqtSignal(Decimal)
+    balance_total = QtCore.pyqtSignal([int], [Decimal])
+    balance_liquid = QtCore.pyqtSignal([int], [Decimal])
+    balance_total_changed = QtCore.pyqtSignal([int], [Decimal])
+    balance_liquid_changed = QtCore.pyqtSignal([int], [Decimal])
