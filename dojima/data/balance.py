@@ -1,5 +1,5 @@
 # Dōjima, a commodities market client.
-# Copyright (C) 2012  Emery Hemingway
+# Copyright (C) 2012-2013 Emery Hemingway
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -19,14 +19,29 @@ from decimal import Decimal
 from PyQt4 import QtCore
 
 
-class BalanceProxy(QtCore.QObject):
+class BalanceProxyDecimal(QtCore.QObject):
 
-    balance_total = QtCore.pyqtSignal([int], [Decimal])
-    balance_liquid = QtCore.pyqtSignal([int], [Decimal])
-    balance_total_changed = QtCore.pyqtSignal([int], [Decimal])
-    balance_liquid_changed = QtCore.pyqtSignal([int], [Decimal])
+    balance_total  = QtCore.pyqtSignal(Decimal)
+    balance_liquid = QtCore.pyqtSignal(Decimal)
+    balance_total_changed  = QtCore.pyqtSignal(Decimal)
+    balance_liquid_changed = QtCore.pyqtSignal(Decimal)
 
-    balance_total = QtCore.pyqtSignal([int], [Decimal])
-    balance_liquid = QtCore.pyqtSignal([int], [Decimal])
-    balance_total_changed = QtCore.pyqtSignal([int], [Decimal])
-    balance_liquid_changed = QtCore.pyqtSignal([int], [Decimal])
+    balance_total  = QtCore.pyqtSignal(Decimal)
+    balance_liquid = QtCore.pyqtSignal(Decimal)
+    balance_total_changed  = QtCore.pyqtSignal(Decimal)
+    balance_liquid_changed = QtCore.pyqtSignal(Decimal)
+
+
+class BalanceProxyInt(QtCore.QObject):
+
+    balance_total  = QtCore.pyqtSignal(int)
+    balance_liquid = QtCore.pyqtSignal(int)
+    balance_total_changed  = QtCore.pyqtSignal(int)
+    balance_liquid_changed = QtCore.pyqtSignal(int)
+
+    balance_total  = QtCore.pyqtSignal(int)
+    balance_liquid = QtCore.pyqtSignal(int)
+    balance_total_changed  = QtCore.pyqtSignal(int)
+    balance_liquid_changed = QtCore.pyqtSignal(int)
+
+

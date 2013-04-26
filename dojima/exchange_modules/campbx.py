@@ -172,7 +172,7 @@ class CampbxExchange(QtCore.QObject, dojima.exchange.ExchangeSingleMarket):
 
         self.account_validity_proxies = dict()
         self.balance_proxies = dict()
-        self.ticker_proxy = dojima.data.market.TickerProxy(self)
+        self.ticker_proxy = dojima.data.market.TickerProxyDecimal(self)
         self.depth_proxy = dojima.data.market.DepthProxy('BTCUSD', self)
         self.ticker_clients = 0
         self.ticker_timer = QtCore.QTimer(self)
@@ -180,8 +180,8 @@ class CampbxExchange(QtCore.QObject, dojima.exchange.ExchangeSingleMarket):
 
         self.account_validity_proxy = dojima.data.account.AccountValidityProxy(self)
 
-        self.base_balance_proxy = dojima.data.balance.BalanceProxy(self)
-        self.counter_balance_proxy = dojima.data.balance.BalanceProxy(self)
+        self.base_balance_proxy = dojima.data.balance.BalanceProxyDecimal(self)
+        self.counter_balance_proxy = dojima.data.balance.BalanceProxyDecimal(self)
 
         self.offers_model = dojima.data.offers.Model()
         self.offer_proxy_asks = dojima.data.offers.FilterAsksModel(self.offers_model)

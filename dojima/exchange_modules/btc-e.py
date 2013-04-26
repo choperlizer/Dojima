@@ -54,15 +54,15 @@ MARKETS = ( 'btc_eur', 'btc_rur', 'btc_usd',
             'trc_btc', 
             'usd_rur', )
 
-FACTORS = { 'btc':100000000,
-            'eur':1000,
+FACTORS = { 'btc':int(1e8),
+            'eur':int(1e6),
             'ltc':100000000,
             'nmc':1000,
             'nvc':1000,
             'ppc':1000,
             'rur':1000,
             'trc':1000,
-            'usd':1000 }
+            'usd':int(1e6) }
 
 POWERS = { 'btc':8,
            'eur':3,
@@ -269,7 +269,7 @@ class BtceExchange(QtCore.QObject, dojima.exchange.Exchange):
     def getBalanceBaseProxy(self, market_id):
         symbol = market_id.split('_')[0]
         if symbol not in self.balance_proxies:
-            proxy = dojima.data.balance.BalanceProxy(self)
+            proxy = dojima.data.balance.BalanceProxyDecimal(self)
             self.balance_proxies[symbol] = proxy
             return proxy
 
@@ -278,7 +278,7 @@ class BtceExchange(QtCore.QObject, dojima.exchange.Exchange):
     def getBalanceCounterProxy(self, market_id):
         symbol = market_id.split('_')[1]
         if symbol not in self.balance_proxies:
-            proxy = dojima.data.balance.BalanceProxy(self)
+            proxy = dojima.data.balance.BalanceProxyDecimal(self)
             self.balance_proxies[symbol] = proxy
             return proxy
 

@@ -183,14 +183,14 @@ class BitstampExchange(QtCore.QObject, dojima.exchange.ExchangeSingleMarket):
         self._ticker_refresh_rate = 16
         self.balance_proxies = dict()
         self.depth_proxy = dojima.data.market.DepthProxy('BTCUSD', self)
-        self.ticker_proxy = dojima.data.market.TickerProxy(self)
+        self.ticker_proxy = dojima.data.market.TickerProxyDecimal(self)
         self.trades_proxy = dojima.data.market.TradesProxy('BTCUSD', self)
         self.ticker_clients = 0
         self.ticker_timer = QtCore.QTimer(self)
         self.ticker_timer.timeout.connect(self.refreshTicker)
 
-        self.base_balance_proxy = dojima.data.balance.BalanceProxy(self)
-        self.counter_balance_proxy = dojima.data.balance.BalanceProxy(self)
+        self.base_balance_proxy = dojima.data.balance.BalanceProxyDecimal(self)
+        self.counter_balance_proxy = dojima.data.balance.BalanceProxyDecimal(self)
 
         self.offers_model = dojima.data.offers.Model()
         self.offer_proxy_asks = dojima.data.offers.FilterAsksModel(self.offers_model)

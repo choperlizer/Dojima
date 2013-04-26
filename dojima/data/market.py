@@ -1,5 +1,5 @@
 # Dōjima, a commodities market client.
-# Copyright (C) 2012  Emery Hemingway
+# Copyright (C) 2012-2013 Emery Hemingway
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -29,11 +29,17 @@ import dojima.exchange
 logger = logging.getLogger(__name__)
 
 
-class TickerProxy(QtCore.QObject):
+class TickerProxyDecimal(QtCore.QObject):
     
-    last_signal = QtCore.pyqtSignal([int], [Decimal])
-    ask_signal = QtCore.pyqtSignal([int], [Decimal])
-    bid_signal = QtCore.pyqtSignal([int], [Decimal])
+    last_signal = QtCore.pyqtSignal(Decimal)
+    ask_signal  = QtCore.pyqtSignal(Decimal)
+    bid_signal  = QtCore.pyqtSignal(Decimal)
+
+class TickerProxyInt(QtCore.QObject):
+    
+    last_signal = QtCore.pyqtSignal(int)
+    ask_signal  = QtCore.pyqtSignal(int)
+    bid_signal  = QtCore.pyqtSignal(int)
 
     
 class _StatsProxy(QtCore.QObject):

@@ -1,5 +1,5 @@
 # Dojima, a markets client.
-# Copyright (C) 2012-2013  Emery Hemingway
+# Copyright (C) 2012-2013 Emery Hemingway
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -94,7 +94,7 @@ class Exchange:
 
     def getBalanceProxy(self, symbol):
         if symbol not in self.funds_proxies:
-            proxy = dojima.data.funds.BalanceProxy(self)
+            proxy = dojima.data.funds.BalanceProxyDecimal(self)
             self.funds_proxies[symbol] = proxy
             return proxy
 
@@ -129,7 +129,7 @@ class Exchange:
 
     def getTickerProxy(self, market_id):
         if market_id not in self.ticker_proxies:
-            ticker_proxy = dojima.data.market.TickerProxy(self)
+            ticker_proxy = dojima.data.market.TickerProxyDecimal(self)
             self.ticker_proxies[market_id] = ticker_proxy
             return ticker_proxy
         return self.ticker_proxies[market_id]
