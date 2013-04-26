@@ -109,15 +109,8 @@ class TradesDialog(_ChartDialog):
         self.chart_canvas.axes.plot(data[0], data[1])
         self.chart_canvas.draw()
 
-
-class _ChartCanvas(FigureCanvas):
-
-
-    def onclick(self, event):
-        self.parent.pricePicked.emit(event.xdata)
-
         
-class ChartCanvasDepth(_ChartCanvas):
+class ChartCanvasDepth(FigureCanvas):
     
     def __init__(self, parent):
         figure = matplotlib.figure.Figure()
@@ -150,8 +143,11 @@ class ChartCanvasDepth(_ChartCanvas):
 
         self.cid = self.mpl_connect('button_press_event', self.onclick)
 
+    def onclick(self, event):
+        self.parent.pricePicked.emit(event.xdata)
 
-class ChartCanvasTrades(_ChartCanvas):
+
+class ChartCanvasTrades(FigureCanvas):
     
     def __init__(self, parent):
         figure = matplotlib.figure.Figure()
@@ -178,6 +174,8 @@ class ChartCanvasTrades(_ChartCanvas):
 
         self.cid = self.mpl_connect('button_press_event', self.onclick)
 
+    def onclick(self, event):
+        self.parent.pricePicked.emit(event.ydata)
 
 
 """
