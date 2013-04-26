@@ -63,8 +63,9 @@ Probably works, but you'll have to manually install the dependecies.
     sudo python3 setup.py install
 
 ### Windows
-It works in Windows, but it takes a lot of work. I could make an 
-installer or standalone EXE but I can't stand using Windows.
+It works on windows, I've tested it. But the thing is installing 
+Linux on your computer, and then installing this program is easier 
+and than it is to install it on windows.
 
 ## Donate
 Bitcoin: 1NKKQBSaQ6XMViwC46b4JCxGUiUp6EDZR5

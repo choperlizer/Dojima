@@ -40,7 +40,7 @@ import dojima.ui.wizard
 
 PRETTY_NAME = "BTC-e"
 HOSTNAME = "btc-e.com"
-URL_BASE_URL = "https://" + HOSTNAME + "/api/2/"
+URL_BASE = "https://" + HOSTNAME + "/api/2/"
 PLAIN_NAME = "btce"
 
 logger = logging.getLogger(PLAIN_NAME)
@@ -377,7 +377,7 @@ class _BtcePublicRequest(dojima.network.ExchangeGETRequest):
 
 
 class BtceDepthRequest(_BtcePublicRequest):
-    path = "depth"
+    path = "/depth"
 
     def _handle_reply(self, raw):
         logger.debug(raw)
