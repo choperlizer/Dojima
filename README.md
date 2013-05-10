@@ -8,6 +8,8 @@
 This is a PyQt Bitcoin exchange client. It is still a little rough 
 around the edges but it works. 
 
+![screenshot](http://image.bayimg.com/b7560fe98133c157eeff5cfcf767f2b2dc0815a0.jpg)
+
 ## Rationale
 I think trading through a browser sucks. With Dōjima you just run 
 the client, bring up the market you want, and punch in orders. 
