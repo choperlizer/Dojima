@@ -413,7 +413,7 @@ class CampbxTradeRequest(_CampbxPrivateRequest):
             self.parent.counter_balance_proxy.balance_liquid_changed.emit(total)
 
             if not order_id:
-                self.parent.counte_balance_proxy.balance_total_changed.emit(total)
+                self.parent.counter_balance_proxy.balance_total_changed.emit(total)
 
         if order_id:
             row = self.parent.offers_model.rowCount()
