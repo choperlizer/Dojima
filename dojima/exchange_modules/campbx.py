@@ -293,7 +293,6 @@ class CampbxDepthRequest(_CampbxRequest):
         self.parent.depth_proxy.processBids(bids)
         
         asks = data['Asks']
-        asks.reverse()
         asks = np.array(asks).transpose()
         self.parent.depth_proxy.processAsks(asks)
 
