@@ -64,6 +64,12 @@ Probably works, but you'll have to manually install the dependecies.
     cd dojima
     sudo python3 setup.py install
 
+### Arch Linux
+    sudo pacman -Sy python-pyqt4 python-matplotlib
+    git clone git@github.com:3M3RY/Dojima.git dojima
+    cd dojima
+    sudo python3 setup.py install
+
 ### Windows
 It works on windows, I've tested it. But the thing is installing 
 Linux on your computer, and then installing this program is easier 
