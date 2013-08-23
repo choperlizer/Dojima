@@ -152,6 +152,7 @@ class CampbxExchange(QtCore.QObject, dojima.exchange.ExchangeSingleMarket):
 
     accountChanged = QtCore.pyqtSignal(str)
     bitcoinDepositAddress = QtCore.pyqtSignal(str)
+    bitcoinDepositAddressExpiry = QtCore.pyqtSignal(str)
     bitcoinWithdrawalReply = QtCore.pyqtSignal(str)
     exchange_error_signal = QtCore.pyqtSignal(str)
     
@@ -324,8 +325,11 @@ class CampbxBitcoinAddressRequest(_CampbxPrivateRequest):
         data = json.loads(raw)
         
         address = data['Success']
+        expiry = str(data['Expiry'])
         self.parent._bitcoin_deposit_address = address
         self.parent.bitcoinDepositAddress.emit(address)
+        #self.parent._bitcoin_deposit_address_expiry = expiry
+        self.parent.bitcoinDepositAddressExpiry.emit(expiry)
 
         
 class CampbxBitcoinWithdrawalRequest(_CampbxPrivateRequest):

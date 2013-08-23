@@ -77,6 +77,9 @@ class GetDepositAddressDialog(QtGui.QDialog):
         self.address_view.setReadOnly(True)
         self.address_view.setMinimumWidth(280)
 
+        self.expiry_view = QtGui.QLineEdit()
+        self.expiry_view.setReadOnly(True)
+
         self.request_button = QtGui.QPushButton(QtCore.QCoreApplication.translate("GetDepositAddressDialog", "Get Address"))
 
         button_box = QtGui.QDialogButtonBox()
@@ -86,6 +89,7 @@ class GetDepositAddressDialog(QtGui.QDialog):
         layout = QtGui.QFormLayout()
         layout.addRow(QtCore.QCoreApplication.translate("GetDepositAddressDialog", "Exchange:"), self.exchange_combo)
         layout.addRow(self.address_view)
+        layout.addRow(QtCore.QCoreApplication.translate("GetDepositAddressDialog", "Expiration:"), self.expiry_view)
         layout.addRow(button_box)
         self.setLayout(layout)
 
@@ -110,7 +114,9 @@ class GetDepositAddressDialog(QtGui.QDialog):
         index = self.exchange_combo.currentIndex()
         exchange_obj = self.exchange_objs[index]
         exchange_obj.bitcoinDepositAddress.connect(self._process_address)
-        exchange_obj.getBitcoinDepositAddress()
+        if hasattr(exchange_obj, "bitcoinDepositAddressExpiry"):
+            exchange_obj.bitcoinDepositAddressExpiry.connect(self._process_expiry)
+            exchange_obj.getBitcoinDepositAddress()
 
     def _process_address(self, address):
         index = self.exchange_combo.currentIndex()
@@ -129,6 +135,12 @@ class GetDepositAddressDialog(QtGui.QDialog):
             return
         """            
         self.address_view.setText(address)
+
+    def _process_expiry(self, expiry):
+        index = self.exchange_combo.currentIndex()
+        exchange_obj = self.exchange_objs[index]
+        exchange_obj.bitcoinDepositAddressExpiry.disconnect(self._process_expiry)
+        self.expiry_view.setText(expiry)
 
 
 class TransferDialog(QtGui.QDialog):
