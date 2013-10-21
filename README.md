@@ -15,14 +15,6 @@ I think trading through a browser sucks. With Dōjima you just run
 the client, bring up the market you want, and punch in orders. 
 No logging in, no images to load.
 
-I would very much like to support exchanges running 
-[Open Transactions](https://github.com/FellowTraveler/Open-Transactions).
-The internal structure of Dōjima was rebuilt for the 
-purposes of Open Transactions, and support was about half done but
-that is on hold for now until I can put together a general purpose 
-Qt API wrapper for OT, rather than hack around some issues with the
-Python GIL and interactivity.
-
 ## Supported Exchanges
 
  - [Bitstamp](https://www.bitstamp.net/)
