@@ -75,23 +75,7 @@ class CampbxExchangeProxy(dojima.exchange.ExchangeProxySingleMarket):
 
 
 class CampbxWizardPage(dojima.ui.wizard.ExchangeWizardPage):
-
-    def __init__(self, parent):
-        super(CampbxWizardPage, self).__init__(parent)
-        self.setTitle(PRETTY_NAME)
-        self._is_complete = False
-
-    def checkCompleteState(self):
-        if ( len(self.username_edit.text()) < 4 or
-             len(self.password_edit.text()) < 4 or
-             self.base_combo.currentIndex() == self.counter_combo.currentIndex() ):
-            is_complete = False
-        else:
-            is_complete = True
-
-        if self._is_complete is not is_complete:
-            self._is_complete = is_complete
-            self.completeChanged.emit()
+    name = PRETTY_NAME
 
     def initializePage(self):
         self.username_edit = QtGui.QLineEdit()

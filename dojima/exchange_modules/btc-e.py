@@ -141,25 +141,11 @@ class BtceExchangeProxy(dojima.exchange.ExchangeProxy):
 
             
 class BtceWizardPage(dojima.ui.wizard.ExchangeWizardPage):
-
-    def __init__(self, parent):
-        super(BtceWizardPage, self).__init__(parent)
-        self.setTitle(PRETTY_NAME)
-        self._is_complete = False
-
-    def checkCompleteState(self):
-        if self.base_combo.currentIndex() == self.counter_combo.currentIndex():
-            is_complete = False
-        else:
-            is_complete = True
-
-        if self._is_complete is not is_complete:
-            self._is_complete = is_complete
-            self.completeChanged.emit()
+    name = PRETTY_NAME
 
     def initializePage(self):
-        self.key_edit = QtGui.QLineEdit()
-        self.secret_edit = QtGui.QLineEdit()
+        self.username_edit = QtGui.QLineEdit()
+        self.password_edit = QtGui.QLineEdit()
         self.market_combo = QtGui.QComboBox()
         self.base_combo = QtGui.QComboBox()
         self.counter_combo = QtGui.QComboBox()
@@ -172,8 +158,8 @@ class BtceWizardPage(dojima.ui.wizard.ExchangeWizardPage):
         button_box.addButton(new_local_button, button_box.ActionRole)
 
         layout = QtGui.QFormLayout()
-        layout.addRow(QtCore.QCoreApplication.translate(PRETTY_NAME, "API Key"), self.key_edit)
-        layout.addRow(QtCore.QCoreApplication.translate(PRETTY_NAME, "API Secret"), self.secret_edit)
+        layout.addRow(QtCore.QCoreApplication.translate(PRETTY_NAME, "API Key"), self.username_edit)
+        layout.addRow(QtCore.QCoreApplication.translate(PRETTY_NAME, "API Secret"), self.password_edit)
         layout.addRow(QtCore.QCoreApplication.translate(PRETTY_NAME, "Market"), self.market_combo)
         layout.addRow(QtCore.QCoreApplication.translate(PRETTY_NAME, "Local Base Commodity"), self.base_combo)
         layout.addRow(QtCore.QCoreApplication.translate(PRETTY_NAME, "Local Counter Commodity"), self.counter_combo)
@@ -185,25 +171,19 @@ class BtceWizardPage(dojima.ui.wizard.ExchangeWizardPage):
         self.counter_combo.setModel(dojima.model.commodities.local_model)
                 
         new_local_button.clicked.connect(self.showNewCommodityDialog)
-        self.key_edit.textChanged.connect(self.checkCompleteState)
-        self.secret_edit.textChanged.connect(self.checkCompleteState)
+        self.username_edit.textChanged.connect(self.checkCompleteState)
+        self.password_edit.textChanged.connect(self.checkCompleteState)
         self.base_combo.currentIndexChanged.connect(self.checkCompleteState)
         self.counter_combo.currentIndexChanged.connect(self.checkCompleteState)
 
         key, secret = loadAccountSettings()
         if key:
-            self.key_edit.setText(key)
+            self.username_edit.setText(key)
         if secret:
-            self.secret_edit.setText(secret)
-
-    def isComplete(self):
-        return self._is_complete
-
-    def nextId(self):
-        return -1
+            self.password_edit.setText(secret)
 
     def validatePage(self):
-        saveAccountSettings(self.key_edit.text(), self.secret_edit.text())
+        saveAccountSettings(self.username_edit.text(), self.password_edit.text())
         
         base_symbol, counter_symbol = self.market_combo.currentText().split('_')
         base_symbol    = 'btce-' + base_symbol

@@ -35,6 +35,11 @@ class AddMarketsWizard(QtGui.QWizard):
 
 class ExchangeWizardPage(QtGui.QWizardPage):
 
+    def __init__(self, parent):
+        super(ExchangeWizardPage, self).__init__(parent)
+        self.setTitle(self.name)
+        self._is_complete = False
+
     def isComplete(self):
         return self._is_complete
 
@@ -44,7 +49,19 @@ class ExchangeWizardPage(QtGui.QWizardPage):
     def showNewCommodityDialog(self):
         dialog = dojima.ui.edit.commodities.NewCommodityDialog(self)
         dialog.exec_()
-        
+
+    def checkCompleteState(self):
+        if ( len(self.username_edit.text()) < 4 or
+             len(self.password_edit.text()) < 4 or
+             self.base_combo.currentIndex() == self.counter_combo.currentIndex() ):
+            is_complete = False
+        else:
+            is_complete = True
+
+        if self._is_complete is not is_complete:
+            self._is_complete = is_complete
+            self.completeChanged.emit()
+
 
 class SelectExchangePage(QtGui.QWizardPage):
 
