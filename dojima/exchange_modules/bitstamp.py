@@ -15,9 +15,12 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 
+import hashlib
 import heapq
+import hmac
 import json
 import logging
+import time
 from decimal import Decimal
 
 import matplotlib.dates
@@ -44,18 +47,20 @@ logger = logging.getLogger(PLAIN_NAME)
 BUY = 0
 SELL = 1        
 
-def saveAccountSettings(username, password):
+def saveAccountSettings(client_id, api_key, api_secret):
     settings = QtCore.QSettings()
     settings.beginGroup(PLAIN_NAME)
-    settings.setValue('username', username)
-    settings.setValue('password', password)
+    settings.setValue('client_id', client_id)
+    settings.setValue('api_key', api_key)
+    settings.setValue('api_secret', api_secret)
 
 def loadAccountSettings():
     settings = QtCore.QSettings()
     settings.beginGroup(PLAIN_NAME)
-    username = settings.value('username')
-    password = settings.value('password')
-    return username, password
+    client_id = settings.value('client_id')
+    api_key = settings.value('api_key')
+    api_secret = settings.value('api_secret')
+    return client_id, api_key, api_secret
 
 
 class BitstampExchangeProxy(dojima.exchange.ExchangeProxySingleMarket):
@@ -83,8 +88,9 @@ class BitstampWizardPage(dojima.ui.wizard.ExchangeWizardPage):
     name = PRETTY_NAME
 
     def initializePage(self):
+        self.customer_id_edit = QtGui.QLineEdit()
         self.username_edit = QtGui.QLineEdit()
-        self.password_edit = QtGui.QLineEdit(echoMode=QtGui.QLineEdit.Password)
+        self.password_edit = QtGui.QLineEdit()
         self.base_combo = QtGui.QComboBox()
         self.counter_combo = QtGui.QComboBox()
 
@@ -98,8 +104,9 @@ class BitstampWizardPage(dojima.ui.wizard.ExchangeWizardPage):
         button_box.addButton(new_local_button, button_box.ActionRole)
 
         layout = QtGui.QFormLayout()
-        layout.addRow(QtCore.QCoreApplication.translate(PRETTY_NAME, "Customer ID"), self.username_edit)
-        layout.addRow(QtCore.QCoreApplication.translate(PRETTY_NAME, "Password"), self.password_edit)
+        layout.addRow(QtCore.QCoreApplication.translate(PRETTY_NAME, "Customer ID"), self.customer_id_edit)
+        layout.addRow(QtCore.QCoreApplication.translate(PRETTY_NAME, "API Key"), self.username_edit)
+        layout.addRow(QtCore.QCoreApplication.translate(PRETTY_NAME, "API Secret"), self.password_edit)
         layout.addRow(QtCore.QCoreApplication.translate(PRETTY_NAME, "Local Bitcoin Commodity"), self.base_combo)
         layout.addRow(QtCore.QCoreApplication.translate(PRETTY_NAME, "Local USD Commodity"), self.counter_combo)
         layout.addRow(button_box)
@@ -117,7 +124,9 @@ class BitstampWizardPage(dojima.ui.wizard.ExchangeWizardPage):
         self.base_combo.currentIndexChanged.connect(self.checkCompleteState)
         self.counter_combo.currentIndexChanged.connect(self.checkCompleteState)
 
-        username, password = loadAccountSettings()
+        customer_id, username, password = loadAccountSettings()
+        if customer_id:
+            self.customer_id_edit.setText(customer_id)
         if username:
             self.username_edit.setText(username)
         if password:
@@ -126,7 +135,7 @@ class BitstampWizardPage(dojima.ui.wizard.ExchangeWizardPage):
         self.checkCompleteState()
 
     def validatePage(self):
-        saveAccountSettings(self.username_edit.text(), self.password_edit.text())
+        saveAccountSettings(self.customer_id_edit.text(), self.username_edit.text(), self.password_edit.text())
 
         local_base_id    = self.base_combo.itemData(self.base_combo.currentIndex(), QtCore.Qt.UserRole)
         local_counter_id = self.counter_combo.itemData(self.counter_combo.currentIndex(), QtCore.Qt.UserRole)
@@ -154,8 +163,10 @@ class BitstampExchange(QtCore.QObject, dojima.exchange.ExchangeSingleMarket):
         self.requests = list()
         self.replies = set()
 
-        self._username = None
-        self._password = None
+        self._client_id = None
+        self._api_key = None
+        self._api_secret = None
+        self._nonce = int(time.time() / 2)
         self._bitcoin_deposit_address = None
         
         self._ticker_refresh_rate = 16
@@ -194,13 +205,14 @@ class BitstampExchange(QtCore.QObject, dojima.exchange.ExchangeSingleMarket):
         return self.trades_proxy
         
     def hasAccount(self, market=None):
-        return bool(self._username and self._password)
+        return bool(self._client_id and self._api_key and self._api_secret)
         
     def loadAccountCredentials(self, market=None):
-        username, password = loadAccountSettings()
-        if self._username != username or self._password != password:
-            self._username = username
-            self._password = password
+        client_id, api_key, api_secret = loadAccountSettings()
+        if self._client_id != client_id or self._api_key !=  api_key or self._api_secret != api_secret:
+            self._client_id = client_id
+            self._api_key = api_key
+            self._api_secret = api_secret
             self.accountChanged.emit(MARKET_ID)
 
     def placeAskLimitOffer(self, amount, price, market=None):
@@ -299,9 +311,17 @@ class _BitstampPrivateRequest(dojima.network.ExchangePOSTRequest):
         self.request = QtNetwork.QNetworkRequest(self.url)
         self.request.setHeader(QtNetwork.QNetworkRequest.ContentTypeHeader,
                                "application/x-www-form-urlencoded")
+
+        nonce = str(self.parent._nonce)
+        
+        message = bytes(nonce + self.parent._client_id + self.parent._api_key, 'utf')
+        signature = hmac.new(bytes(self.parent._api_secret, 'utf'), msg=message, digestmod = hashlib.sha256).hexdigest().upper()
+        
         query = QtCore.QUrl()
-        query.addQueryItem('user',     self.parent._username)
-        query.addQueryItem('password', self.parent._password)
+        query.addQueryItem('key',       self.parent._api_key)
+        query.addQueryItem('signature', signature)
+        query.addQueryItem('nonce',     nonce)
+        self.parent._nonce += 1
         
         if self.params:
             for key, value in list(self.params.items()):
@@ -450,32 +470,36 @@ class BitstampEditCredentialsAction(dojima.exchange.EditCredentialsAction):
         if dialog.exec_():
             self.accountSettingsChanged.emit()
 
-        
+
 class BitstampEditCredentialsDialog(QtGui.QDialog):
 
     def __init__(self, parent=None):
         super(BitstampEditCredentialsDialog, self).__init__(parent)
-        
-        self.username_edit = QtGui.QLineEdit()
-        self.password_edit = QtGui.QLineEdit(echoMode=QtGui.QLineEdit.Password)
+
+        self.client_id_edit = QtGui.QLineEdit()
+        self.api_key_edit = QtGui.QLineEdit()
+        self.api_secret_edit = QtGui.QLineEdit()
         button_box = QtGui.QDialogButtonBox(QtGui.QDialogButtonBox.Save)
         button_box.accepted.connect(self.save)
         button_box.rejected.connect(self.reject)
         
         layout = QtGui.QFormLayout()
-        layout.addRow(QtCore.QCoreApplication.translate(PLAIN_NAME, "Username"), self.username_edit)
-        layout.addRow(QtCore.QCoreApplication.translate(PLAIN_NAME, "Password"), self.password_edit)
+        layout.addRow(QtCore.QCoreApplication.translate(PLAIN_NAME, "Customer ID"), self.client_id_edit)
+        layout.addRow(QtCore.QCoreApplication.translate(PLAIN_NAME, "API Key"), self.api_key_edit)
+        layout.addRow(QtCore.QCoreApplication.translate(PLAIN_NAME, "API Secret"), self.api_secret_edit)
         layout.addRow(button_box)
         self.setLayout(layout)
 
-        username, password = loadAccountSettings()
-        if username:
-            self.username_edit.setText(username)
-        if password:
-            self.password_edit.setText(password)
+        client_id, api_key, api_secret = loadAccountSettings()
+        if client_id:
+            self.client_id_edit.setText(client_id)
+        if api_key:
+            self.api_key_edit.setText(api_key)
+        if api_secret:
+            self.api_secret_edit.setText(api_secret)
 
     def save(self):
-        saveAccountSettings(self.username_edit.text(), self.password_edit.text())
+        saveAccountSettings(self.client_id_edit.text(), self.api_key_edit.text(), self.api_secret_edit.text())
         self.accept()
         
         
