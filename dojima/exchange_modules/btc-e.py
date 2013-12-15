@@ -45,14 +45,16 @@ PLAIN_NAME = "btce"
 
 logger = logging.getLogger(PLAIN_NAME)
 
-MARKETS = ( 'btc_eur', 'btc_rur', 'btc_usd', 
-            'eur_usd', 
-            'ltc_btc', 'ltc_rur', 'ltc_usd', 
-            'nmc_btc', 
-            'nvc_btc', 
-            'ppc_btc',
+MARKETS = ( 'btc_eur', 'btc_rur', 'btc_usd',
+            'eur_usd',
+            'ftc_btc',
+            'ltc_btc', 'ltc_eur', 'ltc_rur', 'ltc_usd',
+            'nmc_btc', 'nmc_btc',
+            'nvc_btc', 'nvc_usd',
+            'ppc_btc', 'ppc_usd',
             'trc_btc', 
-            'usd_rur', )
+            'usd_rur',
+            'xpm_btc',)
 
 FACTORS = { 'btc':int(1e8),
             'eur':int(1e6),

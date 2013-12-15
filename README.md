@@ -1,5 +1,8 @@
 # Dōjima
 
+This was my "Learn PyQt" project, if that doesn't scare you off,
+read this:
+
 **This program is distributed in the hope that it will be useful,**
 **but WITHOUT ANY WARRANTY; without even the implied warranty of**
 **MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the**
@@ -69,8 +72,3 @@ and than it is to install it on windows.
 
 ## Donate
 Bitcoin: 1NKKQBSaQ6XMViwC46b4JCxGUiUp6EDZR5
-
-
-
-
-*"This thing is pretty fun if you think of it as a game"* - Emery
